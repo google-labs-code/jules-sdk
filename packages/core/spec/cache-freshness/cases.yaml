@@ -1,0 +1,124 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Cache Freshness Spec
+##
+## Behavior: "I need to know if my cached data is fresh"
+##
+## These specs define how users can determine cache staleness and
+## make informed decisions about when to sync.
+
+# =============================================================================
+# CACHE METADATA
+# =============================================================================
+
+- id: FRESH-01
+  description: Cache metadata includes last sync timestamp
+  category: cache_metadata
+  status: implemented
+  testedIn: tests/cache/spec.test.ts
+  priority: P0
+  given:
+    syncPerformed: true
+    sessionId: 'test-session'
+  when: getCacheInfo
+  then:
+    result:
+      lastSyncedAt:
+        type: timestamp
+        notNull: true
+
+- id: FRESH-02
+  description: Cache info available per session
+  category: cache_metadata
+  status: implemented
+  testedIn: tests/cache/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-123'
+    activitiesSynced: 10
+  when: getSessionCacheInfo
+  then:
+    result:
+      sessionId: 'sess-123'
+      activityCount: 10
+      lastSyncedAt:
+        notNull: true
+
+- id: FRESH-03
+  description: Cache info includes activity count without full scan
+  category: cache_metadata
+  status: implemented
+  testedIn: tests/cache/spec.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-456'
+    cachedActivities: 50
+  when: getSessionCacheInfo
+  then:
+    result:
+      activityCount: 50
+    performance:
+      fullScanRequired: false
+
+- id: FRESH-06
+  description: Global cache info available in O(1) without scanning sessions
+  category: cache_metadata
+  status: implemented
+  testedIn: tests/cache/spec.test.ts
+  priority: P0
+  given:
+    cachedSessions: 100
+  when: getCacheInfo
+  then:
+    result:
+      lastSyncedAt: { notNull: true }
+      sessionCount: 100
+    performance:
+      sessionScanRequired: false
+
+# =============================================================================
+# STALENESS DETECTION
+# =============================================================================
+
+- id: FRESH-04
+  description: Cache info indicates when data may be stale
+  category: staleness
+  status: implemented
+  testedIn: tests/caching.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-789'
+    lastSyncedAt: '2 hours ago'
+    sessionState: 'IN_PROGRESS'
+  when: getSessionCacheInfo
+  then:
+    result:
+      mayBeStale: true
+      reason: 'Session active, cache older than threshold'
+
+- id: FRESH-05
+  description: Completed session cache is not marked stale
+  category: staleness
+  status: implemented
+  testedIn: tests/caching.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-done'
+    lastSyncedAt: '2 hours ago'
+    sessionState: 'COMPLETED'
+  when: getSessionCacheInfo
+  then:
+    result:
+      mayBeStale: false

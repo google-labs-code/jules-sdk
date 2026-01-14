@@ -1,0 +1,20 @@
+{
+  "name": "jules-sdk-example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A simple example demonstrating the @google/jules-sdk.",
+  "main": "main.ts",
+  "scripts": {
+    "start": "bun run main.ts",
+    "verify": "bun run smoke-test.ts"
+  },
+  "keywords": [],
+  "author": "Google LLC",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@google/jules-sdk": "*",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

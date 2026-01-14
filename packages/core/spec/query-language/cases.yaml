@@ -1,0 +1,1864 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Query Language Test Cases
+version: '1.0'
+
+cases:
+  # ============================================
+  # SELECT - Basic Projection
+  # ============================================
+
+  - id: SEL-01
+    description: Empty select returns domain default projection
+    category: select_basic
+    priority: P0
+    given:
+      query:
+        from: activities
+        where: { id: 'act-1' }
+        # select omitted
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Working...'
+          description: 'Doing stuff'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'ls',
+                stdout: 'file.txt',
+                stderr: '',
+                exitCode: 0,
+              }
+    then:
+      returns:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          artifactCount: 1
+          summary: 'Working...: Doing stuff'
+
+  - id: SEL-02
+    description: Explicit select returns only specified fields
+    category: select_basic
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'type']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello world'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          # No other fields
+
+  - id: SEL-03
+    description: Wildcard select returns all fields plus computed
+    category: select_basic
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['*']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+          artifactCount: 0
+          summary: 'Hello'
+
+  # ============================================
+  # SELECT - Nested Path Projection
+  # ============================================
+
+  - id: SEL-10
+    description: Dot notation selects nested object fields
+    category: select_nested
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'plan.steps.title']
+        where: { type: 'planGenerated' }
+      data:
+        - id: 'act-1'
+          type: 'planGenerated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          plan:
+            id: 'plan-1'
+            steps:
+              - { id: 's1', title: 'Step 1', description: 'Do X', index: 0 }
+              - { id: 's2', title: 'Step 2', description: 'Do Y', index: 1 }
+            createTime: '2024-01-01T00:00:00Z'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          plan:
+            steps:
+              - { title: 'Step 1' }
+              - { title: 'Step 2' }
+
+  - id: SEL-11
+    description: Multiple nested paths from same parent
+    category: select_nested
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'plan.steps.title', 'plan.steps.index']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'planGenerated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          plan:
+            id: 'plan-1'
+            steps:
+              - { id: 's1', title: 'First', description: '...', index: 0 }
+            createTime: '2024-01-01T00:00:00Z'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          plan:
+            steps:
+              - { title: 'First', index: 0 }
+
+  - id: SEL-12
+    description: Array element projection on artifacts
+    category: select_nested
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.type', 'artifacts.command']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Running'
+          description: 'Tests'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm test',
+                stdout: 'PASS',
+                stderr: '',
+                exitCode: 0,
+              }
+            - { type: 'media', format: 'image/png', data: 'base64...' }
+    then:
+      returns:
+        - id: 'act-1'
+          artifacts:
+            - { type: 'bashOutput', command: 'npm test' }
+            - { type: 'media' }
+
+  - id: SEL-13
+    description: Deep nested path through changeSet
+    category: select_nested
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.changeSet.gitPatch.suggestedCommitMessage']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Changes'
+          description: 'Made changes'
+          artifacts:
+            - type: 'changeSet'
+              changeSet:
+                source: 'sources/github/foo/bar'
+                gitPatch:
+                  unidiffPatch: 'diff --git a/file.ts b/file.ts...'
+                  baseCommitId: 'abc123'
+                  suggestedCommitMessage: 'Fix bug'
+    then:
+      returns:
+        - id: 'act-1'
+          artifacts:
+            - changeSet:
+                gitPatch:
+                  suggestedCommitMessage: 'Fix bug'
+
+  # ============================================
+  # SELECT - Exclusion
+  # ============================================
+
+  - id: SEL-20
+    description: Exclusion with dash prefix
+    category: select_exclusion
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['*', '-artifacts.data']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Screenshot'
+          description: 'Captured'
+          artifacts:
+            - { type: 'media', format: 'image/png', data: 'base64encodeddata' }
+    then:
+      returns:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Screenshot'
+          description: 'Captured'
+          artifacts:
+            - { type: 'media', format: 'image/png' }
+          artifactCount: 1
+          summary: 'Screenshot: Captured'
+
+  - id: SEL-21
+    description: Multiple exclusions
+    category: select_exclusion
+    priority: P0
+    given:
+      query:
+        from: activities
+        select:
+          ['*', '-artifacts.data', '-artifacts.changeSet.gitPatch.unidiffPatch']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Changes'
+          description: 'Applied'
+          artifacts:
+            - type: 'changeSet'
+              changeSet:
+                source: 'src'
+                gitPatch:
+                  unidiffPatch: 'very long diff content here...'
+                  baseCommitId: 'abc'
+                  suggestedCommitMessage: 'Fix'
+    then:
+      returns:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Changes'
+          description: 'Applied'
+          artifacts:
+            - type: 'changeSet'
+              changeSet:
+                source: 'src'
+                gitPatch:
+                  baseCommitId: 'abc'
+                  suggestedCommitMessage: 'Fix'
+          artifactCount: 1
+          summary: 'Changes: Applied'
+
+  - id: SEL-22
+    description: Exclusion takes precedence over inclusion
+    category: select_exclusion
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts', '-artifacts.data']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Image'
+          description: 'Saved'
+          artifacts:
+            - { type: 'media', format: 'image/png', data: 'base64...' }
+    then:
+      returns:
+        - id: 'act-1'
+          artifacts:
+            - { type: 'media', format: 'image/png' }
+
+  # ============================================
+  # WHERE - Nested Path Filtering
+  # ============================================
+
+  - id: WHERE-10
+    description: Filter on nested artifact type
+    category: where_nested
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.command', 'artifacts.exitCode']
+        where:
+          'artifacts.type': 'bashOutput'
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Test'
+          description: 'Running'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm test',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Screenshot'
+          description: 'Taken'
+          artifacts:
+            - { type: 'media', format: 'image/png', data: '...' }
+        - id: 'act-3'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          title: 'Build'
+          description: 'Complete'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm build',
+                stdout: '',
+                stderr: '',
+                exitCode: 1,
+              }
+            - { type: 'media', format: 'image/png', data: '...' }
+    then:
+      returns:
+        - id: 'act-3'
+          artifacts:
+            - { command: 'npm build', exitCode: 1 }
+            - {}
+        - id: 'act-1'
+          artifacts:
+            - { command: 'npm test', exitCode: 0 }
+
+  - id: WHERE-11
+    description: Filter with neq operator on nested field
+    category: where_nested
+    priority: P0
+    given:
+      query:
+        from: activities
+        where:
+          'artifacts.exitCode': { neq: 0 }
+        select: ['id', 'artifacts.command', 'artifacts.exitCode']
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Test'
+          description: 'Pass'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm test',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Build'
+          description: 'Fail'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm build',
+                stdout: '',
+                stderr: 'Error',
+                exitCode: 1,
+              }
+    then:
+      returns:
+        - id: 'act-2'
+          artifacts:
+            - { command: 'npm build', exitCode: 1 }
+
+  - id: WHERE-12
+    description: Existential semantics - matches if ANY artifact matches
+    category: where_nested
+    priority: P0
+    given:
+      query:
+        from: activities
+        where:
+          'artifacts.type': 'changeSet'
+        select: ['id']
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Mixed'
+          description: 'Content'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'ls',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+            - type: 'changeSet'
+              changeSet:
+                source: 'src'
+                gitPatch:
+                  unidiffPatch: 'diff'
+                  baseCommitId: 'abc'
+                  suggestedCommitMessage: 'msg'
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Bash'
+          description: 'Only'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'pwd',
+                stdout: '/home',
+                stderr: '',
+                exitCode: 0,
+              }
+    then:
+      returns:
+        - id: 'act-1'
+
+  - id: WHERE-13
+    description: Combined top-level and nested filters
+    category: where_nested
+    priority: P0
+    given:
+      query:
+        from: activities
+        where:
+          sessionId: 'sess-1'
+          type: 'progressUpdated'
+          'artifacts.exitCode': { neq: 0 }
+        select: ['id', 'artifacts.command', 'artifacts.stderr']
+      data:
+        - id: 'act-1'
+          sessionId: 'sess-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Fail'
+          description: 'Test failed'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm test',
+                stdout: '',
+                stderr: 'Error!',
+                exitCode: 1,
+              }
+        - id: 'act-2'
+          sessionId: 'sess-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Pass'
+          description: 'Build passed'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm build',
+                stdout: 'OK',
+                stderr: '',
+                exitCode: 0,
+              }
+        - id: 'act-3'
+          sessionId: 'sess-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          title: 'Fail'
+          description: 'Different session'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'fail',
+                stdout: '',
+                stderr: 'Oops',
+                exitCode: 1,
+              }
+    then:
+      returns:
+        - id: 'act-1'
+          artifacts:
+            - { command: 'npm test', stderr: 'Error!' }
+
+  - id: WHERE-14
+    description: Filter with exists operator
+    category: where_nested
+    priority: P1
+    given:
+      query:
+        from: activities
+        where:
+          'artifacts.changeSet': { exists: true }
+        select: ['id']
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Has change'
+          description: 'With changeset'
+          artifacts:
+            - type: 'changeSet'
+              changeSet:
+                source: 'src'
+                gitPatch:
+                  unidiffPatch: 'diff'
+                  baseCommitId: 'abc'
+                  suggestedCommitMessage: 'msg'
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Bash'
+          description: 'Only bash'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'ls',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+    then:
+      returns:
+        - id: 'act-1'
+
+  # ============================================
+  # SELECT - Computed Fields
+  # ============================================
+
+  - id: COMP-01
+    description: artifactCount computed field
+    category: computed
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifactCount']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Multi'
+          description: 'Artifacts'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'a',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+            - {
+                type: 'bashOutput',
+                command: 'b',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+            - { type: 'media', format: 'image/png', data: '...' }
+    then:
+      returns:
+        - id: 'act-1'
+          artifactCount: 3
+
+  - id: COMP-02
+    description: summary computed field for progressUpdated
+    category: computed
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'summary']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Building'
+          description: 'Running npm build'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          summary: 'Building: Running npm build'
+
+  - id: COMP-03
+    description: summary computed field for planGenerated
+    category: computed
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'summary']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'planGenerated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          plan:
+            id: 'plan-1'
+            steps:
+              - { id: 's1', title: 'A', description: '', index: 0 }
+              - { id: 's2', title: 'B', description: '', index: 1 }
+              - { id: 's3', title: 'C', description: '', index: 2 }
+            createTime: '2024-01-01T00:00:00Z'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          summary: 'Plan generated with 3 steps'
+
+  - id: COMP-04
+    description: summary computed field for agentMessaged
+    category: computed
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'summary']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello, I will help you with this task.'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          summary: 'Hello, I will help you with this task.'
+
+  - id: COMP-05
+    description: summary truncates long messages
+    category: computed
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'summary']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'This is a very long message that exceeds the maximum summary length of 200 characters and should be truncated with an ellipsis at the end to indicate that there is more content available. Extra text here.'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          summary: 'This is a very long message that exceeds the maximum summary length of 200 characters and should be truncated with an ellipsis at the end to indicate that there is more content available. Extra text h...'
+
+  # ============================================
+  # Edge Cases
+  # ============================================
+
+  - id: EDGE-01
+    description: Path to non-existent field is omitted
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'nonexistent.field']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+
+  - id: EDGE-02
+    description: Type-conditional field only on matching types
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'type', 'message', 'plan.steps.title']
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+        - id: 'act-2'
+          type: 'planGenerated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          plan:
+            id: 'p1'
+            steps:
+              - { id: 's1', title: 'Do X', description: '', index: 0 }
+            createTime: '2024-01-01T00:00:01Z'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-2'
+          type: 'planGenerated'
+          plan:
+            steps:
+              - { title: 'Do X' }
+        - id: 'act-1'
+          type: 'agentMessaged'
+          message: 'Hello'
+
+  - id: EDGE-03
+    description: Empty artifacts array preserved
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.type']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          artifacts: []
+
+  - id: EDGE-04
+    description: Null artifacts handled gracefully
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifactCount']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'sessionCompleted'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'system'
+          artifacts: null
+    then:
+      returns:
+        - id: 'act-1'
+          artifactCount: 0
+
+  # ============================================
+  # WHERE - Filter Operators
+  # ============================================
+
+  - id: WHERE-20
+    description: eq operator matches exact value
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id']
+        where:
+          type: { eq: 'agentMessaged' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Working'
+          description: 'On it'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+
+  - id: WHERE-21
+    description: neq operator excludes matching values
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'type']
+        where:
+          type: { neq: 'agentMessaged' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Working'
+          description: 'On it'
+          artifacts: []
+        - id: 'act-3'
+          type: 'planGenerated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          plan:
+            id: 'plan-1'
+            steps: []
+            createTime: '2024-01-01T00:00:02Z'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-3'
+          type: 'planGenerated'
+        - id: 'act-2'
+          type: 'progressUpdated'
+
+  - id: WHERE-22
+    description: contains operator matches substring (case-insensitive)
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'message']
+        where:
+          message: { contains: 'hello' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'HELLO world!'
+          artifacts: []
+        - id: 'act-2'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          message: 'Goodbye world'
+          artifacts: []
+        - id: 'act-3'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          message: 'Say hello again'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-3'
+          message: 'Say hello again'
+        - id: 'act-1'
+          message: 'HELLO world!'
+
+  - id: WHERE-23
+    description: gt operator for numeric comparison
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.exitCode']
+        where:
+          'artifacts.exitCode': { gt: 0 }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Pass'
+          description: 'Success'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'test',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Fail'
+          description: 'Error'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'fail',
+                stdout: '',
+                stderr: 'err',
+                exitCode: 1,
+              }
+        - id: 'act-3'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          title: 'Severe'
+          description: 'Crash'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'crash',
+                stdout: '',
+                stderr: 'crash',
+                exitCode: 127,
+              }
+    then:
+      returns:
+        - id: 'act-3'
+          artifacts:
+            - { exitCode: 127 }
+        - id: 'act-2'
+          artifacts:
+            - { exitCode: 1 }
+
+  - id: WHERE-24
+    description: gte operator includes boundary value
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.exitCode']
+        where:
+          'artifacts.exitCode': { gte: 1 }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Zero'
+          description: 'OK'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'ok',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'One'
+          description: 'Boundary'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'one',
+                stdout: '',
+                stderr: '',
+                exitCode: 1,
+              }
+        - id: 'act-3'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          title: 'Two'
+          description: 'Higher'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'two',
+                stdout: '',
+                stderr: '',
+                exitCode: 2,
+              }
+    then:
+      returns:
+        - id: 'act-3'
+          artifacts:
+            - { exitCode: 2 }
+        - id: 'act-2'
+          artifacts:
+            - { exitCode: 1 }
+
+  - id: WHERE-25
+    description: lt operator for numeric comparison
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.exitCode']
+        where:
+          'artifacts.exitCode': { lt: 2 }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Zero'
+          description: 'OK'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'ok',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'One'
+          description: 'Almost'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'one',
+                stdout: '',
+                stderr: '',
+                exitCode: 1,
+              }
+        - id: 'act-3'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          title: 'Two'
+          description: 'Excluded'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'two',
+                stdout: '',
+                stderr: '',
+                exitCode: 2,
+              }
+    then:
+      returns:
+        - id: 'act-2'
+          artifacts:
+            - { exitCode: 1 }
+        - id: 'act-1'
+          artifacts:
+            - { exitCode: 0 }
+
+  - id: WHERE-26
+    description: lte operator includes boundary value
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.exitCode']
+        where:
+          'artifacts.exitCode': { lte: 1 }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Zero'
+          description: 'OK'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'ok',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'One'
+          description: 'Boundary'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'one',
+                stdout: '',
+                stderr: '',
+                exitCode: 1,
+              }
+        - id: 'act-3'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          title: 'Two'
+          description: 'Excluded'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'two',
+                stdout: '',
+                stderr: '',
+                exitCode: 2,
+              }
+    then:
+      returns:
+        - id: 'act-2'
+          artifacts:
+            - { exitCode: 1 }
+        - id: 'act-1'
+          artifacts:
+            - { exitCode: 0 }
+
+  - id: WHERE-27
+    description: in operator matches set membership
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'type']
+        where:
+          type: { in: ['agentMessaged', 'planGenerated'] }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Working'
+          description: 'On it'
+          artifacts: []
+        - id: 'act-3'
+          type: 'planGenerated'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          plan:
+            id: 'plan-1'
+            steps: []
+            createTime: '2024-01-01T00:00:02Z'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-3'
+          type: 'planGenerated'
+        - id: 'act-1'
+          type: 'agentMessaged'
+
+  - id: WHERE-28
+    description: exists true matches non-null fields
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'type']
+        where:
+          message: { exists: true }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Working'
+          description: 'On it'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          type: 'agentMessaged'
+
+  - id: WHERE-29
+    description: exists false matches null/undefined fields
+    category: where_operators
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'type']
+        where:
+          message: { exists: false }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+        - id: 'act-2'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          title: 'Working'
+          description: 'On it'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-2'
+          type: 'progressUpdated'
+
+  # ============================================
+  # Sessions Domain
+  # ============================================
+
+  - id: SESS-01
+    description: Session default projection
+    category: sessions
+    priority: P0
+    given:
+      query:
+        from: sessions
+        where: { id: 'sess-1' }
+      data:
+        - id: 'sess-1'
+          state: 'running'
+          title: 'Fix authentication bug'
+          createTime: '2024-01-01T00:00:00Z'
+          updateTime: '2024-01-01T01:00:00Z'
+          prompt: 'Please fix the auth bug'
+    then:
+      returns:
+        - id: 'sess-1'
+          state: 'running'
+          title: 'Fix authentication bug'
+          createTime: '2024-01-01T00:00:00Z'
+
+  - id: SESS-02
+    description: Session filter by state
+    category: sessions
+    priority: P0
+    given:
+      query:
+        from: sessions
+        select: ['id', 'state']
+        where:
+          state: 'completed'
+      data:
+        - id: 'sess-1'
+          state: 'running'
+          title: 'Active session'
+          createTime: '2024-01-01T00:00:00Z'
+          updateTime: '2024-01-01T00:30:00Z'
+        - id: 'sess-2'
+          state: 'completed'
+          title: 'Done session'
+          createTime: '2024-01-01T01:00:00Z'
+          updateTime: '2024-01-01T02:00:00Z'
+        - id: 'sess-3'
+          state: 'waiting'
+          title: 'Waiting session'
+          createTime: '2024-01-01T02:00:00Z'
+          updateTime: '2024-01-01T02:30:00Z'
+    then:
+      returns:
+        - id: 'sess-2'
+          state: 'completed'
+
+  - id: SESS-03
+    description: Session filter by state with in operator
+    category: sessions
+    priority: P0
+    given:
+      query:
+        from: sessions
+        select: ['id', 'state']
+        where:
+          state: { in: ['running', 'waiting'] }
+      data:
+        - id: 'sess-1'
+          state: 'running'
+          title: 'Active'
+          createTime: '2024-01-01T00:00:00Z'
+          updateTime: '2024-01-01T00:30:00Z'
+        - id: 'sess-2'
+          state: 'completed'
+          title: 'Done'
+          createTime: '2024-01-01T01:00:00Z'
+          updateTime: '2024-01-01T02:00:00Z'
+        - id: 'sess-3'
+          state: 'waiting'
+          title: 'Paused'
+          createTime: '2024-01-01T02:00:00Z'
+          updateTime: '2024-01-01T02:30:00Z'
+    then:
+      returns:
+        - id: 'sess-3'
+          state: 'waiting'
+        - id: 'sess-1'
+          state: 'running'
+
+  - id: SESS-04
+    description: Session title search with contains
+    category: sessions
+    priority: P0
+    given:
+      query:
+        from: sessions
+        select: ['id', 'title']
+        where:
+          title: { contains: 'bug' }
+      data:
+        - id: 'sess-1'
+          state: 'running'
+          title: 'Fix authentication bug'
+          createTime: '2024-01-01T00:00:00Z'
+          updateTime: '2024-01-01T00:30:00Z'
+        - id: 'sess-2'
+          state: 'completed'
+          title: 'Add new feature'
+          createTime: '2024-01-01T01:00:00Z'
+          updateTime: '2024-01-01T02:00:00Z'
+        - id: 'sess-3'
+          state: 'running'
+          title: 'Debug performance issues'
+          createTime: '2024-01-01T02:00:00Z'
+          updateTime: '2024-01-01T02:30:00Z'
+    then:
+      returns:
+        - id: 'sess-3'
+          title: 'Debug performance issues'
+        - id: 'sess-1'
+          title: 'Fix authentication bug'
+
+  - id: SESS-05
+    description: Session durationMs computed field
+    category: sessions
+    priority: P0
+    given:
+      query:
+        from: sessions
+        select: ['id', 'durationMs']
+        where: { id: 'sess-1' }
+      data:
+        - id: 'sess-1'
+          state: 'completed'
+          title: 'One hour session'
+          createTime: '2024-01-01T00:00:00Z'
+          updateTime: '2024-01-01T01:00:00Z'
+    then:
+      returns:
+        - id: 'sess-1'
+          durationMs: 3600000
+
+  - id: SESS-06
+    description: Session with wildcard select
+    category: sessions
+    priority: P0
+    given:
+      query:
+        from: sessions
+        select: ['*']
+        where: { id: 'sess-1' }
+      data:
+        - id: 'sess-1'
+          state: 'running'
+          title: 'Test session'
+          createTime: '2024-01-01T00:00:00Z'
+          updateTime: '2024-01-01T01:00:00Z'
+          prompt: 'Do something'
+    then:
+      returns:
+        - id: 'sess-1'
+          state: 'running'
+          title: 'Test session'
+          createTime: '2024-01-01T00:00:00Z'
+          updateTime: '2024-01-01T01:00:00Z'
+          prompt: 'Do something'
+          durationMs: 3600000
+
+  # ============================================
+  # Ordering & Pagination
+  # ============================================
+
+  - id: PAGE-01
+    description: Default order is descending by createTime
+    category: pagination
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'createTime']
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'First'
+          artifacts: []
+        - id: 'act-2'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          message: 'Second'
+          artifacts: []
+        - id: 'act-3'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          message: 'Third'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-3'
+          createTime: '2024-01-01T00:00:02Z'
+        - id: 'act-2'
+          createTime: '2024-01-01T00:00:01Z'
+        - id: 'act-1'
+          createTime: '2024-01-01T00:00:00Z'
+
+  - id: PAGE-02
+    description: Ascending order by createTime
+    category: pagination
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id', 'createTime']
+        order: 'asc'
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'First'
+          artifacts: []
+        - id: 'act-2'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          message: 'Second'
+          artifacts: []
+        - id: 'act-3'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          message: 'Third'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          createTime: '2024-01-01T00:00:00Z'
+        - id: 'act-2'
+          createTime: '2024-01-01T00:00:01Z'
+        - id: 'act-3'
+          createTime: '2024-01-01T00:00:02Z'
+
+  - id: PAGE-03
+    description: Limit restricts result count
+    category: pagination
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id']
+        limit: 2
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'First'
+          artifacts: []
+        - id: 'act-2'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          message: 'Second'
+          artifacts: []
+        - id: 'act-3'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          message: 'Third'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-3'
+        - id: 'act-2'
+
+  - id: PAGE-04
+    description: startAfter cursor for pagination
+    category: pagination
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id']
+        startAfter: 'act-3'
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'First'
+          artifacts: []
+        - id: 'act-2'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          message: 'Second'
+          artifacts: []
+        - id: 'act-3'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          message: 'Third'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-2'
+        - id: 'act-1'
+
+  - id: PAGE-05
+    description: startAfter with limit for paginated results
+    category: pagination
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id']
+        startAfter: 'act-3'
+        limit: 1
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'First'
+          artifacts: []
+        - id: 'act-2'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          message: 'Second'
+          artifacts: []
+        - id: 'act-3'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:02Z'
+          originator: 'agent'
+          message: 'Third'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-2'
+
+  - id: PAGE-06
+    description: Stable ordering with same createTime uses id as tiebreaker
+    category: pagination
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id']
+      data:
+        - id: 'act-a'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'A'
+          artifacts: []
+        - id: 'act-c'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'C'
+          artifacts: []
+        - id: 'act-b'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'B'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-c'
+        - id: 'act-b'
+        - id: 'act-a'
+
+  - id: PAGE-07
+    description: Invalid startAfter cursor returns empty results
+    category: pagination
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id']
+        startAfter: 'nonexistent-id'
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+    then:
+      returns: []
+
+  - id: PAGE-08
+    description: Limit of zero returns empty results
+    category: pagination
+    priority: P2
+    given:
+      query:
+        from: activities
+        select: ['id']
+        limit: 0
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+    then:
+      returns: []
+
+  # ============================================
+  # Additional Edge Cases
+  # ============================================
+
+  - id: EDGE-10
+    description: Empty result set when no matches
+    category: edge_cases
+    priority: P0
+    given:
+      query:
+        from: activities
+        select: ['id']
+        where:
+          type: 'nonexistent'
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Hello'
+          artifacts: []
+    then:
+      returns: []
+
+  - id: EDGE-11
+    description: Deeply nested path (4+ levels)
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'artifacts.changeSet.gitPatch.baseCommitId']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Changes'
+          description: 'Applied'
+          artifacts:
+            - type: 'changeSet'
+              changeSet:
+                source: 'src'
+                gitPatch:
+                  unidiffPatch: 'diff...'
+                  baseCommitId: 'abc123def456'
+                  suggestedCommitMessage: 'Fix bug'
+    then:
+      returns:
+        - id: 'act-1'
+          artifacts:
+            - changeSet:
+                gitPatch:
+                  baseCommitId: 'abc123def456'
+
+  - id: EDGE-12
+    description: Unicode in string values
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'message']
+        where:
+          message: { contains: 'emoji' }
+      data:
+        - id: 'act-1'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          message: 'Test with emoji symbols here'
+          artifacts: []
+        - id: 'act-2'
+          type: 'agentMessaged'
+          createTime: '2024-01-01T00:00:01Z'
+          originator: 'agent'
+          message: 'Plain text message'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          message: 'Test with emoji symbols here'
+
+  - id: EDGE-13
+    description: Select parent preserves full nested object
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id', 'plan']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'planGenerated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          plan:
+            id: 'plan-1'
+            steps:
+              - { id: 's1', title: 'Step 1', description: 'Do X', index: 0 }
+              - { id: 's2', title: 'Step 2', description: 'Do Y', index: 1 }
+            createTime: '2024-01-01T00:00:00Z'
+          artifacts: []
+    then:
+      returns:
+        - id: 'act-1'
+          plan:
+            id: 'plan-1'
+            steps:
+              - { id: 's1', title: 'Step 1', description: 'Do X', index: 0 }
+              - { id: 's2', title: 'Step 2', description: 'Do Y', index: 1 }
+            createTime: '2024-01-01T00:00:00Z'
+
+  - id: EDGE-14
+    description: Mixed array element types handled correctly
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select:
+          ['id', 'artifacts.type', 'artifacts.command', 'artifacts.format']
+        where: { id: 'act-1' }
+      data:
+        - id: 'act-1'
+          type: 'progressUpdated'
+          createTime: '2024-01-01T00:00:00Z'
+          originator: 'agent'
+          title: 'Mixed'
+          description: 'Artifacts'
+          artifacts:
+            - {
+                type: 'bashOutput',
+                command: 'npm test',
+                stdout: '',
+                stderr: '',
+                exitCode: 0,
+              }
+            - { type: 'media', format: 'image/png', data: '...' }
+            - type: 'changeSet'
+              changeSet:
+                source: 'src'
+                gitPatch:
+                  unidiffPatch: 'diff'
+                  baseCommitId: 'abc'
+                  suggestedCommitMessage: 'Fix'
+    then:
+      returns:
+        - id: 'act-1'
+          artifacts:
+            - { type: 'bashOutput', command: 'npm test' }
+            - { type: 'media', format: 'image/png' }
+            - { type: 'changeSet' }
+
+  - id: EDGE-15
+    description: Query with no data returns empty array
+    category: edge_cases
+    priority: P1
+    given:
+      query:
+        from: activities
+        select: ['id']
+      data: []
+    then:
+      returns: []

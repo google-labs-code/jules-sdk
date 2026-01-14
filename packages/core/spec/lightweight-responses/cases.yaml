@@ -1,0 +1,245 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Lightweight Responses Spec
+##
+## Behavior: "I need MCP tool responses that fit within my context window"
+##
+## These specs define expected behavior for token-efficient responses.
+## MCP tools should return lightweight summaries by default, with full data opt-in.
+
+# =============================================================================
+# ACTIVITY SUMMARY (Default Response Shape)
+# =============================================================================
+
+- id: LIGHT-01
+  description: Activities include summary string by default
+  category: activity_summary
+  status: implemented
+  priority: P0
+  given:
+    activity:
+      id: 'act-1'
+      type: 'agentMessaged'
+      message: 'I have analyzed the codebase and found 3 issues...'
+      createTime: '2024-01-01T00:00:00Z'
+  when: toSummary
+  then:
+    result:
+      id: 'act-1'
+      type: 'agentMessaged'
+      createTime: '2024-01-01T00:00:00Z'
+      summary: 'I have analyzed the codebase and found 3 issues...'
+
+- id: LIGHT-02
+  description: Activity summary truncates long messages
+  category: activity_summary
+  status: implemented
+  priority: P0
+  given:
+    activity:
+      id: 'act-1'
+      type: 'agentMessaged'
+      message: 'A very long message that exceeds 200 characters and needs to be truncated for the summary view to keep responses lightweight and avoid wasting tokens on content that can be fetched on demand if needed by the consumer...'
+      createTime: '2024-01-01T00:00:00Z'
+  when: toSummary
+  then:
+    summaryMaxLength: 200
+    summaryEndsWith: '...'
+
+- id: LIGHT-03
+  description: progressUpdated activity summarizes title and description
+  category: activity_summary
+  status: implemented
+  priority: P1
+  given:
+    activity:
+      id: 'act-1'
+      type: 'progressUpdated'
+      title: 'Analyzing codebase'
+      description: 'Scanning files for patterns and identifying potential issues'
+      createTime: '2024-01-01T00:00:00Z'
+  when: toSummary
+  then:
+    result:
+      id: 'act-1'
+      type: 'progressUpdated'
+      createTime: '2024-01-01T00:00:00Z'
+      summary: 'Analyzing codebase: Scanning files for patterns and identifying potential issues'
+
+- id: LIGHT-04
+  description: planGenerated activity summarizes step count
+  category: activity_summary
+  status: implemented
+  priority: P1
+  given:
+    activity:
+      id: 'act-1'
+      type: 'planGenerated'
+      plan:
+        id: 'plan-1'
+        steps:
+          - { id: 's1', title: 'Step 1', index: 0 }
+          - { id: 's2', title: 'Step 2', index: 1 }
+          - { id: 's3', title: 'Step 3', index: 2 }
+      createTime: '2024-01-01T00:00:00Z'
+  when: toSummary
+  then:
+    result:
+      summary: 'Plan generated with 3 steps'
+
+# =============================================================================
+# ARTIFACT STRIPPING
+# =============================================================================
+
+- id: LIGHT-05
+  description: Artifacts stripped from activities by default
+  category: artifact_stripping
+  status: implemented
+  priority: P0
+  given:
+    activity:
+      id: 'act-1'
+      type: 'progressUpdated'
+      title: 'Running tests'
+      artifacts:
+        - type: 'bashOutput'
+          command: 'npm test'
+          stdout: '100 tests passed...'
+          stderr: ''
+          exitCode: 0
+  when: toLightweight
+  then:
+    result:
+      artifacts: null
+      artifactCount: 1
+
+- id: LIGHT-06
+  description: Artifacts can be included with explicit opt-in
+  category: artifact_stripping
+  status: implemented
+  priority: P0
+  given:
+    activity:
+      id: 'act-1'
+      type: 'progressUpdated'
+      artifacts:
+        - type: 'bashOutput'
+          command: 'npm test'
+  when: toLightweight
+  options:
+    includeArtifacts: true
+  then:
+    result:
+      artifactsIncluded: true
+
+- id: LIGHT-07
+  description: Media artifacts show metadata only (no base64 data)
+  category: artifact_stripping
+  status: implemented
+  priority: P1
+  given:
+    activity:
+      id: 'act-1'
+      type: 'progressUpdated'
+      artifacts:
+        - type: 'media'
+          format: 'image/png'
+          data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ...'
+  when: toLightweight
+  options:
+    includeArtifacts: true
+  then:
+    result:
+      artifacts:
+        - type: 'media'
+          format: 'image/png'
+          hasData: true
+          dataStripped: true
+
+# =============================================================================
+# MCP TOOL DEFAULTS
+# =============================================================================
+
+- id: LIGHT-09
+  description: jules_select returns lightweight results by default
+  category: mcp_defaults
+  status: implemented
+  priority: P0
+  given:
+    query:
+      from: activities
+      limit: 10
+  when: mcp_jules_select
+  then:
+    result:
+      items:
+        each:
+          hasSummary: true
+          artifactsStripped: true
+
+- id: LIGHT-10
+  description: jules_select with artifact fields returns complete activity data
+  category: mcp_defaults
+  status: implemented
+  priority: P1
+  given:
+    query:
+      from: activities
+      select: ['id', 'type', 'message', 'artifacts']
+      limit: 10
+  when: mcp_jules_select
+  then:
+    result:
+      items:
+        each:
+          hasFullMessage: true
+          hasArtifacts: true
+
+# =============================================================================
+# TOKEN BUDGET INTEGRATION
+# =============================================================================
+
+- id: LIGHT-11
+  description: Lightweight format uses fewer tokens than full format
+  category: token_efficiency
+  status: implemented
+  priority: P0
+  given:
+    activities:
+      count: 100
+      averageMessageLength: 500
+      averageArtifactCount: 2
+  when: compare_formats
+  then:
+    lightweightTokens:
+      lessThan: 8300
+    fullTokens:
+      greaterThan: 15000
+
+- id: LIGHT-12
+  description: Token budget applies after lightweight transformation
+  category: token_efficiency
+  status: implemented
+  priority: P1
+  given:
+    query:
+      from: activities
+      tokenBudget: 1000
+  when: mcp_jules_select
+  then:
+    result:
+      _meta:
+        tokenCount:
+          lessThanOrEqual: 1000
