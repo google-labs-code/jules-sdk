@@ -1,0 +1,269 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- id: MCP-01
+  description: Returns basic session state
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_state
+  given:
+    sessionId: session-123
+    sessionResource:
+      id: session-123
+      state: inProgress
+      url: http://example.com/session-123
+      title: Test Session
+  then:
+    result:
+      id: session-123
+      state: inProgress
+      url: http://example.com/session-123
+      title: Test Session
+- id: MCP-02
+  description: Includes PR info when available
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_state
+  given:
+    sessionId: session-123
+    sessionResource:
+      id: session-123
+      state: succeeded
+      url: http://example.com/session-123
+      title: Test Session with PR
+      outputs:
+        - type: pullRequest
+          pullRequest:
+            url: http://github.com/pr/1
+            title: 'Feat: New feature'
+  then:
+    result:
+      id: session-123
+      state: succeeded
+      pr:
+        url: http://github.com/pr/1
+        title: 'Feat: New feature'
+- id: MCP-03
+  description: Handles sessions with no PR info gracefully
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_state
+  given:
+    sessionId: session-456
+    sessionResource:
+      id: session-456
+      state: failed
+      url: http://example.com/session-456
+      title: Failed Session
+      outputs: []
+  then:
+    result:
+      id: session-456
+      state: failed
+      pr: null
+- id: MCP-04
+  description: Returns the first page of activities
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-abc
+    args:
+      limit: 2
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: Hello
+      - id: act-2
+        type: planGenerated
+        plan:
+          steps: []
+      - id: act-3
+        type: userMessaged
+        message: Hi
+  then:
+    result:
+      activities:
+        count: 2
+        items:
+          - id: act-1
+          - id: act-2
+      hasMore: true
+      nextCursor: act-2
+- id: MCP-05
+  description: Returns the next page of activities using a cursor
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-abc
+    args:
+      limit: 2
+      startAfter: act-2
+    activities:
+      - id: act-3
+        type: userMessaged
+        message: Hi
+  then:
+    result:
+      activities:
+        count: 1
+        items:
+          - id: act-3
+      hasMore: false
+      nextCursor: null
+- id: MCP-06
+  description: Returns the last page of activities correctly
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-def
+    args:
+      limit: 5
+    activities:
+      - id: act-1
+      - id: act-2
+  then:
+    result:
+      activities:
+        count: 2
+      hasMore: false
+      nextCursor: null
+- id: MCP-07
+  description: Respects the default limit of 10
+  category: mcp-tools
+  status: implemented
+  priority: P2
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-ghi
+    args: {}
+    activities:
+      - { id: 1 }
+      - { id: 2 }
+      - { id: 3 }
+      - { id: 4 }
+      - { id: 5 }
+      - { id: 6 }
+      - { id: 7 }
+      - { id: 8 }
+      - { id: 9 }
+      - { id: 10 }
+      - { id: 11 }
+  then:
+    result:
+      activities:
+        count: 10
+      hasMore: true
+      nextCursor: 10
+- id: MCP-08
+  description: Sorts activities in ascending order
+  category: mcp-tools
+  status: implemented
+  priority: P2
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-jkl
+    args:
+      order: asc
+      limit: 2
+    activities:
+      - id: act-z
+      - id: act-y
+      - id: act-x
+  then:
+    result:
+      activities:
+        count: 2
+        items:
+          - id: act-z
+          - id: act-y
+      hasMore: true
+      nextCursor: act-y
+- id: MCP-09
+  description: Filters activities by type with pagination
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-mno
+    args:
+      type: agentMessaged
+      limit: 1
+    activities:
+      - id: act-1
+        type: agentMessaged
+      - id: act-2
+        type: planGenerated
+      - id: act-3
+        type: agentMessaged
+  then:
+    result:
+      activities:
+        count: 1
+        items:
+          - id: act-1
+      hasMore: true
+      nextCursor: act-1
+- id: MCP-10
+  description: Handles empty result set
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-pqr
+    args: {}
+    activities: []
+  then:
+    result:
+      activities:
+        count: 0
+      hasMore: false
+      nextCursor: null
+- id: MCP-12
+  description: Timeline returns lightweight activities
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-light
+    args:
+      limit: 1
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: 'This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary.'
+        artifacts:
+          - type: file
+            path: src/index.ts
+  then:
+    result:
+      activities:
+        count: 1
+        items:
+          - id: act-1
+            summary: 'This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the su...'
+            artifacts: null
+            artifactCount: 1
+      hasMore: false

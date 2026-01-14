@@ -1,0 +1,670 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Sync Spec Test Cases
+##
+## This file contains machine-readable test case definitions for jules.sync().
+## The test runner at tests/sync/spec.test.ts consumes this file.
+##
+## Structure:
+##   - Each test case has: id, description, given, when, then
+##   - Status: implemented | pending | skipped
+##   - Priority: P0 (critical) | P1 (important) | P2 (nice-to-have)
+##
+## Running tests:
+##   npm test -- tests/sync/spec.test.ts
+##
+## Updating this file:
+##   1. Add new test cases with status: pending
+##   2. Implement the feature
+##   3. Update status to: implemented
+##   4. Run tests to verify
+
+# =============================================================================
+# HIGH-WATER MARK DETECTION
+# =============================================================================
+
+- id: HWM-01
+  description: Incremental sync stops at high-water mark
+  category: high_water_mark
+  status: implemented
+  priority: P0
+  given:
+    localSessions:
+      - id: 'existing-1'
+        createTime: '2023-01-02T00:00:00Z'
+    apiSessions:
+      - id: 'new-1'
+        createTime: '2023-01-03T00:00:00Z'
+      - id: 'existing-1'
+        createTime: '2023-01-02T00:00:00Z'
+      - id: 'old-1'
+        createTime: '2023-01-01T00:00:00Z'
+    options:
+      incremental: true
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 1 # Only new-1
+    calls:
+      - method: storage.upsert
+        times: 1
+
+- id: HWM-02
+  description: Non-incremental sync processes all sessions
+  category: high_water_mark
+  status: implemented
+  priority: P0
+  given:
+    localSessions:
+      - id: 'existing-1'
+        createTime: '2023-01-02T00:00:00Z'
+    apiSessions:
+      - id: 'new-1'
+        createTime: '2023-01-03T00:00:00Z'
+      - id: 'existing-1'
+        createTime: '2023-01-02T00:00:00Z'
+      - id: 'old-1'
+        createTime: '2023-01-01T00:00:00Z'
+    options:
+      incremental: false
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 3
+
+- id: HWM-03
+  description: Cold start ingests all sessions
+  category: high_water_mark
+  status: implemented
+  priority: P0
+  given:
+    localSessions: []
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-03T00:00:00Z'
+      - id: 's2'
+        createTime: '2023-01-02T00:00:00Z'
+      - id: 's3'
+        createTime: '2023-01-01T00:00:00Z'
+    options: {}
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 3
+
+# =============================================================================
+# LIMIT ENFORCEMENT
+# =============================================================================
+
+- id: LIM-01
+  description: Limit caps sessions ingested
+  category: limit
+  status: implemented
+  priority: P0
+  given:
+    localSessions: []
+    apiSessions:
+      # Generate 100 sessions
+      - _generate:
+          {
+            count: 100,
+            template:
+              { id: 'session-${i}', createTime: '2023-01-${i}T00:00:00Z' },
+          }
+    options:
+      limit: 10
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 10
+
+# =============================================================================
+# DEPTH CONTROL
+# =============================================================================
+
+- id: DEP-01
+  description: Metadata depth skips activity hydration
+  category: depth
+  status: implemented
+  priority: P0
+  given:
+    localSessions: []
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    options:
+      depth: metadata
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 1
+      activitiesIngested: 0
+    calls:
+      - method: sessionClient.history
+        times: 0
+
+- id: DEP-03
+  description: Activities depth hydrates all activities
+  category: depth
+  status: implemented
+  priority: P0
+  given:
+    localSessions: []
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    sessionActivities:
+      s1:
+        - id: 'act-1'
+        - id: 'act-2'
+        - id: 'act-3'
+    options:
+      depth: activities
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 1
+      activitiesIngested: 3
+
+# =============================================================================
+# RATE LIMITING (429 Handling)
+# =============================================================================
+
+# Note: Rate limiting tests are covered in tests/api-retry.test.ts
+# These test the ApiClient level, not sync() level
+- id: RL-CURR-02
+  description: Current behavior - retries with backoff
+  category: rate_limiting
+  status: skipped # Covered in tests/api-retry.test.ts
+  priority: P0
+  given:
+    apiResponses:
+      - status: 429
+      - status: 429
+      - status: 200
+        body: { sessions: [] }
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 0
+    delays:
+      - 1000 # 1s
+      - 2000 # 2s
+
+- id: RL-CURR-04
+  description: Current behavior - throws after max retries
+  category: rate_limiting
+  status: skipped # Covered in tests/api-retry.test.ts
+  priority: P0
+  given:
+    apiResponses:
+      - status: 429
+      - status: 429
+      - status: 429
+      - status: 429 # 4th attempt
+  when: sync
+  then:
+    throws:
+      error: JulesRateLimitError
+      status: 429
+
+- id: RL-EXP-01
+  description: Expected - unlimited retries never throw 429
+  category: rate_limiting
+  status: implemented
+  testedIn: tests/api-retry.test.ts # Tested at ApiClient unit level, not via spec runner
+  priority: P0
+  given:
+    apiResponses:
+      - { status: 429, count: 10 }
+      - status: 200
+        body: { sessions: [{ id: 's1' }] }
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 1
+    throws: null
+
+# =============================================================================
+# PARTIAL HYDRATION
+# =============================================================================
+
+- id: HYD-PARTIAL-01
+  description: Resume after interrupted sync
+  category: hydration
+  status: implemented
+  priority: P0
+  given:
+    localSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    localActivities:
+      s1:
+        - id: 'act-1'
+          createTime: '2023-01-01T00:01:00Z'
+        - id: 'act-2'
+          createTime: '2023-01-01T00:02:00Z'
+    serverActivities:
+      s1:
+        - id: 'act-1'
+          createTime: '2023-01-01T00:01:00Z'
+        - id: 'act-2'
+          createTime: '2023-01-01T00:02:00Z'
+        - id: 'act-3'
+          createTime: '2023-01-01T00:03:00Z'
+        - id: 'act-4'
+          createTime: '2023-01-01T00:04:00Z'
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    options:
+      depth: activities
+  when: sync
+  then:
+    stats:
+      activitiesIngested: 2 # Only act-3 and act-4
+
+- id: HYD-PARTIAL-02
+  description: Download new activities after initial sync
+  category: hydration
+  status: implemented
+  priority: P0
+  given:
+    localSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    localActivities:
+      s1:
+        - id: 'act-1'
+          createTime: '2023-01-01T12:00:00Z'
+        - id: 'act-2'
+          createTime: '2023-01-01T12:01:00Z'
+    serverActivities:
+      s1:
+        - id: 'act-1'
+          createTime: '2023-01-01T12:00:00Z'
+        - id: 'act-2'
+          createTime: '2023-01-01T12:01:00Z'
+        - id: 'act-3'
+          createTime: '2023-01-02T09:00:00Z' # NEW
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    options:
+      depth: activities
+  when: sync
+  then:
+    stats:
+      activitiesIngested: 1
+
+- id: HYD-PARTIAL-05
+  description: Empty activity cache triggers full hydration
+  category: hydration
+  status: implemented
+  priority: P0
+  given:
+    localSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    localActivities:
+      s1: [] # Session exists but no activities
+    serverActivities:
+      s1:
+        - id: 'act-1'
+        - id: 'act-2'
+        - id: 'act-3'
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    options:
+      depth: activities
+      incremental: true
+  when: sync
+  then:
+    stats:
+      activitiesIngested: 3
+
+# =============================================================================
+# PRODUCTION: CANCELLATION
+# =============================================================================
+
+- id: PROD-ABORT-01
+  description: Graceful cancellation via AbortSignal
+  category: production_abort
+  status: implemented
+  priority: P0
+  given:
+    apiSessions:
+      - _generate: { count: 100, template: { id: 's${i}' } }
+    abortAfterSessions: 10
+    options:
+      signal: '{{abortController.signal}}'
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 10
+      isComplete: false
+    throws: null
+
+# =============================================================================
+# PRODUCTION: CHECKPOINTING
+# =============================================================================
+
+- id: PROD-CKPT-02
+  description: Resume from checkpoint after crash
+  category: production_checkpoint
+  status: implemented
+  priority: P0
+  given:
+    checkpoint:
+      lastProcessedSessionId: 's50'
+      sessionsProcessed: 50
+    apiSessions:
+      - _generate: { count: 100, template: { id: 's${i}' } }
+    options:
+      checkpoint: true
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 49 # s51-s99
+    startedFromSession: 's51'
+
+# =============================================================================
+# PRODUCTION: IDEMPOTENCY
+# =============================================================================
+
+- id: PROD-IDEM-01
+  description: Concurrent sync calls are prevented
+  category: production_idempotency
+  status: implemented
+  priority: P0
+  given:
+    syncInProgress: true
+  when: sync
+  then:
+    throws:
+      error: SyncInProgressError
+
+# =============================================================================
+# STORAGE LOCATIONS
+# =============================================================================
+
+- id: STOR-01
+  description: Sessions written to session.json in session directory
+  category: storage
+  status: implemented
+  priority: P1
+  given:
+    localSessions: []
+    apiSessions:
+      - id: 'test-session-123'
+        createTime: '2023-01-01T00:00:00Z'
+    rootDir: '/tmp/jules-test'
+    options: {}
+  when: sync
+  then:
+    filesCreated:
+      - '/tmp/jules-test/.jules/cache/test-session-123/session.json'
+    fileContainsJson:
+      path: '/tmp/jules-test/.jules/cache/test-session-123/session.json'
+      hasKeys: ['resource', '_lastSyncedAt']
+
+- id: STOR-02
+  description: Session index appended to sessions.jsonl
+  category: storage
+  status: implemented
+  priority: P1
+  given:
+    localSessions: []
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+      - id: 's2'
+        createTime: '2023-01-02T00:00:00Z'
+    rootDir: '/tmp/jules-test'
+    options: {}
+  when: sync
+  then:
+    filesCreated:
+      - '/tmp/jules-test/.jules/cache/sessions.jsonl'
+    fileLineCount:
+      path: '/tmp/jules-test/.jules/cache/sessions.jsonl'
+      count: 2
+
+- id: STOR-03
+  description: Activities written to activities.jsonl in session directory
+  category: storage
+  status: implemented
+  priority: P1
+  given:
+    localSessions: []
+    apiSessions:
+      - id: 'sess-1'
+        createTime: '2023-01-01T00:00:00Z'
+    sessionActivities:
+      sess-1:
+        - id: 'act-1'
+          createTime: '2023-01-01T00:01:00Z'
+        - id: 'act-2'
+          createTime: '2023-01-01T00:02:00Z'
+    rootDir: '/tmp/jules-test'
+    options:
+      depth: activities
+  when: sync
+  then:
+    filesCreated:
+      - '/tmp/jules-test/.jules/cache/sess-1/activities.jsonl'
+    fileLineCount:
+      path: '/tmp/jules-test/.jules/cache/sess-1/activities.jsonl'
+      count: 2
+
+- id: STOR-04
+  description: Cache directory created automatically
+  category: storage
+  status: implemented
+  priority: P1
+  given:
+    localSessions: []
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-01T00:00:00Z'
+    rootDir: '/tmp/jules-fresh' # Non-existent directory
+    options: {}
+  when: sync
+  then:
+    directoriesCreated:
+      - '/tmp/jules-fresh/.jules/cache'
+      - '/tmp/jules-fresh/.jules/cache/s1'
+
+# =============================================================================
+# CACHE DIRECTORY RESOLUTION
+# =============================================================================
+
+- id: CACHE-01
+  description: Uses cwd when package.json exists (project-first)
+  category: cache_resolution
+  status: implemented
+  priority: P1
+  given:
+    cwd: '/tmp/my-project'
+    hasPackageJson: true
+    env: {}
+  when: getRootDir
+  then:
+    rootDir: '/tmp/my-project'
+    cacheDir: '/tmp/my-project/.jules/cache'
+
+- id: CACHE-02
+  description: Uses home when no package.json in cwd
+  category: cache_resolution
+  status: implemented
+  priority: P1
+  given:
+    cwd: '/tmp/random-dir'
+    hasPackageJson: false
+    env:
+      HOME: '/Users/david'
+  when: getRootDir
+  then:
+    rootDir: '/Users/david'
+    cacheDir: '/Users/david/.jules/cache'
+
+- id: CACHE-03
+  description: JULES_HOME overrides all detection
+  category: cache_resolution
+  status: implemented
+  priority: P1
+  given:
+    cwd: '/tmp/my-project'
+    hasPackageJson: true
+    env:
+      JULES_HOME: '/data/jules-override'
+  when: getRootDir
+  then:
+    rootDir: '/data/jules-override'
+    cacheDir: '/data/jules-override/.jules/cache'
+
+- id: CACHE-04
+  description: Falls back to TMPDIR when home not writable
+  category: cache_resolution
+  status: implemented
+  priority: P2
+  given:
+    cwd: '/'
+    hasPackageJson: false
+    env:
+      HOME: '/nonexistent'
+      TMPDIR: '/tmp'
+    homeWritable: false
+  when: getRootDir
+  then:
+    rootDir: '/tmp'
+    cacheDir: '/tmp/.jules/cache'
+
+# =============================================================================
+# EDGE CASES
+# =============================================================================
+
+- id: EDGE-01
+  description: Empty API response
+  category: edge_cases
+  status: implemented
+  priority: P2
+  given:
+    localSessions: []
+    apiSessions: []
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 0
+      activitiesIngested: 0
+      isComplete: true
+
+- id: EDGE-12
+  description: Exact high-water mark match stops iteration
+  category: edge_cases
+  status: implemented
+  priority: P1
+  given:
+    localSessions:
+      - id: 's1'
+        createTime: '2023-01-02T00:00:00Z'
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-02T00:00:00Z' # Exact match
+    options:
+      incremental: true
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 0
+
+# =============================================================================
+# PERFORMANCE: SESSION ITERATION BOUNDS
+# =============================================================================
+# These specs document critical performance behavior to prevent regressions.
+# Bug fixed: depth='activities' was iterating through ALL sessions instead of
+# stopping at the high-water mark, causing sync to hang indefinitely.
+
+- id: PERF-01
+  description: Activities depth stops at high-water mark (does not iterate all sessions)
+  category: performance
+  status: implemented
+  priority: P0
+  given:
+    localSessions:
+      - id: 'cached-session'
+        createTime: '2023-01-02T00:00:00Z'
+    apiSessions:
+      - id: 'new-session'
+        createTime: '2023-01-03T00:00:00Z'
+      - id: 'cached-session'
+        createTime: '2023-01-02T00:00:00Z'
+      - id: 'old-session-1'
+        createTime: '2023-01-01T00:00:00Z'
+      - id: 'old-session-2'
+        createTime: '2022-12-31T00:00:00Z'
+      - id: 'old-session-3'
+        createTime: '2022-12-30T00:00:00Z'
+    serverActivities:
+      new-session:
+        - id: 'act-1'
+      cached-session:
+        - id: 'act-2'
+    options:
+      depth: activities
+      incremental: true
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 1 # Only new-session
+    calls:
+      # Should call hydrate exactly twice: new-session + cached-session (first hit)
+      # Should NOT call hydrate for old-session-1, old-session-2, old-session-3
+      - method: sessionClient.history
+        times: 2
+
+- id: PERF-02
+  description: Hydrate called only for first cached session hit (not all old sessions)
+  category: performance
+  status: implemented
+  priority: P0
+  given:
+    localSessions:
+      - id: 's1'
+        createTime: '2023-01-03T00:00:00Z'
+    apiSessions:
+      - id: 's1'
+        createTime: '2023-01-03T00:00:00Z'
+      - id: 's2'
+        createTime: '2023-01-02T00:00:00Z'
+      - id: 's3'
+        createTime: '2023-01-01T00:00:00Z'
+    serverActivities:
+      s1:
+        - id: 'act-new'
+    options:
+      depth: activities
+      incremental: true
+  when: sync
+  then:
+    stats:
+      sessionsIngested: 0 # No new sessions
+      activitiesIngested: 1 # Only s1's new activity
+    calls:
+      # Should call hydrate exactly once for s1, then STOP
+      # Should NOT iterate to s2, s3
+      - method: sessionClient.history
+        times: 1

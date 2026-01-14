@@ -1,0 +1,51 @@
+{
+  "name": "@google/jules-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Official Jules TypeScript SDK",
+  "repository": "google/jules-sdk",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest",
+    "type-check": "tsc --project tsconfig.test.json"
+  },
+  "keywords": [
+    "jules",
+    "ai",
+    "agent",
+    "sdk",
+    "developer-tools"
+  ],
+  "author": "Google LLC",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "yaml": "^2.8.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.15.0",
+    "js-yaml": "^4.1.0",
+    "jsdom": "^27.1.0",
+    "msw": "^2.10.4",
+    "typescript": "^5.8.3",
+    "vite": "^7.3.0",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^3.2.4"
+  }
+}

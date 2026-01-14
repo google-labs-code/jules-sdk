@@ -1,0 +1,206 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Incremental Activity Sync Spec
+##
+## Behavior: "Activities are immutable - once downloaded, never re-download"
+##
+## These specs define expected behavior for efficient activity syncing
+## using the Jules API's filter parameter.
+
+# =============================================================================
+# PAGE TOKEN CONSTRUCTION
+# =============================================================================
+
+- id: SYNC-01
+  description: pageToken is constructed from createTime as nanoseconds since epoch
+  category: page_token
+  status: implemented
+  priority: P0
+  given:
+    createTime: '2024-01-05T10:05:00.999999Z'
+  when: createTimeToPageToken
+  then:
+    # The token should be the nanosecond timestamp + 1 (exclusive)
+    # 2024-01-05T10:05:00.999999Z = 1704448500999999000 ns + 1 = 1704448500999999001
+    tokenStartsWith: '1704'
+    tokenLength: 19
+
+- id: SYNC-02
+  description: pageToken with exclusive=false returns inclusive timestamp
+  category: page_token
+  status: implemented
+  priority: P1
+  given:
+    createTime: '2024-01-05T10:05:00.000000Z'
+    exclusive: false
+  when: createTimeToPageToken
+  then:
+    # Without +1, should be exact nanosecond timestamp
+    endsWithZero: true
+
+# =============================================================================
+# INCREMENTAL HYDRATION
+# =============================================================================
+
+- id: SYNC-03
+  description: hydrate() with cached activities uses filter to fetch only newer
+  category: hydration
+  status: implemented
+  priority: P0
+  given:
+    cachedActivities:
+      - id: 'act-1'
+        createTime: '2024-01-05T10:00:00.000000Z'
+      - id: 'act-2'
+        createTime: '2024-01-05T10:01:00.000000Z'
+    apiActivities:
+      - id: 'act-3'
+        createTime: '2024-01-05T10:02:00.000000Z'
+  when: hydrate
+  then:
+    # API should be called with filter based on act-2's createTime
+    apiCalledWithFilter: true
+    newActivitiesCached: 1
+    totalApiCalls: 1
+
+- id: SYNC-04
+  description: hydrate() with empty cache fetches all activities (no filter)
+  category: hydration
+  status: implemented
+  priority: P0
+  given:
+    cachedActivities: []
+    apiActivities:
+      - id: 'act-1'
+        createTime: '2024-01-05T10:00:00.000000Z'
+      - id: 'act-2'
+        createTime: '2024-01-05T10:01:00.000000Z'
+  when: hydrate
+  then:
+    apiCalledWithoutFilter: true
+    newActivitiesCached: 2
+
+# =============================================================================
+# FROZEN SESSION OPTIMIZATION
+# =============================================================================
+
+- id: SYNC-05
+  description: Frozen session (> 30 days old) skips API call entirely
+  category: frozen
+  status: implemented
+  priority: P0
+  given:
+    cachedActivities:
+      - id: 'old-act'
+        createTime: '2023-01-01T00:00:00.000000Z' # Over a year old
+  when: hydrate
+  then:
+    apiCalls: 0
+    returnValue: 0
+
+- id: SYNC-06
+  description: Session with recent activity (< 30 days) makes API call
+  category: frozen
+  status: implemented
+  priority: P1
+  given:
+    lastActivityAge: 'recent' # < 30 days
+  when: hydrate
+  then:
+    apiCalls: 1
+
+- id: SYNC-07
+  description: isSessionFrozen returns true for activities older than threshold
+  category: frozen
+  status: implemented
+  priority: P1
+  given:
+    createTime: '2020-01-01T00:00:00.000000Z'
+    thresholdDays: 30
+  when: isSessionFrozen
+  then:
+    result: true
+
+- id: SYNC-08
+  description: isSessionFrozen returns false for recent activities
+  category: frozen
+  status: implemented
+  priority: P1
+  given:
+    createTime: 'now' # Current time
+    thresholdDays: 30
+  when: isSessionFrozen
+  then:
+    result: false
+
+# =============================================================================
+# EDGE CASES
+# =============================================================================
+
+- id: SYNC-09
+  description: Handles activities with identical timestamps correctly
+  category: edge_cases
+  status: implemented
+  priority: P1
+  given:
+    cachedActivities:
+      - id: 'act-1'
+        createTime: '2024-01-05T10:00:00.000000Z'
+    apiActivities:
+      - id: 'act-1'
+        createTime: '2024-01-05T10:00:00.000000Z'
+      - id: 'act-2'
+        createTime: '2024-01-05T10:00:00.000000Z' # Same timestamp, different ID
+  when: hydrate
+  then:
+    # act-1 should be skipped (already cached), act-2 should be added
+    newActivitiesCached: 1
+
+- id: SYNC-10
+  description: pageTokenToDate correctly reverses the token
+  category: page_token
+  status: implemented
+  priority: P2
+  given:
+    token: '1704448500999000000'
+  when: pageTokenToDate
+  then:
+    # Should parse back to approximately the original date
+    year: 2024
+    month: 1
+    day: 5
+
+# =============================================================================
+# STREAM INTEGRATION
+# =============================================================================
+
+- id: SYNC-11
+  description: stream() performs incremental sync via history()->hydrate()
+  category: stream_integration
+  status: implemented
+  priority: P0
+  given:
+    cachedActivities:
+      - id: 'act-1'
+        createTime: '2024-01-05T10:00:00.000000Z'
+    apiActivities:
+      - id: 'act-2'
+        createTime: '2024-01-05T10:01:00.000000Z'
+  when: stream
+  then:
+    # stream() should call history() which calls hydrate() with a filter
+    apiCalledWithFilter: true
+    # Should yield cached + new activities
+    totalYielded: 2

@@ -1,0 +1,452 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Snapshot Spec Test Cases
+##
+## This file contains machine-readable test case definitions for session.snapshot().
+## The test runner at tests/snapshot/spec.test.ts consumes this file.
+##
+## Structure:
+##   - Each test case has: id, description, given, when, then
+##   - Status: implemented | pending | skipped
+##   - Priority: P0 (critical) | P1 (important) | P2 (nice-to-have)
+##
+## Running tests:
+##   npm test -- tests/snapshot/spec.test.ts
+
+# =============================================================================
+# CORE SNAPSHOT BEHAVIOR
+# =============================================================================
+
+- id: SNAP-01
+  description: Snapshot returns all activities
+  category: core
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+      createTime: '2023-01-01T09:00:00Z'
+      updateTime: '2023-01-01T10:00:00Z'
+    activities:
+      - id: 'act-1'
+        type: 'planGenerated'
+        createTime: '2023-01-01T09:01:00Z'
+      - id: 'act-2'
+        type: 'planApproved'
+        createTime: '2023-01-01T09:02:00Z'
+      - id: 'act-3'
+        type: 'sessionCompleted'
+        createTime: '2023-01-01T10:00:00Z'
+  when: snapshot
+  then:
+    snapshot:
+      id: 'test-session'
+      state: 'COMPLETED'
+      activitiesLength: 3
+
+- id: SNAP-02
+  description: Snapshot is immutable (multiple calls return independent instances)
+  category: core
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+  when: snapshotTwice
+  then:
+    snapshotsAreDistinct: true
+
+- id: SNAP-03
+  description: Snapshot computes durationMs correctly
+  category: core
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+      createTime: '2023-01-01T09:00:00Z'
+      updateTime: '2023-01-01T09:44:00Z' # 44 minutes later
+  when: snapshot
+  then:
+    snapshot:
+      durationMs: 2640000 # 44 * 60 * 1000
+
+# =============================================================================
+# ACTIVITY COUNTS
+# =============================================================================
+
+- id: AC-01
+  description: Activity counts map type to occurrence count
+  category: activity_counts
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'planGenerated' }
+      - { id: 'a2', type: 'planApproved' }
+      - { id: 'a3', type: 'progressUpdated' }
+      - { id: 'a4', type: 'progressUpdated' }
+      - { id: 'a5', type: 'progressUpdated' }
+      - { id: 'a6', type: 'sessionCompleted' }
+  when: snapshot
+  then:
+    snapshot:
+      activityCounts:
+        planGenerated: 1
+        planApproved: 1
+        progressUpdated: 3
+        sessionCompleted: 1
+
+- id: AC-02
+  description: Activity counts omit types with zero occurrences
+  category: activity_counts
+  status: implemented
+  priority: P1
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'planGenerated' }
+  when: snapshot
+  then:
+    snapshot:
+      activityCounts:
+        planGenerated: 1
+      activityCountsKeyCount: 1 # Only planGenerated, no other types
+
+# =============================================================================
+# TIMELINE GENERATION
+# =============================================================================
+
+- id: TL-01
+  description: Timeline entries match activity count
+  category: timeline
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'planGenerated', createTime: '2023-01-01T09:00:00Z' }
+      - { id: 'a2', type: 'planApproved', createTime: '2023-01-01T09:01:00Z' }
+  when: snapshot
+  then:
+    snapshot:
+      timelineLength: 2
+
+- id: TL-02
+  description: Timeline entry has time, type, and summary
+  category: timeline
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - id: 'a1'
+        type: 'planGenerated'
+        createTime: '2023-01-01T09:00:00Z'
+        plan:
+          steps: ['step1', 'step2', 'step3']
+  when: snapshot
+  then:
+    snapshot:
+      timeline:
+        - time: '2023-01-01T09:00:00Z'
+          type: 'planGenerated'
+          summary: 'Plan with 3 steps'
+
+- id: TL-03
+  description: Timeline summary for userMessaged truncates to 100 chars
+  category: timeline
+  status: implemented
+  priority: P1
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - id: 'a1'
+        type: 'userMessaged'
+        createTime: '2023-01-01T09:00:00Z'
+        message: 'This is a very long message that exceeds one hundred characters and should be truncated with an ellipsis at the end to keep the summary concise'
+  when: snapshot
+  then:
+    snapshot:
+      timeline:
+        - type: 'userMessaged'
+          summaryMaxLength: 110 # "User: " + 100 chars + "..."
+
+# =============================================================================
+# INSIGHTS COMPUTATION
+# =============================================================================
+
+- id: INS-01
+  description: Insights counts completionAttempts correctly
+  category: insights
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'sessionCompleted' }
+      - { id: 'a2', type: 'userMessaged' } # CI failure feedback
+      - { id: 'a3', type: 'sessionCompleted' }
+      - { id: 'a4', type: 'userMessaged' } # Another CI failure
+      - { id: 'a5', type: 'sessionCompleted' }
+  when: snapshot
+  then:
+    snapshot:
+      insights:
+        completionAttempts: 3
+
+- id: INS-02
+  description: Insights counts planRegenerations correctly
+  category: insights
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'planGenerated' }
+      - { id: 'a2', type: 'planApproved' }
+      - { id: 'a3', type: 'userMessaged' } # User asked for change
+      - { id: 'a4', type: 'planGenerated' } # New plan
+  when: snapshot
+  then:
+    snapshot:
+      insights:
+        planRegenerations: 2
+
+- id: INS-03
+  description: Insights counts userInterventions correctly
+  category: insights
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'planGenerated' }
+      - {
+          id: 'a2',
+          type: 'userMessaged',
+          message: 'Please fix the attribution',
+        }
+      - { id: 'a3', type: 'userMessaged', message: 'Wrong user ID' }
+  when: snapshot
+  then:
+    snapshot:
+      insights:
+        userInterventions: 2
+
+# =============================================================================
+# PULL REQUEST EXTRACTION
+# =============================================================================
+
+- id: PR-01
+  description: Snapshot extracts PR from session outputs
+  category: pull_request
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+      outputs:
+        - type: 'pullRequest'
+          pullRequest:
+            url: 'https://github.com/owner/repo/pull/123'
+            title: 'Fix the bug'
+            description: 'This fixes the bug'
+  when: snapshot
+  then:
+    snapshot:
+      pr:
+        url: 'https://github.com/owner/repo/pull/123'
+        title: 'Fix the bug'
+
+- id: PR-02
+  description: Snapshot pr is undefined when no PR output
+  category: pull_request
+  status: implemented
+  priority: P1
+  given:
+    session:
+      id: 'test-session'
+      state: 'IN_PROGRESS'
+      outputs: []
+  when: snapshot
+  then:
+    snapshot:
+      pr: null
+
+# =============================================================================
+# SERIALIZATION
+# =============================================================================
+
+- id: SER-01
+  description: toJSON returns plain object
+  category: serialization
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+      createTime: '2023-01-01T09:00:00Z'
+      updateTime: '2023-01-01T10:00:00Z'
+    activities:
+      - { id: 'a1', type: 'progressUpdated' }
+  when: snapshotToJSON
+  then:
+    json:
+      id: 'test-session'
+      state: 'COMPLETED'
+      createdAt: '2023-01-01T09:00:00Z'
+      updatedAt: '2023-01-01T10:00:00Z'
+
+- id: SER-02
+  description: toJSON is JSON.stringify safe
+  category: serialization
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'progressUpdated' }
+  when: snapshotStringify
+  then:
+    isValidJSON: true
+
+# =============================================================================
+# MARKDOWN GENERATION
+# =============================================================================
+
+- id: MD-01
+  description: toMarkdown returns formatted summary
+  category: serialization
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+      title: 'Fix Bug'
+    activities:
+      - { id: 'a1', type: 'planGenerated' }
+      - { id: 'a2', type: 'sessionCompleted' }
+  when: snapshotToMarkdown
+  then:
+    markdownContains:
+      - '# Session: Fix Bug'
+      - '## Timeline'
+      - '## Insights'
+
+# =============================================================================
+# NETWORK/CACHE BEHAVIOR
+# =============================================================================
+
+- id: NET-01
+  description: Snapshot calls info() and history() in parallel
+  category: network
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities: []
+  when: snapshot
+  then:
+    calls:
+      - method: 'info'
+        times: 1
+      - method: 'history'
+        times: 1
+    parallelExecution: true
+
+- id: NET-02
+  description: Snapshot inherits cache behavior from info()
+  category: network
+  status: implemented
+  priority: P1
+  given:
+    cachedSession:
+      id: 'test-session'
+      state: 'COMPLETED'
+    cacheValid: true
+  when: snapshot
+  then:
+    networkCalls: 0 # Uses cache
+
+# =============================================================================
+# MCP INTEGRATION
+# =============================================================================
+
+- id: MCP-01
+  description: jules_get_session_analysis_context returns markdown snapshot
+  category: mcp
+  status: implemented
+  priority: P0
+  given:
+    session:
+      id: 'test-session'
+      state: 'COMPLETED'
+    activities:
+      - { id: 'a1', type: 'planGenerated' }
+  when:
+    mcpCall:
+      tool: 'jules_get_session_analysis_context'
+      args:
+        sessionId: 'test-session'
+  then:
+    mcpResponse:
+      content:
+        - type: 'text'
+          textContains: 'TEMPLATE:' # Assuming template starts with this or has instructions
+          jsonContains: null
+
+- id: MCP-02
+  description: jules_get_session_analysis_context returns error for invalid session
+  category: mcp
+  status: implemented
+  priority: P1
+  given:
+    noSessions: true
+  when:
+    mcpCall:
+      tool: 'jules_get_session_analysis_context'
+      args:
+        sessionId: 'non-existent'
+  then:
+    mcpResponse:
+      isError: true

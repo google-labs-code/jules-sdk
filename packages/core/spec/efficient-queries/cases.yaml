@@ -1,0 +1,371 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Efficient Queries Spec
+##
+## Behavior: "I need to efficiently query large datasets"
+##
+## These specs define performance expectations for common query patterns.
+## Large datasets should not cause linear-time operations for simple queries.
+
+# =============================================================================
+# COUNT OPERATIONS
+# =============================================================================
+
+- id: EFF-01
+  description: Get activity count without full scan
+  category: count
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-large'
+    cachedActivities: 1000
+  when: getActivityCount
+  then:
+    result: 1000
+    performance:
+      fullScanRequired: false
+
+- id: EFF-02
+  description: Get session count without full scan
+  category: count
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P1
+  given:
+    cachedSessions: 500
+  when: getSessionCount
+  then:
+    result: 500
+    performance:
+      fullScanRequired: false
+
+# =============================================================================
+# LATEST N QUERIES
+# =============================================================================
+
+- id: EFF-03
+  description: Get latest N activities returns newest first
+  category: latest
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-ordered'
+    activities:
+      - id: 'act-old'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-mid'
+        createTime: '2024-01-02T00:00:00Z'
+      - id: 'act-new'
+        createTime: '2024-01-03T00:00:00Z'
+  when: getLatestActivities(2)
+  then:
+    result:
+      - id: 'act-new'
+      - id: 'act-mid'
+
+- id: EFF-04
+  description: Get latest N is efficient for large datasets
+  category: latest
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-huge'
+    cachedActivities: 10000
+  when: getLatestActivities(10)
+  then:
+    resultCount: 10
+    performance:
+      fullScanRequired: false
+
+# =============================================================================
+# DEFAULT ORDERING
+# =============================================================================
+
+- id: EFF-05
+  description: Default query order is newest first
+  category: ordering
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-default-order'
+    activities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-2'
+        createTime: '2024-01-02T00:00:00Z'
+  when: select
+  then:
+    firstResultId: 'act-2'
+    lastResultId: 'act-1'
+
+- id: EFF-06
+  description: Ascending order can be explicitly requested
+  category: ordering
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-asc'
+    activities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-2'
+        createTime: '2024-01-02T00:00:00Z'
+    options:
+      order: 'asc'
+  when: select
+  then:
+    firstResultId: 'act-1'
+    lastResultId: 'act-2'
+
+# =============================================================================
+# DEFAULT LIMITS
+# =============================================================================
+
+- id: EFF-07
+  description: Default limit prevents unbounded results
+  category: limits
+  status: implemented
+  testedIn: tests/query/select.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-unlimited'
+    cachedActivities: 1000
+  when: select
+  then:
+    resultCount:
+      max: 100
+
+- id: EFF-08
+  description: Custom limit overrides default
+  category: limits
+  status: implemented
+  testedIn: tests/query/select.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-custom-limit'
+    cachedActivities: 1000
+    options:
+      limit: 25
+  when: select
+  then:
+    resultCount: 25
+
+# =============================================================================
+# CURSOR PAGINATION
+# =============================================================================
+
+- id: EFF-09
+  description: Cursor-based pagination with after
+  category: pagination
+  status: implemented
+  testedIn: tests/activities/client.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-cursor'
+    activities:
+      - id: 'act-1'
+      - id: 'act-2'
+      - id: 'act-3'
+      - id: 'act-4'
+    options:
+      after: 'act-2'
+      limit: 2
+  when: select
+  then:
+    resultIds: ['act-3', 'act-4']
+
+- id: EFF-10
+  description: Cursor-based pagination with before
+  category: pagination
+  status: implemented
+  testedIn: tests/activities/client.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-cursor-before'
+    activities:
+      - id: 'act-1'
+      - id: 'act-2'
+      - id: 'act-3'
+      - id: 'act-4'
+    options:
+      before: 'act-3'
+      limit: 2
+  when: select
+  then:
+    resultIds: ['act-1', 'act-2']
+
+# =============================================================================
+# QUERY ENGINE RANGE CURSORS (JulesQuery)
+# =============================================================================
+
+- id: EFF-11
+  description: startAfter returns activities after cursor (exclusive)
+  category: range_cursors
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-range'
+    activities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-2'
+        createTime: '2024-01-02T00:00:00Z'
+      - id: 'act-3'
+        createTime: '2024-01-03T00:00:00Z'
+      - id: 'act-4'
+        createTime: '2024-01-04T00:00:00Z'
+    query:
+      from: activities
+      where:
+        sessionId: 'sess-range'
+      startAfter: 'act-2'
+      order: asc
+  when: jules.select
+  then:
+    resultIds: ['act-3', 'act-4']
+
+- id: EFF-12
+  description: startAt returns activities at and after cursor (inclusive)
+  category: range_cursors
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-range-inclusive'
+    activities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-2'
+        createTime: '2024-01-02T00:00:00Z'
+      - id: 'act-3'
+        createTime: '2024-01-03T00:00:00Z'
+    query:
+      from: activities
+      where:
+        sessionId: 'sess-range-inclusive'
+      startAt: 'act-2'
+      order: asc
+  when: jules.select
+  then:
+    resultIds: ['act-2', 'act-3']
+
+- id: EFF-13
+  description: startAfter with limit enables pagination
+  category: range_cursors
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P0
+  given:
+    sessionId: 'sess-paginate'
+    activities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-2'
+        createTime: '2024-01-02T00:00:00Z'
+      - id: 'act-3'
+        createTime: '2024-01-03T00:00:00Z'
+      - id: 'act-4'
+        createTime: '2024-01-04T00:00:00Z'
+      - id: 'act-5'
+        createTime: '2024-01-05T00:00:00Z'
+    query:
+      from: activities
+      where:
+        sessionId: 'sess-paginate'
+      startAfter: 'act-2'
+      limit: 2
+      order: asc
+  when: jules.select
+  then:
+    resultIds: ['act-3', 'act-4']
+    hasMore: true
+
+- id: EFF-14
+  description: startAfter with desc order returns older activities
+  category: range_cursors
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-range-desc'
+    activities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-2'
+        createTime: '2024-01-02T00:00:00Z'
+      - id: 'act-3'
+        createTime: '2024-01-03T00:00:00Z'
+      - id: 'act-4'
+        createTime: '2024-01-04T00:00:00Z'
+    query:
+      from: activities
+      where:
+        sessionId: 'sess-range-desc'
+      startAfter: 'act-3'
+      order: desc
+  when: jules.select
+  then:
+    resultIds: ['act-2', 'act-1']
+
+- id: EFF-15
+  description: Cursor resolves to createTime with id as tiebreaker
+  category: range_cursors
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-tiebreaker'
+    activities:
+      - id: 'act-a'
+        createTime: '2024-01-01T12:00:00Z'
+      - id: 'act-b'
+        createTime: '2024-01-01T12:00:00Z'
+      - id: 'act-c'
+        createTime: '2024-01-01T12:00:00Z'
+    query:
+      from: activities
+      where:
+        sessionId: 'sess-tiebreaker'
+      startAfter: 'act-a'
+      order: asc
+  when: jules.select
+  then:
+    resultIds: ['act-b', 'act-c']
+
+- id: EFF-16
+  description: Invalid cursor ID returns empty result (graceful handling)
+  category: range_cursors
+  status: implemented
+  testedIn: tests/efficient-queries/spec.test.ts
+  priority: P1
+  given:
+    sessionId: 'sess-invalid-cursor'
+    activities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+    query:
+      from: activities
+      where:
+        sessionId: 'sess-invalid-cursor'
+      startAfter: 'nonexistent-id'
+  when: jules.select
+  then:
+    resultIds: []

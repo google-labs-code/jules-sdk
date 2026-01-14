@@ -1,0 +1,159 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Cache Control Spec
+##
+## Behavior: "I need to explicitly control when the cache syncs"
+##
+## These specs define the contract between cache and network operations.
+## Users should have explicit control over when network calls happen.
+
+# =============================================================================
+# EXPLICIT SYNC
+# =============================================================================
+
+- id: CTRL-01
+  description: Explicit sync triggers network fetch
+  category: sync
+  status: implemented
+  testedIn: tests/sync/reconciliation.test.ts
+  priority: P0
+  given:
+    serverActivities: 100
+    cachedActivities: 50
+    sessionId: 'sess-sync'
+  when: sync
+  then:
+    networkCallsMade: true
+    result:
+      activitiesAdded: 50
+
+- id: CTRL-02
+  description: Sync respects depth parameter for metadata only
+  category: sync
+  status: implemented
+  testedIn: tests/sync/depth.test.ts
+  priority: P0
+  given:
+    serverSessions: 10
+    serverActivities: 500
+    cachedSessions: 0
+    depth: 'metadata'
+  when: sync
+  then:
+    sessionsIngested: 10
+    activitiesIngested: 0
+
+- id: CTRL-03
+  description: Sync respects depth parameter for activities
+  category: sync
+  status: implemented
+  testedIn: tests/sync/depth.test.ts
+  priority: P0
+  given:
+    serverSessions: 2
+    serverActivitiesPerSession: 50
+    cachedSessions: 0
+    depth: 'activities'
+  when: sync
+  then:
+    sessionsIngested: 2
+    activitiesIngested: 100
+
+- id: CTRL-04
+  description: Sync returns detailed change report
+  category: sync
+  status: implemented
+  testedIn: tests/sync/reconciliation.test.ts
+  priority: P0
+  given:
+    serverActivities: 30
+    cachedActivities: 20
+    sessionId: 'sess-report'
+  when: sync
+  then:
+    result:
+      activitiesAdded: 10
+      syncedAt:
+        type: timestamp
+
+# =============================================================================
+# CACHE ISOLATION
+# =============================================================================
+
+- id: CTRL-05
+  description: Select queries never trigger network calls
+  category: isolation
+  status: implemented
+  testedIn: tests/query/select-isolation.test.ts
+  priority: P0
+  given:
+    cachedActivities: 50
+    serverActivities: 100
+    sessionId: 'sess-isolated'
+  when: select
+  then:
+    networkCalls: 0
+    resultCount: 50
+
+- id: CTRL-06
+  description: Select returns only cached data even when stale
+  category: isolation
+  status: implemented
+  testedIn: tests/query/select-isolation.test.ts
+  priority: P0
+  given:
+    cachedActivities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+    serverActivities:
+      - id: 'act-1'
+        createTime: '2024-01-01T00:00:00Z'
+      - id: 'act-2'
+        createTime: '2024-01-02T00:00:00Z'
+  when: select
+  then:
+    resultIds: ['act-1']
+    networkCalls: 0
+
+# =============================================================================
+# SYNC TARGETING
+# =============================================================================
+
+- id: CTRL-07
+  description: Sync can target a single session
+  category: targeting
+  status: implemented
+  testedIn: tests/sync/targeting.test.ts
+  priority: P1
+  given:
+    sessions: ['sess-a', 'sess-b', 'sess-c']
+    targetSession: 'sess-b'
+  when: sync
+  then:
+    sessionsSynced: ['sess-b']
+    sessionsNotSynced: ['sess-a', 'sess-c']
+
+- id: CTRL-08
+  description: Sync without target syncs all sessions
+  category: targeting
+  status: implemented
+  testedIn: tests/sync/targeting.test.ts
+  priority: P1
+  given:
+    sessions: ['sess-a', 'sess-b', 'sess-c']
+    targetSession: null
+  when: sync
+  then:
+    sessionsSynced: ['sess-a', 'sess-b', 'sess-c']
