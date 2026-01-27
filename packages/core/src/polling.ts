@@ -68,7 +68,10 @@ export async function pollUntilCompletion(
   return pollSession(
     sessionId,
     apiClient,
-    (session) => session.state === 'completed' || session.state === 'failed',
+    (session) => {
+      const state = session.state.toLowerCase();
+      return state === 'completed' || state === 'failed';
+    },
     pollingInterval,
   );
 }

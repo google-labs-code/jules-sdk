@@ -871,6 +871,19 @@ export interface Outcome {
    * console.log(answer?.content);
    */
   generatedFiles(): GeneratedFiles;
+  /**
+   * Returns the change set artifact if one exists, providing access to
+   * the unified diff and parsed file changes.
+   *
+   * @example
+   * const result = await session.result();
+   * const changeSet = result.changeSet();
+   * if (changeSet) {
+   *   const parsed = changeSet.parsed();
+   *   console.log(`${parsed.summary.totalFiles} files changed`);
+   * }
+   */
+  changeSet(): ChangeSetArtifact | undefined;
 }
 
 /**
