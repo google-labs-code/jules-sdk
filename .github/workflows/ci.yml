@@ -50,7 +50,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          bun run type-check 2>&1 | tee ts_error.txt || {
+          bun run typecheck 2>&1 | tee ts_error.txt || {
             echo "log=$(head -n 50 ts_error.txt | base64 -w 0)" >> $GITHUB_OUTPUT
             exit 1
           }
