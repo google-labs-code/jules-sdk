@@ -97,11 +97,7 @@ export class SessionClientImpl implements SessionClient {
 
   // Private helper wrapper to enforce resume context
   private async request<T>(path: string, options: ApiRequestOptions = {}) {
-    return this.apiClient.request<T>(path, {
-      ...options,
-      // Always attach 'resume' context for this session instance
-      handshake: { intent: 'resume', sessionId: this.id },
-    });
+    return this.apiClient.request<T>(path, options);
   }
 
   /**
