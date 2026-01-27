@@ -15,6 +15,7 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
+    "test:smoke": "bun scripts/smoke-test.ts",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
