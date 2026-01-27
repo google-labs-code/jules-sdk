@@ -54,16 +54,6 @@ export type StorageFactory = {
  *   }
  * });
  */
-export interface ProxyConfig {
-  /** The full URL to your GAS or Node.js proxy endpoint */
-  url: string;
-  /**
-   * Async callback to retrieve the User Identity Token (e.g. Firebase ID Token).
-   * Or a static string for "Shared Secret" mode.
-   */
-  auth?: () => Promise<string> | string;
-}
-
 export interface JulesOptions {
   /**
    * The API key used for authentication.
@@ -71,12 +61,6 @@ export interface JulesOptions {
    * Authenticates requests via the `X-Goog-Api-Key` header.
    */
   apiKey?: string;
-  /**
-   * Proxy Configuration (Browser / Client Mode).
-   * Allows the SDK to communicate via a trusted proxy (e.g. Google Apps Script)
-   * to handle authentication securely without exposing API keys.
-   */
-  proxy?: ProxyConfig;
   /**
    * **FOR TEST/DEV USE ONLY.**
    * Explicitly sets the API key for client-side environments (like browsers).
@@ -208,11 +192,6 @@ export interface SessionConfig {
    * @default true for `jules.run()`
    */
   autoPr?: boolean;
-  /**
-   * The ID of the user who owns this session.
-   * This is primarily used by the Proxy/Authorization layer to enforce permissions.
-   */
-  ownerId?: string;
 }
 
 // =============================================================================

@@ -105,18 +105,6 @@ export class JulesClientImpl implements JulesClient {
     // NOTE: This assumes StorageFactory was updated to { activity: ..., session: ... } in Phase 1
     this.storage = this.storageFactory.session();
 
-    // 1. Resolve Proxy Configuration
-    const envProxyUrl = this.getEnv('JULES_PROXY');
-    const envSecret = this.getEnv('JULES_SECRET');
-
-    // Priority: Options > Env > Default (Node Only)
-    if (!options.proxy && envProxyUrl) {
-      options.proxy = {
-        url: envProxyUrl,
-        auth: envSecret ? () => envSecret : undefined,
-      };
-    }
-
     const apiKey =
       options.apiKey_TEST_ONLY_DO_NOT_USE_IN_PRODUCTION ??
       options.apiKey ??
@@ -133,7 +121,6 @@ export class JulesClientImpl implements JulesClient {
       apiKey,
       baseUrl,
       requestTimeoutMs: this.config.requestTimeoutMs,
-      proxy: options.proxy,
       rateLimitRetry: options.config?.rateLimitRetry,
     });
     this.sources = createSourceManager(this.apiClient);
@@ -553,11 +540,6 @@ export class JulesClientImpl implements JulesClient {
               : 'AUTO_CREATE_PR',
           requirePlanApproval: config.requireApproval ?? false,
         },
-        // ✅ PASS CONTEXT: I want to CREATE
-        handshake: {
-          intent: 'create',
-          sessionConfig: { prompt: config.prompt, source: config.source },
-        },
       },
     );
 
@@ -653,11 +635,6 @@ export class JulesClientImpl implements JulesClient {
             ...body,
             automationMode: 'AUTOMATION_MODE_UNSPECIFIED',
             requirePlanApproval: config.requireApproval ?? true,
-          },
-          // ✅ PASS CONTEXT
-          handshake: {
-            intent: 'create',
-            sessionConfig: { prompt: config.prompt, source: config.source },
           },
         },
       );

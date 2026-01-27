@@ -16,7 +16,6 @@
 
 // src/api.ts
 
-import { ProxyConfig } from './types.js';
 import {
   JulesApiError,
   JulesAuthenticationError,
@@ -35,20 +34,14 @@ export type ApiClientOptions = {
   apiKey: string | undefined;
   baseUrl: string;
   requestTimeoutMs: number;
-  proxy?: ProxyConfig;
   rateLimitRetry?: Partial<RateLimitRetryConfig>;
 };
-
-export type HandshakeContext =
-  | { intent: 'create'; sessionConfig: any }
-  | { intent: 'resume'; sessionId: string };
 
 export type ApiRequestOptions = {
   method?: 'GET' | 'POST';
   body?: Record<string, unknown>;
   query?: Record<string, any>;
   headers?: Record<string, string>;
-  handshake?: HandshakeContext;
   _isRetry?: boolean; // Internal flag to prevent infinite loops
 };
 
@@ -60,17 +53,12 @@ export class ApiClient {
   private readonly apiKey: string | undefined;
   private readonly baseUrl: string;
   private readonly requestTimeoutMs: number;
-  private readonly proxy?: ProxyConfig;
   private readonly rateLimitConfig: RateLimitRetryConfig;
-  private capabilityToken: string | null = null;
-  // Cache the handshake promise to prevent parallel handshakes (thundering herd)
-  private handshakePromise: Promise<string> | null = null;
 
   constructor(options: ApiClientOptions) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl;
     this.requestTimeoutMs = options.requestTimeoutMs;
-    this.proxy = options.proxy;
     this.rateLimitConfig = {
       maxRetryTimeMs: options.rateLimitRetry?.maxRetryTimeMs ?? 300000, // 5 minutes
       baseDelayMs: options.rateLimitRetry?.baseDelayMs ?? 1000,
@@ -87,7 +75,6 @@ export class ApiClient {
       body,
       query,
       headers: customHeaders,
-      handshake,
       _isRetry,
     } = options;
     const url = this.resolveUrl(endpoint);
@@ -107,10 +94,6 @@ export class ApiClient {
     if (this.apiKey) {
       // Direct Mode
       headers['X-Goog-Api-Key'] = this.apiKey;
-    } else if (this.proxy) {
-      // Proxy Mode
-      const token = await this.ensureToken(handshake);
-      headers['Authorization'] = `Bearer ${token}`;
     } else {
       throw new MissingApiKeyError();
     }
@@ -121,22 +104,6 @@ export class ApiClient {
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
-
-    // 3. Auto-Retry on 401/403 (Token Expiration)
-    if (this.proxy && (response.status === 401 || response.status === 403)) {
-      if (_isRetry) {
-        throw new JulesAuthenticationError(
-          url.toString(),
-          response.status,
-          'Authentication failed even after token refresh',
-        );
-      }
-
-      // Force a fresh handshake
-      this.capabilityToken = null;
-      // Recursive call with retry flag
-      return this.request<T>(endpoint, { ...options, _isRetry: true });
-    }
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -197,74 +164,7 @@ export class ApiClient {
     return JSON.parse(responseText) as T;
   }
 
-  /**
-   * Ensures we have a valid Capability Token.
-   * If not, performs the Handshake.
-   */
-  private async ensureToken(context?: HandshakeContext): Promise<string> {
-    // If we are explicitly asking to create a session, we must ensure the token
-    // carries the 'create' intent. Existing cached tokens might be 'resume' tokens
-    // or generic ones, which might not be authorized for creation.
-    // Therefore, we invalidate the cache for 'create' intent to force a fresh handshake.
-    if (context?.intent === 'create') {
-      this.capabilityToken = null;
-    }
-
-    if (this.capabilityToken) return this.capabilityToken;
-    if (!this.proxy) throw new Error('Missing Proxy Configuration');
-
-    // Deduplicate concurrent handshake requests
-    if (!this.handshakePromise) {
-      this.handshakePromise = this.performHandshake(context);
-    }
-
-    try {
-      this.capabilityToken = await this.handshakePromise;
-      return this.capabilityToken;
-    } finally {
-      this.handshakePromise = null;
-    }
-  }
-
-  private async performHandshake(context?: HandshakeContext): Promise<string> {
-    if (!this.proxy) throw new Error('No proxy config');
-
-    // 1. Get Identity Token (e.g. Firebase)
-    const authToken = this.proxy.auth ? await this.proxy.auth() : '';
-
-    // 2. Construct the Body based on Context
-    const body: any = { authToken };
-
-    if (context?.intent === 'create') {
-      body.intent = 'create';
-      body.context = context.sessionConfig; // Pass prompt/source
-    } else {
-      // Default to resume if unspecified, or explicitly resume
-      body.intent = 'resume';
-      if (context?.intent === 'resume') {
-        body.sessionId = context.sessionId;
-      }
-    }
-
-    // 3. Call Proxy Handshake Endpoint
-    const res = await this.fetchWithTimeout(this.proxy.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    const data: any = await res.json();
-    if (!data.success) throw new Error(data.error || 'Handshake failed');
-    return data.token;
-  }
-
   private resolveUrl(path: string): URL {
-    if (this.proxy) {
-      // When using Proxy, the path is appended to the proxy URL
-      const url = new URL(this.proxy.url);
-      url.searchParams.append('path', `/${path}`);
-      return url;
-    }
     // Direct Mode
     return new URL(`${this.baseUrl}/${path}`);
   }
