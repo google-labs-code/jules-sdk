@@ -196,5 +196,11 @@ export function mapSessionResourceToOutcome(session: SessionResource): Outcome {
       const files = parseUnidiffWithContent(changeSet.gitPatch.unidiffPatch);
       return createGeneratedFiles(files);
     },
+    changeSet: () => {
+      if (!changeSet?.gitPatch) {
+        return undefined;
+      }
+      return new ChangeSetArtifact('session', changeSet.gitPatch);
+    },
   };
 }

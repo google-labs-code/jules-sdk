@@ -291,10 +291,11 @@ export class SessionClientImpl implements SessionClient {
       this.id,
       this.apiClient,
       (session) => {
+        const state = session.state.toLowerCase();
         return (
-          session.state === targetState ||
-          session.state === 'completed' ||
-          session.state === 'failed'
+          state === targetState.toLowerCase() ||
+          state === 'completed' ||
+          state === 'failed'
         );
       },
       this.config.pollingIntervalMs,
