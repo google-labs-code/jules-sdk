@@ -28,7 +28,7 @@ jobs:
       # We'll rely on Bun's speed. If needed, we can cache ~/.bun/install/cache.
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       # 1. Get Changed Files for Jules context (PR only - base_ref is empty on push)
       - name: Get Changed Files
