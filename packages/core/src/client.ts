@@ -26,7 +26,7 @@ import {
   SourceManager,
   AutomatedSession,
   SessionClient,
-  Outcome,
+  SessionOutcome,
   SessionResource,
   StorageFactory,
 } from './types.js';

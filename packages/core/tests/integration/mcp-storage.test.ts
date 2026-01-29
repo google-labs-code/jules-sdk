@@ -21,7 +21,7 @@ import { join } from 'node:path';
 import { connect } from '../../src/index.js';
 
 describe('MCP Server Storage Integration', () => {
-  const testDir = join(tmpdir(), 'modjules-test-' + Date.now());
+  const testDir = join(tmpdir(), 'jules-test-' + Date.now());
 
   beforeAll(() => {
     mkdirSync(testDir, { recursive: true });

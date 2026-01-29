@@ -45,7 +45,7 @@ export function connect(options: JulesOptions = {}): JulesClient {
  * (e.g., reading API keys from environment variables).
  *
  * @example
- * import { jules } from 'modjules';
+ * import { jules } from '@google/jules-sdk';
  * const session = await jules.session({ ... });
  */
 export const jules: JulesClient = connect();
@@ -72,7 +72,7 @@ export type {
   LightweightActivity,
   LightweightArtifact,
   MediaArtifact,
-  Outcome,
+  SessionOutcome as Outcome,
   ParsedChangeSet,
   ParsedFile,
   Plan,
@@ -91,6 +91,9 @@ export type {
   JulesQuery,
   JulesDomain,
   SyncDepth,
+  SerializedSnapshot,
+  SnapshotField,
+  ToJSONOptions,
 } from './types.js';
 
 // Re-export schema and validation for MCP and other consumers
@@ -119,7 +122,7 @@ export type { ListSessionsOptions, ListSessionsResponse } from './sessions.js';
 // Activity utilities
 export { toSummary } from './activities/summary.js';
 
-// Internal exports for @modjules/server package
+// Internal exports for @google/jules-sdk package
 export { JulesClientImpl } from './client.js';
 export { MemoryStorage, MemorySessionStorage } from './storage/memory.js';
 export { NodePlatform } from './platform/node.js';

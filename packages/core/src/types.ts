@@ -45,7 +45,7 @@ export type StorageFactory = {
  * Configuration options for the Jules SDK client.
  *
  * @example
- * import { Jules } from 'modjules';
+ * import { Jules } from '@google/jules-sdk';
  *
  * const jules = Jules({
  *   apiKey: 'YOUR_API_KEY',
@@ -356,13 +356,11 @@ export interface SessionResource {
    * Only populated when `include: { activities: true }` is used in `jules.select()`.
    */
   activities?: Activity[];
+  outcome: SessionOutcome;
   /**
-   * The final outcome of the session, if it is in a terminal state.
+   * The generated files of the session if it reaches a stable state.
    */
-  outcome?: {
-    status: 'SUCCESS' | 'FAILURE';
-    summary: string;
-  };
+  generatedFiles?: GeneratedFile[];
 }
 
 // -----------------------------------------------------------------------------
@@ -821,13 +819,13 @@ export type Activity =
  * This is derived from the final SessionResource state.
  *
  * @example
- * (outcome: Outcome) => {
+ * (outcome: SessionOutcome) => {
  *   if (outcome.state === 'completed' && outcome.pullRequest) {
  *     console.log(`Success! PR: ${outcome.pullRequest.url}`);
  *   }
  * }
  */
-export interface Outcome {
+export interface SessionOutcome {
   sessionId: string;
   title: string;
   state: 'completed' | 'failed';
@@ -895,7 +893,7 @@ export interface AutomatedSession {
    * const run = await jules.run({ ... });
    * const outcome = await run.result();
    */
-  result(): Promise<Outcome>;
+  result(): Promise<SessionOutcome>;
 }
 
 // -----------------------------------------------------------------------------
@@ -1085,7 +1083,7 @@ export interface SessionClient {
    * const outcome = await session.result();
    * console.log(`Session finished with state: ${outcome.state}`);
    */
-  result(): Promise<Outcome>;
+  result(): Promise<SessionOutcome>;
 
   /**
    * Pauses execution and waits until the session to reach a specific state.
@@ -1114,7 +1112,7 @@ export interface SessionClient {
    *
    * @returns A Promise resolving to the session snapshot.
    */
-  snapshot(): Promise<SessionSnapshot>;
+  snapshot(options: { activities?: boolean }): Promise<SessionSnapshot>;
 }
 
 // -----------------------------------------------------------------------------
@@ -1138,7 +1136,9 @@ export interface SessionSnapshot {
   readonly activityCounts: Readonly<Record<string, number>>;
   readonly timeline: readonly TimelineEntry[];
   readonly insights: SessionInsights;
-  toJSON(): SerializedSnapshot;
+  readonly generatedFiles: GeneratedFiles;
+  readonly changeSet: () => ChangeSet | undefined;
+  toJSON(options?: ToJSONOptions): Partial<SerializedSnapshot>;
   toMarkdown(): string;
 }
 
@@ -1162,6 +1162,26 @@ export interface SessionInsights {
 }
 
 /**
+ * Valid field names for the SerializedSnapshot, used for type-safe field masks.
+ */
+export type SnapshotField = keyof SerializedSnapshot;
+
+/**
+ * Options for controlling which fields are included in the serialized output.
+ */
+export interface ToJSONOptions {
+  /**
+   * Fields to include in the output. If specified, only these fields are returned.
+   * Takes precedence over `exclude` if both are provided.
+   */
+  include?: SnapshotField[];
+  /**
+   * Fields to exclude from the output. Ignored if `include` is specified.
+   */
+  exclude?: SnapshotField[];
+}
+
+/**
  * The JSON-serializable representation of a SessionSnapshot.
  */
 export interface SerializedSnapshot {
@@ -1176,6 +1196,7 @@ export interface SerializedSnapshot {
   activities: Activity[];
   activityCounts: Record<string, number>;
   timeline: TimelineEntry[];
+  generatedFiles: GeneratedFile[];
   insights: {
     completionAttempts: number;
     planRegenerations: number;
@@ -1471,7 +1492,7 @@ export interface SyncOptions {
  * (e.g., reading API keys from environment variables).
  *
  * @example
- * import { jules } from 'modjules';
+ * import { jules } from '@google/jules-sdk';
  * const session = await jules.session({ ... });
  */
 export declare const jules: JulesClient;

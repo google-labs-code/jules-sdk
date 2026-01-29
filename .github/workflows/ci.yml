@@ -100,7 +100,7 @@ jobs:
           export COMMIT_MSG=$(git show -s --format=%B ${{ github.event.pull_request.head.sha }})
           bun scripts/verify-attribution.ts
 
-      # 4. Report Failures to Jules via modjules
+      # 4. Report Failures to Jules via @google/jules-sdk
       - name: Report Failure to Jules
         if: always() && github.event_name == 'pull_request' && (github.event.pull_request.user.login == 'google-labs-jules' || endsWith(github.event.pull_request.user.login, '[bot]'))
         env:

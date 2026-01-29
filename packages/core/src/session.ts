@@ -28,7 +28,8 @@ import { StreamActivitiesOptions } from './streaming.js';
 import {
   Activity,
   ActivityAgentMessaged,
-  Outcome,
+  GeneratedFile,
+  SessionOutcome,
   SessionClient,
   SessionResource,
   SessionState,
@@ -257,7 +258,7 @@ export class SessionClientImpl implements SessionClient {
    * @returns The final outcome of the session.
    * @throws {AutomatedSessionFailedError} If the session ends in a 'failed' state.
    */
-  async result(): Promise<Outcome> {
+  async result(): Promise<SessionOutcome> {
     const finalSession = await pollUntilCompletion(
       this.id,
       this.apiClient,
@@ -313,6 +314,10 @@ export class SessionClientImpl implements SessionClient {
     try {
       const fresh = await this.request<SessionResource>(`sessions/${this.id}`);
       await this.sessionStorage.upsert(fresh);
+      // Map the outcome to the session resource.
+      // This shouldn't be cached, it's a convenience for the user.
+      const outcome = mapSessionResourceToOutcome(fresh);
+      fresh.outcome = outcome;
       return fresh;
     } catch (e: any) {
       if (e.status === 404 && cached) {
@@ -328,11 +333,11 @@ export class SessionClientImpl implements SessionClient {
    *
    * @returns A `SessionSnapshot` instance.
    */
-  async snapshot(): Promise<SessionSnapshot> {
+  async snapshot(options: { activities?: boolean }): Promise<SessionSnapshot> {
     const [info, activities] = await Promise.all([
       this.info(),
-      collectAsync(this.history()),
+      options.activities ? collectAsync(this.history()) : [],
     ]);
-    return new SessionSnapshotImpl(info, activities);
+    return new SessionSnapshotImpl({ data: { session: info, activities } });
   }
 }

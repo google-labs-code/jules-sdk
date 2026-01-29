@@ -22,7 +22,7 @@ function findUserCandidates(body: string): string[] {
 
   while ((match = regex.exec(body)) !== null) {
     const username = match[1].toLowerCase();
-    const isNpmScope = match[2] === '/'; // If followed by /, it's an npm scope like @modjules/pkg
+    const isNpmScope = match[2] === '/'; // If followed by /, it's an npm scope like @google/jules
 
     // Skip npm scopes, known bots, and duplicates
     if (

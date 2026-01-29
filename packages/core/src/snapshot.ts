@@ -29,7 +29,19 @@ import {
   ActivityUserMessaged,
   ActivityAgentMessaged,
   ActivityProgressUpdated,
+  GeneratedFile,
+  SessionOutcome,
+  GeneratedFiles,
+  ChangeSet,
+  ToJSONOptions,
 } from './types.js';
+
+export interface SessionSnapshotOptions {
+  data: {
+    session: SessionResource;
+    activities?: Activity[];
+  }
+}
 
 export class SessionSnapshotImpl implements SessionSnapshot {
   readonly id: string;
@@ -45,8 +57,11 @@ export class SessionSnapshotImpl implements SessionSnapshot {
   readonly activityCounts: Readonly<Record<string, number>>;
   readonly timeline: readonly TimelineEntry[];
   readonly insights: SessionInsights;
+  readonly generatedFiles: GeneratedFiles;
+  readonly changeSet: () => ChangeSet | undefined;
 
-  constructor(session: SessionResource, activities: Activity[]) {
+  constructor(options: SessionSnapshotOptions) {
+    const { session, activities = [] } = options.data;
     this.id = session.id;
     this.state = session.state;
     this.url = session.url;
@@ -55,9 +70,9 @@ export class SessionSnapshotImpl implements SessionSnapshot {
     this.durationMs = this.updatedAt.getTime() - this.createdAt.getTime();
     this.prompt = session.prompt;
     this.title = session.title;
-    this.pr = session.outputs.find(
-      (o) => o.type === 'pullRequest',
-    )?.pullRequest;
+    this.pr = session.outcome.pullRequest;
+    this.generatedFiles = session.outcome.generatedFiles();
+    this.changeSet = session.outcome.changeSet;
     this.activities = Object.freeze(activities);
 
     // Compute derived views
@@ -132,8 +147,8 @@ export class SessionSnapshotImpl implements SessionSnapshot {
     };
   }
 
-  toJSON(): SerializedSnapshot {
-    return {
+  toJSON(options: ToJSONOptions = { exclude: ['activities', 'generatedFiles'] }): Partial<SerializedSnapshot> {
+    const full: SerializedSnapshot = {
       id: this.id,
       state: this.state,
       url: this.url,
@@ -145,6 +160,7 @@ export class SessionSnapshotImpl implements SessionSnapshot {
       activities: this.activities as Activity[],
       activityCounts: this.activityCounts,
       timeline: this.timeline as TimelineEntry[],
+      generatedFiles: this.generatedFiles.all(),
       insights: {
         completionAttempts: this.insights.completionAttempts,
         planRegenerations: this.insights.planRegenerations,
@@ -153,6 +169,26 @@ export class SessionSnapshotImpl implements SessionSnapshot {
       },
       pr: this.pr,
     };
+
+    // If include is specified, return only those fields
+    if (options?.include) {
+      return Object.fromEntries(
+        options.include
+          .filter((key) => key in full)
+          .map((key) => [key, full[key]]),
+      ) as Partial<SerializedSnapshot>;
+    }
+
+    // If exclude is specified, return all fields except those
+    if (options?.exclude) {
+      const result = { ...full };
+      for (const key of options.exclude) {
+        delete result[key];
+      }
+      return result;
+    }
+
+    return full;
   }
 
   toMarkdown(): string {
@@ -169,6 +205,15 @@ export class SessionSnapshotImpl implements SessionSnapshot {
     lines.push(`- **Total Activities**: ${this.activities.length}`);
     if (this.pr) {
       lines.push(`- **Pull Request**: [${this.pr.title}](${this.pr.url})`);
+    }
+    if (this.generatedFiles.all().length > 0) {
+      lines.push(`- **Generated Files**: ${this.generatedFiles.all().length}`);
+      for (const file of this.generatedFiles.all()) {
+        lines.push(`  - ${file.path}`);
+        lines.push(`  - Type: ${file.changeType}`);
+        lines.push(`  - Additions: ${file.additions}`);
+        lines.push(`  - Deletions: ${file.deletions}`);
+      }
     }
     lines.push('');
 

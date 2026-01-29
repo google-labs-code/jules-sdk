@@ -27,7 +27,7 @@ import {
   Activity,
   Artifact,
   ChangeSet,
-  Outcome,
+  SessionOutcome,
   PullRequest,
   RestArtifact,
   SessionResource,
@@ -164,7 +164,7 @@ export function mapRestActivityToSdkActivity(
  * @returns The corresponding Outcome object.
  * @throws {AutomatedSessionFailedError} If the session state is 'failed'.
  */
-export function mapSessionResourceToOutcome(session: SessionResource): Outcome {
+export function mapSessionResourceToOutcome(session: SessionResource): SessionOutcome {
   if (session.state === 'failed') {
     // TODO: The reason is not available on the session resource directly.
     // This will be improved when the API provides a failure reason.
