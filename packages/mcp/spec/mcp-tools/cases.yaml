@@ -1,0 +1,849 @@
+- id: MCP-01
+  description: Returns basic session state
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_state
+  given:
+    sessionId: session-123
+    sessionResource:
+      id: session-123
+      state: inProgress
+      url: http://example.com/session-123
+      title: Test Session
+  then:
+    result:
+      id: session-123
+      state: inProgress
+      url: http://example.com/session-123
+      title: Test Session
+- id: MCP-02
+  description: Includes PR info when available
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_state
+  given:
+    sessionId: session-123
+    sessionResource:
+      id: session-123
+      state: succeeded
+      url: http://example.com/session-123
+      title: Test Session with PR
+      outputs:
+        - type: pullRequest
+          pullRequest:
+            url: http://github.com/pr/1
+            title: 'Feat: New feature'
+  then:
+    result:
+      id: session-123
+      state: succeeded
+      pr:
+        url: http://github.com/pr/1
+        title: 'Feat: New feature'
+- id: MCP-03
+  description: Handles sessions with no PR info gracefully
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_state
+  given:
+    sessionId: session-456
+    sessionResource:
+      id: session-456
+      state: failed
+      url: http://example.com/session-456
+      title: Failed Session
+      outputs: []
+  then:
+    result:
+      id: session-456
+      state: failed
+      pr: null
+- id: MCP-04
+  description: Returns the first page of activities
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-abc
+    args:
+      limit: 2
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: Hello
+      - id: act-2
+        type: planGenerated
+        plan:
+          steps: []
+      - id: act-3
+        type: userMessaged
+        message: Hi
+  then:
+    result:
+      activities:
+        count: 2
+        items:
+          - id: act-1
+          - id: act-2
+      hasMore: true
+      nextCursor: act-2
+- id: MCP-05
+  description: Returns the next page of activities using a cursor
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-abc
+    args:
+      limit: 2
+      startAfter: act-2
+    activities:
+      - id: act-3
+        type: userMessaged
+        message: Hi
+  then:
+    result:
+      activities:
+        count: 1
+        items:
+          - id: act-3
+      hasMore: false
+      nextCursor: null
+- id: MCP-06
+  description: Returns the last page of activities correctly
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-def
+    args:
+      limit: 5
+    activities:
+      - id: act-1
+      - id: act-2
+  then:
+    result:
+      activities:
+        count: 2
+      hasMore: false
+      nextCursor: null
+- id: MCP-07
+  description: Respects the default limit of 10
+  category: mcp-tools
+  status: implemented
+  priority: P2
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-ghi
+    args: {}
+    activities:
+      - { id: 1 }
+      - { id: 2 }
+      - { id: 3 }
+      - { id: 4 }
+      - { id: 5 }
+      - { id: 6 }
+      - { id: 7 }
+      - { id: 8 }
+      - { id: 9 }
+      - { id: 10 }
+      - { id: 11 }
+  then:
+    result:
+      activities:
+        count: 10
+      hasMore: true
+      nextCursor: 10
+- id: MCP-08
+  description: Sorts activities in ascending order
+  category: mcp-tools
+  status: implemented
+  priority: P2
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-jkl
+    args:
+      order: asc
+      limit: 2
+    activities:
+      - id: act-z
+      - id: act-y
+      - id: act-x
+  then:
+    result:
+      activities:
+        count: 2
+        items:
+          - id: act-z
+          - id: act-y
+      hasMore: true
+      nextCursor: act-y
+- id: MCP-09
+  description: Filters activities by type with pagination
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-mno
+    args:
+      type: agentMessaged
+      limit: 1
+    activities:
+      - id: act-1
+        type: agentMessaged
+      - id: act-2
+        type: planGenerated
+      - id: act-3
+        type: agentMessaged
+  then:
+    result:
+      activities:
+        count: 1
+        items:
+          - id: act-1
+      hasMore: true
+      nextCursor: act-1
+- id: MCP-10
+  description: Handles empty result set
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-pqr
+    args: {}
+    activities: []
+  then:
+    result:
+      activities:
+        count: 0
+      hasMore: false
+      nextCursor: null
+- id: MCP-12
+  description: Timeline returns lightweight activities with message and artifacts
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_timeline
+  given:
+    sessionId: session-light
+    args:
+      limit: 1
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: 'This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary.'
+        artifacts:
+          - type: file
+            path: src/index.ts
+  then:
+    result:
+      activities:
+        count: 1
+        items:
+          - id: act-1
+            # Summary remains truncated for backward compatibility
+            summary: 'This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the summary. This is a very long message that should be truncated in the su...'
+            # Full message is now included
+            hasMessage: true
+            # Artifacts are now included by default
+            hasArtifacts: true
+            artifactCount: 1
+      hasMore: false
+
+# jules_get_code_changes tests
+# New API: requires activityId, optional filePath filter
+# Returns full unidiffPatch for LLM code analysis
+
+- id: MCP-20
+  description: Returns error when activityId is missing
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_get_code_changes
+  given:
+    sessionId: session-123
+    args:
+      # activityId intentionally omitted
+    activities: []
+  then:
+    error: activityId is required
+
+- id: MCP-21
+  description: Returns full unidiffPatch for activity with modified file
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_get_code_changes
+  given:
+    sessionId: session-modified
+    args:
+      activityId: act-1
+    activities:
+      - id: act-1
+        type: progressUpdated
+        createTime: '2026-01-05T20:45:00Z'
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/index.ts b/src/index.ts
+                index abc123..def456 100644
+                --- a/src/index.ts
+                +++ b/src/index.ts
+                @@ -1,2 +1,3 @@
+                 const a = 1;
+                +const b = 2;
+                 export { a };
+  then:
+    result:
+      sessionId: session-modified
+      activityId: act-1
+      unidiffPatch:
+        contains: 'diff --git a/src/index.ts'
+      files:
+        count: 1
+        items:
+          - path: src/index.ts
+            changeType: modified
+            additions: 1
+            deletions: 0
+      summary:
+        totalFiles: 1
+        modified: 1
+
+- id: MCP-22
+  description: Returns unidiffPatch for activity with multiple files
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_get_code_changes
+  given:
+    sessionId: session-multi-files
+    args:
+      activityId: act-1
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/a.ts b/src/a.ts
+                --- a/src/a.ts
+                +++ b/src/a.ts
+                @@ -1 +1,2 @@
+                 const a = 1;
+                +const aa = 2;
+                diff --git a/src/b.ts b/src/b.ts
+                new file mode 100644
+                --- /dev/null
+                +++ b/src/b.ts
+                @@ -0,0 +1 @@
+                +export const b = 1;
+  then:
+    result:
+      sessionId: session-multi-files
+      activityId: act-1
+      unidiffPatch:
+        contains: 'diff --git a/src/a.ts'
+      files:
+        count: 2
+        items:
+          - path: src/a.ts
+            changeType: modified
+          - path: src/b.ts
+            changeType: created
+      summary:
+        totalFiles: 2
+        created: 1
+        modified: 1
+        deleted: 0
+
+- id: MCP-23
+  description: Filters to specific file when filePath provided
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_get_code_changes
+  given:
+    sessionId: session-filter
+    args:
+      activityId: act-1
+      filePath: src/a.ts
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/a.ts b/src/a.ts
+                --- a/src/a.ts
+                +++ b/src/a.ts
+                @@ -1 +1,2 @@
+                 const a = 1;
+                +const aa = 2;
+                diff --git a/src/b.ts b/src/b.ts
+                new file mode 100644
+                --- /dev/null
+                +++ b/src/b.ts
+                @@ -0,0 +1 @@
+                +export const b = 1;
+  then:
+    result:
+      sessionId: session-filter
+      activityId: act-1
+      filePath: src/a.ts
+      unidiffPatch:
+        contains: 'diff --git a/src/a.ts'
+        excludes: 'diff --git a/src/b.ts'
+      files:
+        count: 1
+        items:
+          - path: src/a.ts
+            changeType: modified
+
+- id: MCP-24
+  description: Returns empty when activity has no changeSet artifacts
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_get_code_changes
+  given:
+    sessionId: session-no-changes
+    args:
+      activityId: act-1
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: Hello
+        artifacts: []
+  then:
+    result:
+      sessionId: session-no-changes
+      activityId: act-1
+      unidiffPatch: ''
+      files:
+        count: 0
+      summary:
+        totalFiles: 0
+
+- id: MCP-24b
+  description: Returns error when activityId not found
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_get_code_changes
+  given:
+    sessionId: session-123
+    args:
+      activityId: nonexistent-activity
+    activities:
+      - id: act-1
+        type: agentMessaged
+        artifacts: []
+  then:
+    error: Activity not found
+
+# jules_session_files tests
+# Returns flat file list with activityIds for drill-down to jules_get_code_changes
+# Uses "net" change type: created→modified = created, created→deleted = omit
+# LLM renders ASCII tree from JSON using tool description guidance
+
+- id: MCP-30
+  description: Returns flat file list with activityIds for single file change
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_files
+  given:
+    sessionId: session-single
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/index.ts b/src/index.ts
+                --- a/src/index.ts
+                +++ b/src/index.ts
+                @@ -1 +1,2 @@
+                 const a = 1;
+                +const b = 2;
+  then:
+    result:
+      sessionId: session-single
+      files:
+        count: 1
+        items:
+          - path: src/index.ts
+            changeType: modified
+            activityIds:
+              - act-1
+            additions: 1
+            deletions: 0
+      summary:
+        totalFiles: 1
+        created: 0
+        modified: 1
+        deleted: 0
+
+- id: MCP-31
+  description: Aggregates activityIds when file changed multiple times
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_files
+  given:
+    sessionId: session-multi-changes
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/client.ts b/src/client.ts
+                --- a/src/client.ts
+                +++ b/src/client.ts
+                @@ -1 +1,2 @@
+                 const x = 1;
+                +const y = 2;
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/client.ts b/src/client.ts
+                --- a/src/client.ts
+                +++ b/src/client.ts
+                @@ -1,2 +1,3 @@
+                 const x = 1;
+                 const y = 2;
+                +const z = 3;
+  then:
+    result:
+      sessionId: session-multi-changes
+      files:
+        count: 1
+        items:
+          - path: src/client.ts
+            changeType: modified
+            activityIds:
+              - act-1
+              - act-2
+            additions: 2
+            deletions: 0
+      summary:
+        totalFiles: 1
+        created: 0
+        modified: 1
+        deleted: 0
+
+- id: MCP-32
+  description: Returns multiple files from single activity
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_session_files
+  given:
+    sessionId: session-multi-files
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/packages/core/src/client.ts b/packages/core/src/client.ts
+                --- a/packages/core/src/client.ts
+                +++ b/packages/core/src/client.ts
+                @@ -1 +1,2 @@
+                 export class Client {}
+                +export class NewClient {}
+                diff --git a/packages/core/tests/client.test.ts b/packages/core/tests/client.test.ts
+                new file mode 100644
+                --- /dev/null
+                +++ b/packages/core/tests/client.test.ts
+                @@ -0,0 +1 @@
+                +test('client', () => {});
+  then:
+    result:
+      sessionId: session-multi-files
+      files:
+        count: 2
+        items:
+          - path: packages/core/src/client.ts
+            changeType: modified
+            activityIds:
+              - act-1
+          - path: packages/core/tests/client.test.ts
+            changeType: created
+            activityIds:
+              - act-1
+      summary:
+        totalFiles: 2
+        created: 1
+        modified: 1
+        deleted: 0
+
+- id: MCP-33
+  description: Uses net change type - created then modified stays created
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_files
+  given:
+    sessionId: session-net-change
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/new.ts b/src/new.ts
+                new file mode 100644
+                --- /dev/null
+                +++ b/src/new.ts
+                @@ -0,0 +1 @@
+                +const x = 1;
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/new.ts b/src/new.ts
+                --- a/src/new.ts
+                +++ b/src/new.ts
+                @@ -1 +1,2 @@
+                 const x = 1;
+                +const y = 2;
+  then:
+    result:
+      sessionId: session-net-change
+      files:
+        count: 1
+        items:
+          - path: src/new.ts
+            changeType: created
+            activityIds:
+              - act-1
+              - act-2
+      summary:
+        totalFiles: 1
+        created: 1
+        modified: 0
+        deleted: 0
+
+- id: MCP-34
+  description: Returns empty files for session with no changeSet artifacts
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_files
+  given:
+    sessionId: session-empty
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: Hello
+        artifacts: []
+  then:
+    result:
+      sessionId: session-empty
+      files:
+        count: 0
+      summary:
+        totalFiles: 0
+        created: 0
+        modified: 0
+        deleted: 0
+
+- id: MCP-35
+  description: Omits file when net change is created then deleted
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_session_files
+  given:
+    sessionId: session-created-deleted
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/temp.ts b/src/temp.ts
+                new file mode 100644
+                --- /dev/null
+                +++ b/src/temp.ts
+                @@ -0,0 +1 @@
+                +const temp = 1;
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: |
+                diff --git a/src/temp.ts b/src/temp.ts
+                deleted file mode 100644
+                --- a/src/temp.ts
+                +++ /dev/null
+                @@ -1 +0,0 @@
+                -const temp = 1;
+  then:
+    result:
+      sessionId: session-created-deleted
+      files:
+        count: 0
+      summary:
+        totalFiles: 0
+        created: 0
+        modified: 0
+        deleted: 0
+
+# jules_get_bash_outputs tests
+- id: MCP-25
+  description: Returns empty outputs for session with no bash artifacts
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_get_bash_outputs
+  given:
+    sessionId: session-no-bash
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: Hello
+        artifacts: []
+  then:
+    result:
+      sessionId: session-no-bash
+      outputs:
+        count: 0
+      summary:
+        totalCommands: 0
+        succeeded: 0
+        failed: 0
+
+- id: MCP-26
+  description: Returns single successful bash command
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_get_bash_outputs
+  given:
+    sessionId: session-bash-success
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: 'echo "hello"'
+            stdout: 'hello'
+            stderr: ''
+            exitCode: 0
+  then:
+    result:
+      sessionId: session-bash-success
+      outputs:
+        count: 1
+        items:
+          - command: 'echo "hello"'
+            stdout: 'hello'
+            stderr: ''
+            exitCode: 0
+            activityId: act-1
+      summary:
+        totalCommands: 1
+        succeeded: 1
+        failed: 0
+
+- id: MCP-27
+  description: Returns single failed bash command
+  category: mcp-tools
+  status: implemented
+  priority: P1
+  when: mcp_jules_get_bash_outputs
+  given:
+    sessionId: session-bash-failed
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: 'cat nonexistent.txt'
+            stdout: ''
+            stderr: 'No such file or directory'
+            exitCode: 1
+  then:
+    result:
+      sessionId: session-bash-failed
+      outputs:
+        count: 1
+        items:
+          - command: 'cat nonexistent.txt'
+            exitCode: 1
+      summary:
+        totalCommands: 1
+        succeeded: 0
+        failed: 1
+
+- id: MCP-28
+  description: Returns multiple bash commands across activities
+  category: mcp-tools
+  status: implemented
+  priority: P0
+  when: mcp_jules_get_bash_outputs
+  given:
+    sessionId: session-multi-bash
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: 'npm install'
+            stdout: 'added 100 packages'
+            stderr: ''
+            exitCode: 0
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: 'npm test'
+            stdout: ''
+            stderr: 'Tests failed'
+            exitCode: 1
+  then:
+    result:
+      sessionId: session-multi-bash
+      outputs:
+        count: 2
+      summary:
+        totalCommands: 2
+        succeeded: 1
+        failed: 1

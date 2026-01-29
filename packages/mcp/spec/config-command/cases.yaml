@@ -1,0 +1,36 @@
+# packages/mcp/spec/config-command/cases.yaml
+- id: CONFIG-01
+  description: Saves API key when --key flag is provided
+  category: config-command
+  status: implemented
+  priority: P0
+  when: config --key
+  given:
+    args: ['--key', 'test-api-key-123']
+  then:
+    configFile:
+      apiKey: 'test-api-key-123'
+    stdout: contains "Configuration saved successfully"
+
+- id: CONFIG-02
+  description: Rejects empty --key value
+  category: config-command
+  status: implemented
+  priority: P0
+  when: config --key
+  given:
+    args: ['--key', '']
+  then:
+    stderr: contains "API Key cannot be empty"
+    exitCode: 1
+
+- id: CONFIG-03
+  description: Falls back to interactive prompt when --key not provided
+  category: config-command
+  status: implemented
+  priority: P1
+  when: config
+  given:
+    args: []
+  then:
+    behavior: 'prompts for API key interactively'

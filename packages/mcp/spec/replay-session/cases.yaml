@@ -1,0 +1,607 @@
+# Basic Navigation
+- id: REPLAY-01
+  description: Returns the first step when no cursor is provided
+  category: replay-session
+  status: implemented
+  priority: P0
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-nav
+    args: {}
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: First message
+  then:
+    result:
+      step:
+        type: message
+        content: First message
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+      prevCursor: null
+      context:
+        sessionId: session-nav
+        title: Test Session
+        source:
+          name: sources/github/owner/repo
+          id: github/owner/repo
+          type: githubRepo
+          githubRepo:
+            owner: owner
+            repo: repo
+            isPrivate: false
+
+- id: REPLAY-02
+  description: Returns the next step when a cursor is provided
+  category: replay-session
+  status: implemented
+  priority: P0
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-nav
+    args:
+      cursor: step_001
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: First message
+      - id: act-2
+        type: agentMessaged
+        message: Second message
+  then:
+    result:
+      step:
+        type: message
+        content: Second message
+      progress: { current: 2, total: 2 }
+      nextCursor: null
+      prevCursor: step_000
+      context: null
+
+- id: REPLAY-03
+  description: Returns the previous step using prevCursor
+  category: replay-session
+  status: implemented
+  priority: P0
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-nav
+    args:
+      cursor: step_000 # Go back to first step
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: First message
+      - id: act-2
+        type: agentMessaged
+        message: Second message
+  then:
+    result:
+      step:
+        type: message
+        content: First message
+      progress: { current: 1, total: 2 }
+      nextCursor: step_001
+      prevCursor: null
+
+- id: REPLAY-04
+  description: Last step should have no next cursor
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-nav
+    args:
+      cursor: step_001
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: First
+      - id: act-2
+        type: agentMessaged
+        message: Second
+  then:
+    result:
+      step:
+        type: message
+        content: Second
+      progress: { current: 2, total: 2 }
+      nextCursor: null
+      prevCursor: step_000
+
+- id: REPLAY-05
+  description: Returns error for out-of-bounds cursor (forward)
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-nav
+    args:
+      cursor: step_999
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: Only one step
+  then:
+    error: Invalid cursor
+
+# Step Types
+- id: REPLAY-10
+  description: Returns a 'message' step for agentMessaged
+  category: replay-session
+  status: implemented
+  priority: P0
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-types
+    args: {}
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: This is a message.
+  then:
+    result:
+      step:
+        type: message
+        content: This is a message.
+        originator: agent
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+      prevCursor: null
+
+- id: REPLAY-11
+  description: Returns a 'plan' step for planGenerated
+  category: replay-session
+  status: implemented
+  priority: P0
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-types
+    args: {}
+    activities:
+      - id: act-1
+        type: planGenerated
+        plan:
+          steps:
+            - description: Step 1
+            - description: Step 2
+  then:
+    result:
+      step:
+        type: plan
+        content:
+          - description: Step 1
+          - description: Step 2
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+      prevCursor: null
+
+- id: REPLAY-12
+  description: Returns a 'bash' step with full content
+  category: replay-session
+  status: implemented
+  priority: P0
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-types
+    args: {}
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            stdout: 'PASS'
+            stderr: ''
+            exitCode: 0
+  then:
+    result:
+      step:
+        type: bash
+        command: npm test
+        stdout: 'PASS'
+        stderr: ''
+        exitCode: 0
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+      prevCursor: null
+
+- id: REPLAY-13
+  description: Returns a 'code' step with full diff
+  category: replay-session
+  status: implemented
+  priority: P0
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-types
+    args: {}
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            source: agent
+            gitPatch:
+              unidiffPatch: 'diff --git a/file.txt b/file.txt'
+  then:
+    result:
+      step:
+        type: code
+        unidiffPatch: 'diff --git a/file.txt b/file.txt'
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+      prevCursor: null
+
+# Retry Detection
+- id: REPLAY-20
+  description: Detects a single retry of a bash command
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-retry
+    args: {}
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 1
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 0
+  then:
+    result:
+      step:
+        type: bash
+        command: npm test
+        exitCode: 1
+        attempt: 1
+        totalAttempts: 2
+      progress: { current: 1, total: 2 }
+      nextCursor: step_001
+
+- id: REPLAY-21
+  description: Returns the last attempt of a retry sequence
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-retry
+    args:
+      cursor: step_001
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 1
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 0
+  then:
+    result:
+      step:
+        type: bash
+        command: npm test
+        exitCode: 0
+        attempt: 2
+        totalAttempts: 2
+      progress: { current: 2, total: 2 }
+      nextCursor: null
+
+- id: REPLAY-22
+  description: Does not count non-consecutive commands as retries
+  category: replay-session
+  status: implemented
+  priority: P2
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-retry
+    args: {}
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 1
+      - id: act-2
+        type: agentMessaged
+        message: intervening message
+      - id: act-3
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 0
+  then:
+    result:
+      step:
+        type: bash
+        command: npm test
+        exitCode: 1
+        # No attempt info because it's not a retry
+      progress: { current: 1, total: 3 }
+      nextCursor: step_001
+
+- id: REPLAY-23
+  description: Handles multiple retry sequences
+  category: replay-session
+  status: implemented
+  priority: P2
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-retry
+    args:
+      cursor: step_002
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 1
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm test
+            exitCode: 0
+      - id: act-3
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm install
+            exitCode: 1
+      - id: act-4
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm install
+            exitCode: 0
+  then:
+    result:
+      step:
+        type: bash
+        command: npm install
+        exitCode: 1
+        attempt: 1
+        totalAttempts: 2
+      progress: { current: 3, total: 4 }
+      nextCursor: step_003
+
+- id: REPLAY-24
+  description: Commands with different stderr are not retries
+  category: replay-session
+  status: implemented
+  priority: P2
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-retry
+    args: {}
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm install
+            stderr: 'Error 1'
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: npm install
+            stderr: 'Error 2'
+  then:
+    result:
+      step:
+        type: bash
+        command: npm install
+        stderr: 'Error 1'
+        # No attempt info
+      progress: { current: 1, total: 2 }
+      nextCursor: step_001
+# Filtering
+- id: REPLAY-30
+  description: Filters to only bash steps
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-filter
+    args:
+      filter: bash
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: A message
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: echo "hello"
+  then:
+    result:
+      step:
+        type: bash
+        command: echo "hello"
+      progress: { current: 1, total: 1 } # Total reflects filtered count
+      nextCursor: null
+
+- id: REPLAY-31
+  description: Filters to only code steps
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-filter
+    args:
+      filter: code
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: A message
+      - id: act-2
+        type: progressUpdated
+        artifacts:
+          - type: changeSet
+            gitPatch: { unidiffPatch: 'diff --git a/file.txt b/file.txt' }
+  then:
+    result:
+      step:
+        type: code
+        unidiffPatch: 'diff --git a/file.txt b/file.txt'
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+
+- id: REPLAY-32
+  description: Filters to only message steps
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-filter
+    args:
+      filter: message
+    activities:
+      - id: act-1
+        type: progressUpdated
+        artifacts:
+          - type: bashOutput
+            command: echo "hello"
+      - id: act-2
+        type: agentMessaged
+        message: A message
+  then:
+    result:
+      step:
+        type: message
+        content: A message
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+
+- id: REPLAY-33
+  description: Returns error for invalid filter value
+  category: replay-session
+  status: implemented
+  priority: P2
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-filter
+    args:
+      filter: invalid_filter
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: A message
+  then:
+    error: 'Invalid filter. Must be one of: bash, code, message'
+
+# Context Handling
+- id: REPLAY-40
+  description: Context is included on the first request (no cursor)
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-context
+    args: {}
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: First message
+  then:
+    result:
+      step:
+        type: message
+      progress: { current: 1, total: 1 }
+      nextCursor: null
+      context:
+        sessionId: session-context
+        title: Test Session
+        source:
+          name: sources/github/owner/repo
+          id: github/owner/repo
+          type: githubRepo
+          githubRepo:
+            owner: owner
+            repo: repo
+            isPrivate: false
+
+- id: REPLAY-41
+  description: Context is null on subsequent requests (with cursor)
+  category: replay-session
+  status: implemented
+  priority: P1
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-context
+    args:
+      cursor: step_001
+    activities:
+      - id: act-1
+        type: agentMessaged
+        message: First
+      - id: act-2
+        type: agentMessaged
+        message: Second
+  then:
+    result:
+      step:
+        type: message
+      progress: { current: 2, total: 2 }
+      nextCursor: null
+      context: null
+
+# Complex Scenarios (Pending)
+- id: REPLAY-50
+  status: pending
+- id: REPLAY-51
+  status: pending
+
+# Edge Cases
+- id: REPLAY-60
+  description: Returns error for session with no activities
+  category: replay-session
+  status: implemented
+  priority: P2
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-empty
+    args: {}
+    activities: []
+  then:
+    error: No replayable steps found in session
+
+- id: REPLAY-61
+  description: Returns error for session with no replayable artifacts
+  category: replay-session
+  status: implemented
+  priority: P2
+  when: mcp_jules_replay_session
+  given:
+    sessionId: session-empty
+    args: {}
+    activities:
+      - id: act-1
+        type: sessionCompleted
+  then:
+    error: No replayable steps found in session
