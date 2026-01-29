@@ -16,10 +16,19 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { JulesClientImpl } from '../../src/client.js';
-import { SessionResource } from '../../src/types.js';
+import { SessionResource, SessionOutcome } from '../../src/types.js';
 import { ApiClient } from '../../src/api.js';
 import { SessionCursor } from '../../src/sessions.js';
 import { SessionStorage } from '../../src/storage/types.js';
+
+const createMockOutcomeForSession = (sessionId: string): SessionOutcome => ({
+  sessionId,
+  title: 'test',
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+});
 
 // Mock dependencies
 vi.mock('../../src/api.js');
@@ -53,6 +62,7 @@ const createMockSession = (
     type: 'githubRepo',
     githubRepo: { owner: 'owner', repo: 'repo', isPrivate: false },
   },
+  outcome: createMockOutcomeForSession(id),
 });
 
 describe('Reconciliation Engine', () => {

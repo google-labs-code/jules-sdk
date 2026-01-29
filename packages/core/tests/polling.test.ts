@@ -17,7 +17,16 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { pollSession, pollUntilCompletion } from '../src/polling.js';
 import { ApiClient } from '../src/api.js';
-import { SessionResource } from '../src/types.js';
+import { SessionResource, SessionOutcome } from '../src/types.js';
+
+const mockOutcome: SessionOutcome = {
+  sessionId: 'test-session-id',
+  title: 'test session',
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+};
 
 describe('polling helpers', () => {
   // We define the mock outside to be reused, but we must reset it.
@@ -43,6 +52,7 @@ describe('polling helpers', () => {
     title: 'test session',
     url: 'http://test.url',
     outputs: [],
+    outcome: mockOutcome,
     createTime: '2023-01-01T00:00:00Z',
     updateTime: '2023-01-01T00:01:00Z',
   };

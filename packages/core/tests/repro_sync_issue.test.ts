@@ -18,9 +18,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { JulesClientImpl } from '../src/client.js';
 import { ApiClient } from '../src/api.js';
 import { mockPlatform } from './mocks/platform.js';
-import { SessionResource } from '../src/types.js';
+import { SessionResource, SessionOutcome } from '../src/types.js';
 import { NodeSessionStorage } from '../src/storage/node-fs.js';
 import { SessionCursor } from '../src/sessions.js';
+
+const createMockOutcome = (sessionId: string, title: string): SessionOutcome => ({
+  sessionId,
+  title,
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+});
 
 // Mock dependencies
 vi.mock('../src/api.js');
@@ -54,6 +63,7 @@ describe('JulesClient.sync() Repro', () => {
     source: mockSource,
     url: 'http://test.com',
     outputs: [],
+    outcome: createMockOutcome('session-1', 'test session 1'),
   };
 
   const session2: SessionResource = {
@@ -68,6 +78,7 @@ describe('JulesClient.sync() Repro', () => {
     source: mockSource,
     url: 'http://test.com',
     outputs: [],
+    outcome: createMockOutcome('session-2', 'test session 2'),
   };
 
   beforeEach(() => {

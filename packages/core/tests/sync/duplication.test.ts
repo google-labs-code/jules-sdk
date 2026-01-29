@@ -22,7 +22,16 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { ApiClient } from '../../src/api.js';
-import { SessionResource } from '../../src/types.js';
+import { SessionResource, SessionOutcome } from '../../src/types.js';
+
+const createMockOutcome = (sessionId: string): SessionOutcome => ({
+  sessionId,
+  title: 'test',
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+});
 
 // Tests for jules.sync() duplication bug (Double Write & Append-Only Log)
 describe('Sync Duplication Regression Tests', () => {
@@ -47,6 +56,7 @@ describe('Sync Duplication Regression Tests', () => {
     state: 'completed',
     url: 'test',
     outputs: [],
+    outcome: createMockOutcome(id),
   });
 
   beforeEach(async () => {

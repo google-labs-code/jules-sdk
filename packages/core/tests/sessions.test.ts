@@ -17,10 +17,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SessionCursor, ListSessionsResponse } from '../src/sessions.js';
 import { ApiClient } from '../src/api.js';
-import { SessionResource } from '../src/types.js';
+import { SessionResource, SessionOutcome } from '../src/types.js';
 import { JulesClientImpl } from '../src/client.js';
 import { NodePlatform } from '../src/platform/node.js';
 import { SessionStorage } from '../src/storage/types.js';
+
+const createMockOutcome = (sessionId: string): SessionOutcome => ({
+  sessionId,
+  title: 'test',
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+});
 
 describe('jules.sessions()', () => {
   let apiClient: ApiClient;
@@ -78,6 +87,7 @@ describe('jules.sessions()', () => {
     state: 'completed',
     url: 'test',
     outputs: [],
+    outcome: createMockOutcome(id),
   });
 
   it('should return a SessionCursor', () => {

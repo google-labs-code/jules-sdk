@@ -70,9 +70,19 @@ export class SessionSnapshotImpl implements SessionSnapshot {
     this.durationMs = this.updatedAt.getTime() - this.createdAt.getTime();
     this.prompt = session.prompt;
     this.title = session.title;
-    this.pr = session.outcome.pullRequest;
-    this.generatedFiles = session.outcome.generatedFiles();
-    this.changeSet = session.outcome.changeSet;
+
+    // Handle outcome - may not exist in test mocks or legacy data
+    if (session.outcome) {
+      this.pr = session.outcome.pullRequest;
+      this.generatedFiles = session.outcome.generatedFiles();
+      this.changeSet = session.outcome.changeSet;
+    } else {
+      // Fallback: extract PR from outputs if outcome is not populated
+      const prOutput = session.outputs?.find((o) => o.type === 'pullRequest');
+      this.pr = prOutput?.pullRequest;
+      this.generatedFiles = { all: () => [], get: () => undefined, filter: () => [] };
+      this.changeSet = () => undefined;
+    }
     this.activities = Object.freeze(activities);
 
     // Compute derived views

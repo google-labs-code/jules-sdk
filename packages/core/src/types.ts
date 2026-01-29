@@ -1110,9 +1110,11 @@ export interface SessionClient {
    * Creates a point-in-time snapshot of the session with all activities loaded and derived analytics computed.
    * This is a network operation with cache heuristics.
    *
+   * @param options Optional configuration for the snapshot.
+   * @param options.activities If true, includes all activities in the snapshot. Defaults to true.
    * @returns A Promise resolving to the session snapshot.
    */
-  snapshot(options: { activities?: boolean }): Promise<SessionSnapshot>;
+  snapshot(options?: { activities?: boolean }): Promise<SessionSnapshot>;
 }
 
 // -----------------------------------------------------------------------------

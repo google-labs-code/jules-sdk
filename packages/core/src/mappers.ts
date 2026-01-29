@@ -172,13 +172,14 @@ export function mapSessionResourceToOutcome(session: SessionResource): SessionOu
   }
 
   // Find the pull request output, if it exists.
-  const prOutput = session.outputs.find((o) => 'pullRequest' in o);
+  const outputs = session.outputs ?? [];
+  const prOutput = outputs.find((o) => 'pullRequest' in o);
   const pullRequest = prOutput
     ? (prOutput as { pullRequest: PullRequest }).pullRequest
     : undefined;
 
   // Find the changeSet output for generatedFiles()
-  const changeSetOutput = session.outputs.find((o) => 'changeSet' in o);
+  const changeSetOutput = outputs.find((o) => 'changeSet' in o);
   const changeSet = changeSetOutput
     ? (changeSetOutput as { changeSet: ChangeSet }).changeSet
     : undefined;
@@ -188,7 +189,7 @@ export function mapSessionResourceToOutcome(session: SessionResource): SessionOu
     title: session.title,
     state: 'completed', // We only call this mapper on a completed session.
     pullRequest,
-    outputs: session.outputs,
+    outputs,
     generatedFiles: () => {
       if (!changeSet?.gitPatch?.unidiffPatch) {
         return createGeneratedFiles([]);

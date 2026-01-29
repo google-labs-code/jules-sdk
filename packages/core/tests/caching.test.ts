@@ -17,7 +17,16 @@
 import { describe, it, expect } from 'vitest';
 import { determineCacheTier, isCacheValid } from '../src/caching.js';
 import { CachedSession } from '../src/storage/types.js';
-import { SessionResource } from '../src/types.js';
+import { SessionResource, SessionOutcome } from '../src/types.js';
+
+const mockOutcome: SessionOutcome = {
+  sessionId: 'test',
+  title: '',
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+};
 
 describe('Iceberg Caching Logic', () => {
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -40,6 +49,7 @@ describe('Iceberg Caching Logic', () => {
     title: '',
     url: '',
     outputs: [],
+    outcome: mockOutcome,
   });
 
   const createCachedSession = (

@@ -331,12 +331,15 @@ export class SessionClientImpl implements SessionClient {
    * Creates a point-in-time snapshot of the session.
    * This is a network operation that fetches the latest session info and all activities.
    *
+   * @param options Optional configuration for the snapshot.
+   * @param options.activities If true, includes all activities in the snapshot. Defaults to true.
    * @returns A `SessionSnapshot` instance.
    */
-  async snapshot(options: { activities?: boolean }): Promise<SessionSnapshot> {
+  async snapshot(options?: { activities?: boolean }): Promise<SessionSnapshot> {
+    const includeActivities = options?.activities ?? true;
     const [info, activities] = await Promise.all([
       this.info(),
-      options.activities ? collectAsync(this.history()) : [],
+      includeActivities ? collectAsync(this.history()) : [],
     ]);
     return new SessionSnapshotImpl({ data: { session: info, activities } });
   }

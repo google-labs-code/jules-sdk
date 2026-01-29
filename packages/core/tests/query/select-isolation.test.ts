@@ -16,7 +16,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { select } from '../../src/query/select.js';
-import { SessionResource, Activity } from '../../src/types.js';
+import { SessionResource, Activity, SessionOutcome } from '../../src/types.js';
+
+const mockOutcome: SessionOutcome = {
+  sessionId: 'isolation-spec-test',
+  title: 'Test Session',
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+};
 
 /**
  * This test verifies that select() with include: { activities: true }
@@ -46,6 +55,7 @@ describe('jules.select() Network Isolation Spec', () => {
       outputs: [],
       url: 'http://test',
       prompt: 'test',
+      outcome: mockOutcome,
     };
 
     // 2. Setup mock activity client that tracks calls

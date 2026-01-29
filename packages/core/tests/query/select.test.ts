@@ -22,7 +22,17 @@ import {
   SessionResource,
   Activity,
   ActivityAgentMessaged,
+  SessionOutcome,
 } from '../../src/types.js';
+
+const createMockOutcome = (sessionId: string, title: string): SessionOutcome => ({
+  sessionId,
+  title,
+  state: 'completed',
+  outputs: [],
+  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  changeSet: () => undefined,
+});
 
 // Mock types
 type MockSessionStorage = {
@@ -77,10 +87,7 @@ describe('Unified Query Engine (select)', () => {
         outputs: [],
         sourceContext: { source: 'github/owner/repo' },
         source: mockSource,
-        outcome: {
-          status: 'SUCCESS',
-          summary: 'Fixed the login bug.',
-        },
+        outcome: createMockOutcome('sess_1', 'Fix Login'),
       },
       {
         id: 'sess_2',
@@ -94,6 +101,7 @@ describe('Unified Query Engine (select)', () => {
         outputs: [],
         sourceContext: { source: 'github/owner/repo' },
         source: mockSource,
+        outcome: createMockOutcome('sess_2', 'Add Feature X'),
       },
     ];
 
