@@ -317,6 +317,18 @@ if (myRepo) {
   - `jules.sources()`: Async iterator over all connected sources.
   - `jules.sources.get(filter)`: Retrieve a specific source by identifier.
 
+## Documentation
+
+- **[Getting Started](docs/getting-started.md)**: Installation and first steps.
+- **[Sessions](docs/sessions.md)**: Managing interactive and automated sessions.
+- **[Streaming](docs/streaming.md)**: Real-time activity monitoring.
+- **[Artifacts](docs/artifacts.md)**: Working with files, shell output, and media.
+- **[Local Query](docs/query.md)**: Querying cached session data.
+- **[Sources](docs/sources.md)**: Connecting to GitHub.
+- **[Configuration](docs/configuration.md)**: Advanced SDK options.
+- **[Error Handling](docs/errors.md)**: Handling SDK errors.
+- **[Snapshots](docs/snapshot.md)**: Serializing session state.
+
 ## License
 
 Apache-2.0
