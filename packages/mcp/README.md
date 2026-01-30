@@ -25,7 +25,7 @@ MCP tools to orchestrate complex, long-running coding tasks to an ephemeral clou
 ```
 create_session     Create a new Jules session
 list_sessions      List recent Jules sessions
-get_session_state  Get session status (busy/stable/failed)
+get_session_state  Get session status, last activity, and pending plans
 send_reply         Send a message or approve a plan
 ```
 
@@ -57,21 +57,30 @@ npx @google/jules-mcp
 
 ## Tool Reference
 
-- **Session Management:**
-  - `create_session`: Create a new Jules session with a prompt and optional GitHub source.
-  - `list_sessions`: List recent sessions with optional pagination.
-  - `get_session_state`: Get the current status of a session (busy/stable/failed).
-  - `send_reply`: Send a message to a session or approve a pending plan.
+### Session Management
 
-- **Code Review:**
-  - `get_code_review_context`: Get a summary of session changes with file list and metadata.
-  - `show_code_diff`: Get the full unidiff patch for a session's code changes.
+- **`create_session`**: Create a new Jules session with a prompt and optional GitHub source.
+- **`list_sessions`**: List recent sessions with optional pagination.
+- **`get_session_state`**: Get the current status of a session. Returns:
+  - `status`: busy, stable, or failed
+  - `prompt`: The original prompt that started the session
+  - `lastActivity`: What just happened (type, activityId, timestamp)
+  - `lastAgentMessage`: The last message Jules sent
+  - `pendingPlan`: Plan awaiting approval (if any) with steps
+- **`send_reply_to_session`**: Send a message to a session or approve a pending plan.
 
-- **Query:**
-  - `query_cache`: Query the local cache of sessions and activities using JQL.
+### Code Review
+
+- **`get_code_review_context`**: Get a summary of session changes with file list and metadata.
+- **`show_code_diff`**: Get the full unidiff patch for a session's code changes.
+
+### Query
+
+- **`query_cache`**: Query the local cache of sessions and activities using JQL.
 
 ## License
 
 Apache-2.0
 
 > **Note:** This is not an officially supported Google product. This project is not eligible for the [Google Open Source Software Vulnerability Rewards Program](https://bughunters.google.com/open-source-security).
+
