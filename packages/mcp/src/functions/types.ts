@@ -18,12 +18,54 @@ import type { SessionResource } from '@google/jules-sdk';
  */
 export type SessionStatus = 'busy' | 'stable' | 'failed';
 
+/**
+ * The last activity in the session.
+ */
+export interface LastActivity {
+  /** Activity ID */
+  activityId: string;
+  /** Activity type (e.g., 'agentMessaged', 'sessionCompleted', 'progressUpdated') */
+  type: string;
+  /** When the activity occurred */
+  timestamp: string;
+}
+
+/**
+ * The last message sent by Jules to the user.
+ */
+export interface LastAgentMessage {
+  /** Activity ID containing this message */
+  activityId: string;
+  /** The message content */
+  content: string;
+  /** When the message was sent */
+  timestamp: string;
+}
+
+/**
+ * A step in a pending plan.
+ */
+export interface PlanStepSummary {
+  /** Step title */
+  title: string;
+  /** Step description */
+  description?: string;
+}
+
+/**
+ * A plan awaiting approval.
+ */
+export interface PendingPlan {
+  /** Activity ID that generated this plan */
+  activityId: string;
+  /** Plan ID (use this when approving) */
+  planId: string;
+  /** The steps in the plan */
+  steps: PlanStepSummary[];
+}
+
 export interface SessionStateResult {
   id: string;
-  /**
-   * The raw technical state from the API (e.g., 'inProgress', 'completed').
-   */
-  state: string;
   /**
    * Semantic status synthesized from the technical state.
    * - 'busy': Jules is actively working (queued, planning, inProgress)
@@ -33,10 +75,29 @@ export interface SessionStateResult {
   status: SessionStatus;
   url: string;
   title: string;
+  /**
+   * The original prompt that started this session.
+   * Use this to evaluate if a pending plan aligns with the user's intent.
+   */
+  prompt?: string;
   pr?: {
     url: string;
     title: string;
   };
+  /**
+   * The last activity in the session. Shows what just happened.
+   */
+  lastActivity?: LastActivity;
+  /**
+   * The last message sent by Jules. Useful for understanding what Jules
+   * communicated, especially when awaiting user feedback or after completion.
+   */
+  lastAgentMessage?: LastAgentMessage;
+  /**
+   * A plan awaiting approval. Present when lastActivity.type is 'planGenerated'.
+   * Use send_reply_to_session with action 'approve' to approve the plan.
+   */
+  pendingPlan?: PendingPlan;
 }
 
 // ============================================================================

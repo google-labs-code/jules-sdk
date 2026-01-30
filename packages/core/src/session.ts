@@ -176,12 +176,10 @@ export class SessionClientImpl implements SessionClient {
    * await session.approve();
    */
   async approve(): Promise<void> {
-    const currentState = (await this.info()).state;
-    if (currentState !== 'awaitingPlanApproval') {
-      throw new InvalidStateError(
-        `Cannot approve plan because the session is not awaiting approval. Current state: ${currentState}`,
-      );
-    }
+    // Don't pre-check state - just try the API call.
+    // The API will return an error if the session is not in a valid state.
+    // This handles "Inactive" sessions where API returns COMPLETED but
+    // the session can still be resumed by approving the plan.
     await this.request(`sessions/${this.id}:approvePlan`, {
       method: 'POST',
       body: {},

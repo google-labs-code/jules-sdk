@@ -6,22 +6,37 @@ export default defineTool({
   name: 'get_session_state',
   description: `Get the current status of a Jules session. Acts as a dashboard to determine if Jules is busy, waiting, or failed.
 
-RETURNS: id, state, status, url, title, pr (if created)
+RETURNS: id, status, url, title, prompt, pr (if created), lastActivity, lastAgentMessage (if any), pendingPlan (if awaiting approval)
 
 STATUS (use this to decide what action to take):
-- "busy": Jules is actively working. Data is volatile; do NOT review code changes yet.
-- "stable": Work is paused. Safe to review code changes and outputs.
-- "failed": Session encountered an error and cannot continue.
+- "busy": Jules is actively working. Peek with get_code_review_context if needed.
+- "stable": Work is paused. Safe to review code, send messages, or check outputs.
+- "failed": System-level failure (like a 500). Session cannot continue.
 
-RAW STATES (for reference):
-- queued/planning/inProgress → status: "busy"
-- awaitingPlanApproval/awaitingUserFeedback/paused/completed → status: "stable"
-- failed → status: "failed"
+LAST ACTIVITY:
+- Shows what just happened (activityId, type, timestamp)
+- Common types: agentMessaged, sessionCompleted, progressUpdated, userMessaged, planGenerated
+
+LAST AGENT MESSAGE:
+- Contains the last message Jules sent (activityId, content, timestamp)
+- Read this to understand what Jules communicated
+- If Jules asked a question, you can respond using send_reply_to_session
+
+PENDING PLAN:
+- Present when a plan is awaiting approval (lastActivity.type is 'planGenerated')
+- Contains planId and steps (title, description for each step)
+- Use send_reply_to_session with action 'approve' to approve the plan
+
+NEXT ACTIONS:
+- busy → Wait for completion, or peek with get_code_review_context
+- stable + pendingPlan → Review the plan steps, then approve or send feedback
+- stable + lastAgentMessage → Read message, respond if Jules asked something
+- stable + no message → Review PR or code changes with get_code_review_context
+- failed → Report to user. Session is unrecoverable.
 
 IMPORTANT:
-- Use "status" to decide when to review, not "state".
-- "completed" with status "stable" means work is done and safe to review.
-- You can send messages to ANY session regardless of status.`,
+- You can send messages to ANY session regardless of status.
+- A session is never truly "done" unless it's failed. You can always continue the conversation.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -37,3 +52,5 @@ IMPORTANT:
     return toMcpResponse(result);
   },
 });
+
+
