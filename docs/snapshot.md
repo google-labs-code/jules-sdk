@@ -186,3 +186,8 @@ console.log(markdown);
 // - **[progressUpdated]** Analyzing codebase _(2026-01-29T10:00:05Z)_
 // ...
 ```
+
+## See Also
+
+- **[Sessions](./sessions.md)**: Manage session lifecycles.
+- **[Artifacts](./artifacts.md)**: Work with session outputs and files.
