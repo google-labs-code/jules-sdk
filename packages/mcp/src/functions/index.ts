@@ -12,7 +12,7 @@ export { interact } from './interact.js';
 export { select } from './select.js';
 export { getSchema } from './schema.js';
 export { validateQuery } from './validate-query.js';
-export { reviewChanges } from './review-changes.js';
+export { codeReview } from './code-review.js';
 export { showDiff } from './show-diff.js';
 
 // Export all types

@@ -25,10 +25,11 @@ function extractFileDiff(unidiffPatch: string, filePath: string): string {
  * Show the actual code diff for files from a Jules session.
  *
  * Uses session.snapshot() to leverage the core SDK's aggregation logic.
+ * If activityId is provided, gets the diff from that specific activity instead.
  *
  * @param client - The Jules client instance
  * @param sessionId - The session ID to get diff from
- * @param options - Options including optional file filter
+ * @param options - Options including optional file filter and activityId
  * @returns Diff result with unidiff patch and file details
  */
 export async function showDiff(
@@ -40,19 +41,48 @@ export async function showDiff(
     throw new Error('sessionId is required');
   }
 
-  const { file } = options;
+  const { file, activityId } = options;
 
   // Use snapshot() to leverage core SDK aggregation
   const session = client.session(sessionId);
+  await session.activities.hydrate();
   const snapshot = await session.snapshot();
 
-  // Get the changeSet from the snapshot (already aggregated by core SDK)
-  // Cast to ChangeSetArtifact to access parsed() method
-  const changeSet = snapshot.changeSet() as ChangeSetArtifact | undefined;
+  let changeSet: ChangeSetArtifact | undefined;
+
+  // If activityId is provided, find the changeSet from that specific activity
+  if (activityId) {
+    const activity = snapshot.activities.find(a => a.id === activityId);
+    if (!activity) {
+      return {
+        sessionId: snapshot.id,
+        activityId,
+        file,
+        unidiffPatch: '',
+        files: [],
+        summary: {
+          totalFiles: 0,
+          created: 0,
+          modified: 0,
+          deleted: 0,
+        },
+      };
+    }
+
+    // Find changeSet artifact in this activity
+    const changeSetArtifact = activity.artifacts.find(a => a.type === 'changeSet');
+    if (changeSetArtifact) {
+      changeSet = changeSetArtifact as ChangeSetArtifact;
+    }
+  } else {
+    // Get the changeSet from the snapshot (session outcome)
+    changeSet = snapshot.changeSet() as ChangeSetArtifact | undefined;
+  }
 
   if (!changeSet) {
     return {
       sessionId: snapshot.id,
+      activityId,
       file,
       unidiffPatch: '',
       files: [],
@@ -91,6 +121,7 @@ export async function showDiff(
 
   return {
     sessionId: snapshot.id,
+    activityId,
     file,
     unidiffPatch,
     files,

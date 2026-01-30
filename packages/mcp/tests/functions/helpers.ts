@@ -140,9 +140,16 @@ export function createTestActivity(input: {
 export function mockSessionWithSnapshot(
   client: JulesClient,
   snapshot: ReturnType<typeof createMockSnapshot>,
+  activities: ReturnType<typeof createTestActivity>[] = [],
 ): void {
-  const mockSessionClient: Pick<SessionClient, 'snapshot'> = {
-    snapshot: vi.fn().mockResolvedValue(snapshot),
+  const mockSessionClient: Pick<SessionClient, 'snapshot' | 'activities'> = {
+    snapshot: vi.fn().mockResolvedValue({
+      ...snapshot,
+      activities,
+    }),
+    activities: {
+      hydrate: vi.fn().mockResolvedValue(activities.length),
+    } as any,
   };
   vi.spyOn(client, 'session').mockReturnValue(
     mockSessionClient as SessionClient,

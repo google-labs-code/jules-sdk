@@ -192,6 +192,8 @@ export interface ReviewChangesOptions {
   format?: ReviewChangesFormat;
   filter?: ReviewChangesFilter;
   detail?: ReviewDetail;
+  /** Optional activity ID to review changes from a single activity instead of the whole session */
+  activityId?: string;
 }
 
 export interface ReviewChangesResult {
@@ -200,6 +202,10 @@ export interface ReviewChangesResult {
   state: string;
   status: SessionStatus;
   url: string;
+  /** Whether the session has ever been in a stable state before */
+  hasStableHistory?: boolean;
+  /** Warning message if session was stable but is now busy again */
+  warning?: string;
   // Timing (standard/full detail)
   createdAt?: string;
   updatedAt?: string;
@@ -230,12 +236,56 @@ export interface ReviewChangesResult {
 
 export interface ShowDiffOptions {
   file?: string;
+  /** Optional activity ID to get diff from a specific activity instead of the session outcome */
+  activityId?: string;
 }
 
 export interface ShowDiffResult {
   sessionId: string;
+  /** Activity ID if diff was from a specific activity */
+  activityId?: string;
   file?: string;
   unidiffPatch: string;
   files: FileChangeDetail[];
   summary: CodeChangesSummary;
 }
+
+// ============================================================================
+// Work In Progress
+// ============================================================================
+
+export interface FileStatEntry {
+  path: string;
+  changeType: 'created' | 'modified' | 'deleted';
+  additions: number;
+  deletions: number;
+  /** Activity IDs that touched this file */
+  activityIds: string[];
+}
+
+export interface WorkInProgressSummary {
+  totalFiles: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  created: number;
+  modified: number;
+  deleted: number;
+}
+
+export interface WorkInProgressOptions {
+  /** Include recent activity timeline. Default: true */
+  includeTimeline?: boolean;
+}
+
+export interface WorkInProgressResult {
+  sessionId: string;
+  title: string;
+  state: string;
+  status: SessionStatus;
+  url: string;
+  activityCount: number;
+  files: FileStatEntry[];
+  summary: WorkInProgressSummary;
+  formatted: string;
+}
+

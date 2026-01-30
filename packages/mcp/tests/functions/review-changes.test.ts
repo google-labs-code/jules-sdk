@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { reviewChanges } from '../../src/functions/review-changes.js';
+import { codeReview } from '../../src/functions/code-review.js';
 import {
   createMockClient,
   createMockSnapshot,
@@ -35,7 +35,7 @@ describe('reviewChanges', () => {
     });
     mockSessionWithSnapshot(mockClient, snapshot);
 
-    const result = await reviewChanges(mockClient, 'session-changes');
+    const result = await codeReview(mockClient, 'session-changes');
 
     expect(result.sessionId).toBe('session-changes');
     expect(result.title).toBe('Session with Changes');
@@ -68,7 +68,7 @@ diff --git a/src/existing.ts b/src/existing.ts
     });
     mockSessionWithSnapshot(mockClient, snapshot);
 
-    const result = await reviewChanges(mockClient, 'session-filter', {
+    const result = await codeReview(mockClient, 'session-filter', {
       filter: 'created',
     });
 
@@ -76,7 +76,7 @@ diff --git a/src/existing.ts b/src/existing.ts
   });
 
   it('throws on missing sessionId', async () => {
-    await expect(reviewChanges(mockClient, '')).rejects.toThrow(
+    await expect(codeReview(mockClient, '')).rejects.toThrow(
       'sessionId is required',
     );
   });
@@ -90,7 +90,7 @@ diff --git a/src/existing.ts b/src/existing.ts
     });
     mockSessionWithSnapshot(mockClient, snapshot);
 
-    const result = await reviewChanges(mockClient, 'session-minimal', {
+    const result = await codeReview(mockClient, 'session-minimal', {
       detail: 'minimal',
     });
 
@@ -108,7 +108,7 @@ diff --git a/src/existing.ts b/src/existing.ts
     });
     mockSessionWithSnapshot(mockClient, snapshot);
 
-    const result = await reviewChanges(mockClient, 'session-full', {
+    const result = await codeReview(mockClient, 'session-full', {
       detail: 'full',
     });
 
