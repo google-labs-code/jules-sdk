@@ -99,6 +99,17 @@ const server = setupServer(
       return HttpResponse.json({});
     },
   ),
+  // Mock for invalid state approval - API returns 400
+  http.post(
+    'https://jules.googleapis.com/v1alpha/sessions/SESSION_INVALID_STATE:approvePlan',
+    async () => {
+      approvePlanCalled = true;
+      return HttpResponse.json(
+        { error: { message: 'Session is not awaiting plan approval' } },
+        { status: 400 },
+      );
+    },
+  ),
   http.post(
     'https://jules.googleapis.com/v1alpha/sessions/SESSION_123:sendMessage',
     async ({ request }) => {
@@ -238,23 +249,13 @@ describe('SessionClient', () => {
       expect(approvePlanCalled).toBe(true);
     });
 
-    it('should throw InvalidStateError if state is not awaitingPlanApproval', async () => {
-      server.use(
-        http.get(
-          'https://jules.googleapis.com/v1alpha/sessions/SESSION_INVALID_STATE',
-          () => {
-            return HttpResponse.json({
-              id: 'SESSION_INVALID_STATE',
-              state: 'inProgress',
-            });
-          },
-        ),
-      );
+    it('should call API and throw error if session is not awaiting plan approval', async () => {
+    // The approve() method now calls the API directly without pre-checking state.
+    // The API returns a 400 error for invalid state.
       const invalidStateSession = jules.session('SESSION_INVALID_STATE');
-      await expect(invalidStateSession.approve()).rejects.toThrow(
-        InvalidStateError,
-      );
-      expect(approvePlanCalled).toBe(false);
+      await expect(invalidStateSession.approve()).rejects.toThrow();
+      // API was called (no pre-check)
+      expect(approvePlanCalled).toBe(true);
     });
   });
 
