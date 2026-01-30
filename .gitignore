@@ -5,3 +5,4 @@ dist
 .env
 .jules
 temppackage-lock.json
+*.tgz

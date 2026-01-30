@@ -7,7 +7,8 @@ export default defineTool({
   description:
     'Show the actual code diff for files from a Jules session. ' +
     'Returns unified diff format that can be displayed to users. ' +
-    'Use after jules_review_changes to drill into specific file changes.',
+    'Use after get_code_review_context to drill into specific file changes. ' +
+    'Can optionally show diff from a specific activity (use activity IDs from get_code_review_context output).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -20,16 +21,26 @@ export default defineTool({
         description:
           'File path to show diff for. Omit to get all diffs (may be large).',
       },
+      activityId: {
+        type: 'string',
+        description:
+          'Optional activity ID to get diff from a specific activity instead of the session outcome. ' +
+          'Use activity IDs shown in get_work_in_progress output.',
+      },
     },
     required: ['sessionId'],
   },
   handler: async (client: JulesClient, args: any) => {
     const result = await showDiff(client, args.sessionId, {
       file: args.file,
+      activityId: args.activityId,
     });
     // Return the unidiff patch for display
     if (!result.unidiffPatch) {
-      return toMcpResponse('No changes found in this session.');
+      const context = args.activityId
+        ? `activity ${args.activityId}`
+        : 'this session';
+      return toMcpResponse(`No changes found in ${context}.`);
     }
     return toMcpResponse(result.unidiffPatch);
   },

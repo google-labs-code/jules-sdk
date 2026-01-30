@@ -3,8 +3,18 @@ import type { SessionStateResult, SessionStatus } from './types.js';
 
 /**
  * States where Jules is actively working and data may be volatile.
+ * Includes both API format (SCREAMING_SNAKE_CASE) and SDK format (camelCase).
  */
-const BUSY_STATES = new Set(['queued', 'planning', 'inProgress']);
+const BUSY_STATES = new Set([
+  'queued', 'QUEUED',
+  'planning', 'PLANNING',
+  'inProgress', 'IN_PROGRESS', 'in_progress',
+]);
+
+/**
+ * Failed states in both formats.
+ */
+const FAILED_STATES = new Set(['failed', 'FAILED']);
 
 /**
  * Derives a semantic status from the technical session state.
@@ -13,10 +23,11 @@ const BUSY_STATES = new Set(['queued', 'planning', 'inProgress']);
  * - 'failed': Session encountered an error.
  */
 function deriveStatus(state: string): SessionStatus {
-  if (state === 'failed') return 'failed';
+  if (FAILED_STATES.has(state)) return 'failed';
   if (BUSY_STATES.has(state)) return 'busy';
   return 'stable';
 }
+
 
 /**
  * Get the current state of a Jules session.
