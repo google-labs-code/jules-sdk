@@ -1,9 +1,8 @@
 {
   "name": "@google/jules-mcp",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "description": "An MCP Toolkit for Jules",
-  "repository": "google-labs-code/jules-sdk",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -40,6 +39,14 @@
     "agent",
     "sdk"
   ],
+  "publishConfig": {
+    "registry": "https://wombat-dressing-room.appspot.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/google-labs-code/jules-sdk.git"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
