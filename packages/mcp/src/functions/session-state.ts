@@ -1,23 +1,22 @@
 import type { JulesClient, Activity } from '@google/jules-sdk';
-import type { SessionStateResult, SessionStatus, LastAgentMessage, LastActivity, PendingPlan } from './types.js';
+import type {
+  SessionStateResult,
+  SessionStatus,
+  LastActivity,
+  LastAgentMessage,
+  PendingPlan,
+} from './types.js';
 
-/**
- * States where Jules is actively working and data may be volatile.
- * Includes both API format (SCREAMING_SNAKE_CASE) and SDK format (camelCase).
- */
 const BUSY_STATES = new Set([
   'queued', 'QUEUED',
   'planning', 'PLANNING',
   'inProgress', 'IN_PROGRESS', 'in_progress',
 ]);
-
-/**
- * Failed states in both formats.
- */
 const FAILED_STATES = new Set(['failed', 'FAILED']);
 
 /**
- * Derives a semantic status from the technical session state.
+ * deriveStatus
+ * Maps internal session state to semantic status.
  * - 'busy': Jules is actively working; data is volatile.
  * - 'stable': Work is paused; safe to review.
  * - 'failed': Session encountered an error.
@@ -137,10 +136,13 @@ export async function getSessionState(
 
   const snapshot = await session.snapshot();
 
+  // FIX: Ensure activities is always an array
+  const activities = snapshot.activities ?? [];
+
   const pr = snapshot.pr;
-  const lastActivity = findLastActivity(snapshot.activities);
-  const lastAgentMessage = findLastAgentMessage(snapshot.activities);
-  const pendingPlan = findPendingPlan(snapshot.activities);
+  const lastActivity = findLastActivity(activities);
+  const lastAgentMessage = findLastAgentMessage(activities);
+  const pendingPlan = findPendingPlan(activities);
 
   return {
     id: snapshot.id,
@@ -154,6 +156,3 @@ export async function getSessionState(
     ...(pendingPlan && { pendingPlan }),
   };
 }
-
-
-

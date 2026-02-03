@@ -317,14 +317,17 @@ export async function codeReview(
   await session.activities.hydrate();
   const snapshot = await session.snapshot();
 
+  // FIX: Ensure activities is always an array
+  const activities = snapshot.activities ?? [];
+
   const status = getSemanticStatus(snapshot.state);
   const isBusy = status === 'busy';
-  const stableHistory = hasStableHistory(snapshot.activities);
+  const stableHistory = hasStableHistory(activities);
 
   // Find specific activity if activityId provided
   let targetActivity: Activity | undefined;
   if (activityId) {
-    targetActivity = snapshot.activities.find(a => a.id === activityId);
+    targetActivity = activities.find(a => a.id === activityId);
     if (!targetActivity) {
       throw new Error(`Activity ${activityId} not found in session ${sessionId}`);
     }
@@ -337,13 +340,17 @@ export async function codeReview(
     files = getFilesFromActivity(targetActivity);
   } else if (isBusy) {
     // Busy mode: aggregate from activities
-    files = aggregateFromActivities(snapshot.activities);
+    files = aggregateFromActivities(activities);
   } else {
     // Stable mode: use session outcome changeSet, but also get activity IDs if available
-    const changeSet = snapshot.changeSet() as ChangeSetArtifact | undefined;
+
+    // FIX: Defensive check for changeSet being a function
+    const changeSet = typeof snapshot.changeSet === 'function'
+      ? snapshot.changeSet() as ChangeSetArtifact | undefined
+      : undefined;
 
     // Try to get activity IDs by also aggregating from activities
-    const activityFiles = aggregateFromActivities(snapshot.activities);
+    const activityFiles = aggregateFromActivities(activities);
     const activityFileMap = new Map(activityFiles.map(f => [f.path, f.activityIds]));
 
     // Use outcome changeSet for accurate final state, but enrich with activity IDs

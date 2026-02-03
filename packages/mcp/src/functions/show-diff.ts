@@ -48,11 +48,14 @@ export async function showDiff(
   await session.activities.hydrate();
   const snapshot = await session.snapshot();
 
+  // FIX: Ensure activities is always an array
+  const activities = snapshot.activities ?? [];
+
   let changeSet: ChangeSetArtifact | undefined;
 
   // If activityId is provided, find the changeSet from that specific activity
   if (activityId) {
-    const activity = snapshot.activities.find(a => a.id === activityId);
+    const activity = activities.find(a => a.id === activityId);
     if (!activity) {
       return {
         sessionId: snapshot.id,
@@ -76,7 +79,10 @@ export async function showDiff(
     }
   } else {
     // Get the changeSet from the snapshot (session outcome)
-    changeSet = snapshot.changeSet() as ChangeSetArtifact | undefined;
+    // FIX: Defensive check for changeSet being a function
+    changeSet = typeof snapshot.changeSet === 'function'
+      ? snapshot.changeSet() as ChangeSetArtifact | undefined
+      : undefined;
   }
 
   if (!changeSet) {
