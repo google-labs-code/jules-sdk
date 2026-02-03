@@ -75,7 +75,10 @@ export class SessionSnapshotImpl implements SessionSnapshot {
     if (session.outcome) {
       this.pr = session.outcome.pullRequest;
       this.generatedFiles = session.outcome.generatedFiles();
-      this.changeSet = session.outcome.changeSet;
+      // Ensure changeSet is always a function, even if outcome.changeSet is undefined
+      this.changeSet = typeof session.outcome.changeSet === 'function'
+        ? session.outcome.changeSet
+        : () => undefined;
     } else {
       // Fallback: extract PR from outputs if outcome is not populated
       const prOutput = session.outputs?.find((o) => o.type === 'pullRequest');
