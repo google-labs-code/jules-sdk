@@ -2,7 +2,7 @@
   "name": "jules-sdk-monorepo",
   "private": true,
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.0.4",
   "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=18"
