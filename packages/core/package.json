@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-sdk",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "type": "module",
   "description": "Official Jules TypeScript SDK",
   "repository": {
