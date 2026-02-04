@@ -302,27 +302,27 @@ export class SessionClientImpl implements SessionClient {
    * Implements "Iceberg" Read-Through caching.
    */
   async info(): Promise<SessionResource> {
+    let resource: SessionResource;
     const cached = await this.sessionStorage.get(this.id);
 
     if (isCacheValid(cached)) {
-      return cached.resource;
+      resource = cached.resource;
+    } else {
+      // TIER 1: HOT (Network Fetch)
+      try {
+        resource = await this.request<SessionResource>(`sessions/${this.id}`);
+        await this.sessionStorage.upsert(resource);
+      } catch (e: any) {
+        if (e.status === 404 && cached) {
+          await this.sessionStorage.delete(this.id);
+        }
+        throw e;
+      }
     }
 
-    // TIER 1: HOT (Network Fetch)
-    try {
-      const fresh = await this.request<SessionResource>(`sessions/${this.id}`);
-      await this.sessionStorage.upsert(fresh);
-      // Map the outcome to the session resource.
-      // This shouldn't be cached, it's a convenience for the user.
-      const outcome = mapSessionResourceToOutcome(fresh);
-      fresh.outcome = outcome;
-      return fresh;
-    } catch (e: any) {
-      if (e.status === 404 && cached) {
-        await this.sessionStorage.delete(this.id);
-      }
-      throw e;
-    }
+    // Single place for outcome mapping - always runs regardless of cache/network path
+    resource.outcome = mapSessionResourceToOutcome(resource);
+    return resource;
   }
 
   /**
