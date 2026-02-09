@@ -16,6 +16,8 @@
 
 // src/errors.ts
 
+import { sanitizeUrl } from './utils.js';
+
 /**
  * Base class for all SDK-specific errors.
  * This allows consumers to catch all Jules SDK errors with a single `catch` block.
@@ -37,8 +39,9 @@ export class JulesError extends Error {
 export class JulesNetworkError extends JulesError {
   public readonly url: string;
   constructor(url: string, options?: { cause?: Error }) {
-    super(`Network request to ${url} failed`, options);
-    this.url = url;
+    const sanitizedUrl = sanitizeUrl(url);
+    super(`Network request to ${sanitizedUrl} failed`, options);
+    this.url = sanitizedUrl;
   }
 }
 
@@ -57,10 +60,11 @@ export class JulesApiError extends JulesError {
     message?: string, // optional override
     options?: { cause?: Error },
   ) {
+    const sanitizedUrl = sanitizeUrl(url);
     const finalMessage =
-      message ?? `[${status} ${statusText}] Request to ${url} failed`;
+      message ?? `[${status} ${statusText}] Request to ${sanitizedUrl} failed`;
     super(finalMessage, options);
-    this.url = url;
+    this.url = sanitizedUrl;
     this.status = status;
     this.statusText = statusText;
   }
@@ -71,12 +75,8 @@ export class JulesApiError extends JulesError {
  */
 export class JulesAuthenticationError extends JulesApiError {
   constructor(url: string, status: number, statusText: string) {
-    super(
-      url,
-      status,
-      statusText,
-      `[${status} ${statusText}] Authentication to ${url} failed. Ensure your API key is correct.`,
-    );
+    super(url, status, statusText);
+    this.message = `[${status} ${statusText}] Authentication to ${this.url} failed. Ensure your API key is correct.`;
   }
 }
 
@@ -85,12 +85,8 @@ export class JulesAuthenticationError extends JulesApiError {
  */
 export class JulesRateLimitError extends JulesApiError {
   constructor(url: string, status: number, statusText: string) {
-    super(
-      url,
-      status,
-      statusText,
-      `[${status} ${statusText}] API rate limit exceeded for ${url}.`,
-    );
+    super(url, status, statusText);
+    this.message = `[${status} ${statusText}] API rate limit exceeded for ${this.url}.`;
   }
 }
 
