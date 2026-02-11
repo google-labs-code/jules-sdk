@@ -15,7 +15,7 @@
  */
 
 // tests/sources.test.ts
-import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
+import { beforeAll, afterAll, afterEach, describe, it, expect, vi } from 'vitest';
 import { server } from './mocks/server.js';
 import { jules as defaultJules, Source } from '../src/index.js';
 import { http, HttpResponse } from 'msw';
@@ -49,8 +49,49 @@ describe('SourceManager', () => {
     });
 
     it('should return undefined for a non-existent source (404)', async () => {
-      const source = await jules.sources.get({ github: 'non/existent' });
+      vi.useFakeTimers();
+      const promise = jules.sources.get({ github: 'non/existent' });
+
+      // Advance timers to exhaust retries (default options: 1s, 2s, 4s, 8s, 16s = 31s)
+      await vi.advanceTimersByTimeAsync(40000);
+
+      const source = await promise;
       expect(source).toBeUndefined();
+      vi.useRealTimers();
+    });
+
+    it('should retry on 404 and succeed if eventually found', async () => {
+      vi.useFakeTimers();
+      let attempt = 0;
+      server.use(
+        http.get(`${BASE_URL}/sources/github/retry/test`, () => {
+          attempt++;
+          // Fail first 2 times with 404
+          if (attempt <= 2) {
+            return new HttpResponse(null, { status: 404 });
+          }
+          // Succeed on 3rd attempt
+          return HttpResponse.json({
+            name: 'sources/github/retry/test',
+            id: 'retry/test',
+            githubRepo: { owner: 'retry', repo: 'test' },
+          });
+        }),
+      );
+
+      const promise = jules.sources.get({ github: 'retry/test' });
+
+      // Advance timers to trigger retries.
+      // 1st retry after 1s. 2nd retry after 2s.
+      // Total wait needed: 1s + 2s = 3s.
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const source = await promise;
+      expect(source).toBeDefined();
+      expect(source?.id).toBe('retry/test');
+      expect(attempt).toBe(3); // Initial + 2 retries
+
+      vi.useRealTimers();
     });
 
     it('should throw a JulesApiError for other server errors (e.g., 500)', async () => {
