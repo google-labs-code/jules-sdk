@@ -16,8 +16,8 @@ const planner_session = await jules.session({
   prompt,
   source: {
     github: "google-labs-code/jules-sdk",
-    baseBranch: "main",
+    baseBranch: "ci/issue-fleet",
   }
 });
 
-console.log((await planner_session.snapshot()).toJSON());
+console.log(planner_session);

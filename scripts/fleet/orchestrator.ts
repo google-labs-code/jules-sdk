@@ -16,7 +16,7 @@ const sessions = await jules.all(tasks, task => ({
   prompt: task.prompt,
   source: {
     github: "google-labs-code/jules-sdk",
-    baseBranch: "main",
+    baseBranch: "ci/issue-fleet",
   }
 }));
 
