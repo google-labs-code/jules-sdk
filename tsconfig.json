@@ -3,7 +3,18 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "baseUrl": ".",
+    "paths": {
+      "@google/jules-sdk": [
+        "packages/core/src/index.ts"
+      ],
+      "@google/jules-sdk/*": [
+        "packages/core/src/*"
+      ]
+    },
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,

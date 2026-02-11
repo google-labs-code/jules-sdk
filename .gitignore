@@ -6,3 +6,4 @@ dist
 .jules
 temppackage-lock.json
 *.tgz
+.fleet
