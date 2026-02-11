@@ -59,9 +59,13 @@ const mockSourceLookup = http.get(
 );
 
 describe('Error Handling', () => {
+  // Use a client with NO RETRIES for error testing to avoid timeouts
   const jules = defaultJules.with({
     apiKey: TEST_API_KEY,
     baseUrl: TEST_BASE_URL,
+    config: {
+      rateLimitRetry: { maxRetryTimeMs: 0 }
+    }
   });
 
   it('should throw JulesAuthenticationError on 401 Unauthorized', async () => {
@@ -126,7 +130,9 @@ describe('Error Handling', () => {
       baseUrl: TEST_BASE_URL,
       config: {
         rateLimitRetry: {
-          maxRetryTimeMs: 7000, // 7 seconds for quick test
+          maxRetryTimeMs: 2000, // Short timeout
+          baseDelayMs: 1000,
+          maxDelayMs: 5000,
         },
       },
     });
@@ -139,8 +145,8 @@ describe('Error Handling', () => {
     // Attach expectation before advancing timers
     const expectation = expect(promise).rejects.toThrow(JulesRateLimitError);
 
-    // Advance time enough to exceed the 7s timeout (1s + 2s + 4s = 7s)
-    await vi.advanceTimersByTimeAsync(10000);
+    // Advance time enough to exceed the timeout (1s + 2s > 2s)
+    await vi.advanceTimersByTimeAsync(4000);
 
     await expectation;
     await expect(promise).rejects.toHaveProperty('url', expectedUrl);

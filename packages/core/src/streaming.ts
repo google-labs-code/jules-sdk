@@ -81,7 +81,7 @@ export async function* streamActivities(
   const seenIdsAtLastTime = new Set<string>();
 
   while (true) {
-    let response: ListActivitiesResponse;
+    let response: ListActivitiesResponse | undefined;
     try {
       response = await apiClient.request<ListActivitiesResponse>(
         `sessions/${sessionId}/activities`,
@@ -124,12 +124,18 @@ export async function* streamActivities(
           }
         }
 
-        if (!success) {
+        if (!success || !response) {
           throw lastError; // If all retries fail, throw the last 404 error.
         }
       } else {
         throw error; // Re-throw non-retryable errors.
       }
+    }
+
+    // TS doesn't know response is assigned here if the catch block recovers
+    if (!response) {
+       // Should be unreachable if the logic above is correct, but satisfies TS
+       throw new Error("Failed to fetch activities");
     }
 
     isFirstCall = false; // Mark the first call as done.

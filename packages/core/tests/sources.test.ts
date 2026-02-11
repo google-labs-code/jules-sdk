@@ -30,7 +30,13 @@ const API_KEY = 'test-api-key';
 const BASE_URL = 'https://jules.googleapis.com/v1alpha';
 
 describe('SourceManager', () => {
-  const jules = defaultJules.with({ apiKey: API_KEY });
+  // Use a client with NO RETRIES for error testing to avoid timeouts
+  const jules = defaultJules.with({
+    apiKey: API_KEY,
+    config: {
+      rateLimitRetry: { maxRetryTimeMs: 0 }
+    }
+  });
 
   describe('get()', () => {
     it('should retrieve an existing source by its GitHub identifier', async () => {

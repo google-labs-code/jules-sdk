@@ -159,6 +159,7 @@ export class ApiClient {
         // Fall through for server errors if timeout exceeded
       }
 
+      // Handle non-retryable errors or exhausted retries
       switch (response.status) {
         case 401:
         case 403:
