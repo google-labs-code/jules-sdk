@@ -148,3 +148,12 @@ export class InvalidStateError extends JulesError {
     super(message);
   }
 }
+
+/**
+ * Thrown when a polling operation exceeds the configured timeout.
+ */
+export class TimeoutError extends JulesError {
+  constructor(message: string) {
+    super(message);
+  }
+}

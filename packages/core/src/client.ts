@@ -57,6 +57,7 @@ import {
  */
 export type InternalConfig = {
   pollingIntervalMs: number;
+  pollingTimeoutMs: number;
   requestTimeoutMs: number;
 };
 
@@ -114,6 +115,7 @@ export class JulesClientImpl implements JulesClient {
     // Apply defaults to the user-provided config
     this.config = {
       pollingIntervalMs: options.config?.pollingIntervalMs ?? 5000,
+      pollingTimeoutMs: options.config?.pollingTimeoutMs ?? 3600000,
       requestTimeoutMs: options.config?.requestTimeoutMs ?? 30000,
     };
 
@@ -563,6 +565,7 @@ export class JulesClientImpl implements JulesClient {
           sessionId,
           this.apiClient,
           this.config.pollingIntervalMs,
+          this.config.pollingTimeoutMs,
         );
         // Cache the final state
         await this.storage.upsert(finalSession);
@@ -633,7 +636,10 @@ export class JulesClientImpl implements JulesClient {
           method: 'POST',
           body: {
             ...body,
-            automationMode: 'AUTOMATION_MODE_UNSPECIFIED',
+            automationMode:
+              config.autoPr === false
+                ? 'AUTOMATION_MODE_UNSPECIFIED'
+                : 'AUTO_CREATE_PR',
             requirePlanApproval: config.requireApproval ?? true,
           },
         },

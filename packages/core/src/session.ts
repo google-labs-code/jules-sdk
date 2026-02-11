@@ -261,6 +261,7 @@ export class SessionClientImpl implements SessionClient {
       this.id,
       this.apiClient,
       this.config.pollingIntervalMs,
+      this.config.pollingTimeoutMs,
     );
     // Write-Through: Persist final state
     await this.sessionStorage.upsert(finalSession);

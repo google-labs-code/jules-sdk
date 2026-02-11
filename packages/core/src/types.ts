@@ -96,6 +96,12 @@ export interface JulesOptions {
      */
     pollingIntervalMs?: number;
     /**
+     * The timeout in milliseconds for session polling operations.
+     * If the session does not complete within this time, a TimeoutError is thrown.
+     * @default 3600000 (1 hour)
+     */
+    pollingTimeoutMs?: number;
+    /**
      * The timeout in milliseconds for individual HTTP requests to the Jules API.
      * @default 30000
      */
