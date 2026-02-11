@@ -197,4 +197,71 @@ describe('streamActivities', () => {
     expect(activities).toHaveLength(2); // Should not be 3
     expect(activities.map((a) => a.id)).toEqual(['1', '2']);
   });
+
+  it('should retry on initial 404 (Eventual Consistency)', async () => {
+    let callCount = 0;
+    const successResponse = {
+      activities: [{ name: 'a/1', progressUpdated: { title: 'First' } }],
+    };
+
+    server.use(
+      http.get(`${BASE_URL}/sessions/${SESSION_ID}/activities`, () => {
+        callCount++;
+        if (callCount < 3) {
+          // Fail twice with 404
+          return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
+        }
+        return HttpResponse.json(successResponse);
+      }),
+    );
+
+    const stream = streamActivities(
+      SESSION_ID,
+      apiClient,
+      POLLING_INTERVAL,
+      mockPlatform,
+    );
+    const iterator = stream[Symbol.asyncIterator]();
+
+    // Start fetching. It should internally retry.
+    const item1Promise = iterator.next();
+
+    // Advancing time to trigger retries.
+    // Retry 1: +1s
+    // Retry 2: +2s
+    // Total wait > 3s
+    await vi.advanceTimersByTimeAsync(3500);
+
+    const { value: item1 } = await item1Promise;
+    await iterator.return(undefined);
+
+    expect(callCount).toBe(3);
+    expect(item1.id).toBe('1');
+  });
+
+  it('should throw if 404 persists after retries', async () => {
+    server.use(
+      http.get(`${BASE_URL}/sessions/${SESSION_ID}/activities`, () => {
+        return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
+      }),
+    );
+
+    const stream = streamActivities(
+      SESSION_ID,
+      apiClient,
+      POLLING_INTERVAL,
+      mockPlatform,
+    );
+    const iterator = stream[Symbol.asyncIterator]();
+
+    const item1Promise = iterator.next();
+    const expectation = expect(item1Promise).rejects.toThrow();
+
+    // Advance enough time for all retries (31s + epsilon)
+    await vi.advanceTimersByTimeAsync(40000);
+
+    // Expect generic Error because we don't have a specific type check in the test helper
+    // but the implementation throws "lastError" which is JulesApiError from ApiClient
+    await expectation;
+  });
 });

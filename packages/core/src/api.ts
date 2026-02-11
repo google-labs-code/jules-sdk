@@ -75,7 +75,6 @@ export class ApiClient {
       body,
       query,
       headers: customHeaders,
-      _isRetry,
     } = options;
     const url = this.resolveUrl(endpoint);
 
@@ -98,38 +97,66 @@ export class ApiClient {
       throw new MissingApiKeyError();
     }
 
-    // 2. Execute Request
-    const response = await this.fetchWithTimeout(url.toString(), {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const startTime = Date.now();
+    let retryCount = 0;
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        // Time-based retry: Keep retrying until maxRetryTimeMs is exhausted
-        const startTime = (options as any)._rateLimitStartTime || Date.now();
+    // Loop for retries
+    while (true) {
+      // 2. Execute Request
+      const response = await this.fetchWithTimeout(url.toString(), {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      if (response.ok) {
+        const responseText = await response.text();
+        if (!responseText) {
+          return {} as T;
+        }
+        return JSON.parse(responseText) as T;
+      }
+
+      // Check if retryable
+      const isRateLimit = response.status === 429;
+      const isServerError =
+        response.status === 500 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504;
+
+      if (isRateLimit || isServerError) {
         const elapsed = Date.now() - startTime;
-        const retryCount = (options as any)._rateLimitRetryCount || 0;
-
         if (elapsed < this.rateLimitConfig.maxRetryTimeMs) {
-          // Exponential backoff capped at maxDelayMs
-          const rawDelay =
+          // Calculate delay with exponential backoff and jitter
+          // baseDelay * 2^retryCount
+          const exponentialDelay =
             this.rateLimitConfig.baseDelayMs * Math.pow(2, retryCount);
-          const delay = Math.min(rawDelay, this.rateLimitConfig.maxDelayMs);
+
+          // Jitter: +/- 10%
+          // We use a simple random factor to avoid thundering herd
+          const jitter = exponentialDelay * 0.1 * (Math.random() * 2 - 1);
+          let delay = exponentialDelay + jitter;
+
+          // Ensure delay is at least 0
+          if (delay < 0) delay = 0;
+
+          // Cap at maxDelayMs
+          delay = Math.min(delay, this.rateLimitConfig.maxDelayMs);
+
           await new Promise((resolve) => setTimeout(resolve, delay));
-          return this.request<T>(endpoint, {
-            ...options,
-            _rateLimitStartTime: startTime,
-            _rateLimitRetryCount: retryCount + 1,
-          } as any);
+          retryCount++;
+          continue;
         }
 
-        throw new JulesRateLimitError(
-          url.toString(),
-          response.status,
-          response.statusText,
-        );
+        if (isRateLimit) {
+           throw new JulesRateLimitError(
+            url.toString(),
+            response.status,
+            response.statusText,
+          );
+        }
+        // Fall through for server errors if timeout exceeded
       }
 
       switch (response.status) {
@@ -155,13 +182,6 @@ export class ApiClient {
           );
       }
     }
-
-    const responseText = await response.text();
-    if (!responseText) {
-      return {} as T;
-    }
-
-    return JSON.parse(responseText) as T;
   }
 
   private resolveUrl(path: string): URL {

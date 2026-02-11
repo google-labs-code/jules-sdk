@@ -55,6 +55,15 @@ export type StreamActivitiesOptions = {
  */
 import { Platform } from './platform/types.js';
 
+function is404(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as any).status === 404
+  );
+}
+
 export async function* streamActivities(
   sessionId: string,
   apiClient: ApiClient,
@@ -84,45 +93,38 @@ export async function* streamActivities(
         },
       );
     } catch (error) {
-      if (
-        isFirstCall &&
-        error instanceof JulesApiError &&
-        error.status === 404
-      ) {
-        let lastError: JulesApiError = error;
-        let successfulResponse: ListActivitiesResponse | undefined;
+      if (isFirstCall && is404(error)) {
+        let lastError = error;
         let delay = 1000; // Start with a 1-second delay
+        let success = false;
 
+        // Retry for ~30 seconds (1+2+4+8+16 = 31s)
         for (let i = 0; i < 5; i++) {
           await sleep(delay);
-          delay *= 2; // Double the delay for the next attempt
+
           try {
-            successfulResponse =
-              await apiClient.request<ListActivitiesResponse>(
-                `sessions/${sessionId}/activities`,
-                {
-                  query: {
-                    pageSize: '50',
-                    ...(pageToken ? { pageToken } : {}),
-                  },
+            response = await apiClient.request<ListActivitiesResponse>(
+              `sessions/${sessionId}/activities`,
+              {
+                query: {
+                  pageSize: '50',
+                  ...(pageToken ? { pageToken } : {}),
                 },
-              );
+              },
+            );
+            success = true;
             break; // On success, exit the retry loop.
           } catch (retryError) {
-            if (
-              retryError instanceof JulesApiError &&
-              retryError.status === 404
-            ) {
+            if (is404(retryError)) {
               lastError = retryError;
+              delay *= 2; // Double the delay for the next attempt
             } else {
               throw retryError; // Re-throw non-404 errors immediately.
             }
           }
         }
 
-        if (successfulResponse) {
-          response = successfulResponse;
-        } else {
+        if (!success) {
           throw lastError; // If all retries fail, throw the last 404 error.
         }
       } else {
