@@ -16,6 +16,7 @@
 
 // src/streaming.ts
 import { ApiClient } from './api.js';
+import { withFirstRequestRetry } from './retry-utils.js';
 import { JulesApiError } from './errors.js';
 import { mapRestActivityToSdkActivity } from './mappers.js';
 import { Activity, Origin, SessionResource } from './types.js';
@@ -73,8 +74,9 @@ export async function* streamActivities(
 
   while (true) {
     let response: ListActivitiesResponse;
-    try {
-      response = await apiClient.request<ListActivitiesResponse>(
+
+    const fetchActivities = () =>
+      apiClient.request<ListActivitiesResponse>(
         `sessions/${sessionId}/activities`,
         {
           query: {
@@ -83,54 +85,13 @@ export async function* streamActivities(
           },
         },
       );
-    } catch (error) {
-      if (
-        isFirstCall &&
-        error instanceof JulesApiError &&
-        error.status === 404
-      ) {
-        let lastError: JulesApiError = error;
-        let successfulResponse: ListActivitiesResponse | undefined;
-        let delay = 1000; // Start with a 1-second delay
 
-        for (let i = 0; i < 5; i++) {
-          await sleep(delay);
-          delay *= 2; // Double the delay for the next attempt
-          try {
-            successfulResponse =
-              await apiClient.request<ListActivitiesResponse>(
-                `sessions/${sessionId}/activities`,
-                {
-                  query: {
-                    pageSize: '50',
-                    ...(pageToken ? { pageToken } : {}),
-                  },
-                },
-              );
-            break; // On success, exit the retry loop.
-          } catch (retryError) {
-            if (
-              retryError instanceof JulesApiError &&
-              retryError.status === 404
-            ) {
-              lastError = retryError;
-            } else {
-              throw retryError; // Re-throw non-404 errors immediately.
-            }
-          }
-        }
-
-        if (successfulResponse) {
-          response = successfulResponse;
-        } else {
-          throw lastError; // If all retries fail, throw the last 404 error.
-        }
-      } else {
-        throw error; // Re-throw non-retryable errors.
-      }
+    if (isFirstCall) {
+      response = await withFirstRequestRetry(fetchActivities);
+      isFirstCall = false;
+    } else {
+      response = await fetchActivities();
     }
-
-    isFirstCall = false; // Mark the first call as done.
 
     const activities = response.activities || [];
 

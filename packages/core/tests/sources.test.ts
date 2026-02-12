@@ -15,7 +15,7 @@
  */
 
 // tests/sources.test.ts
-import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
+import { beforeAll, afterAll, afterEach, describe, it, expect, vi } from 'vitest';
 import { server } from './mocks/server.js';
 import { jules as defaultJules, Source } from '../src/index.js';
 import { http, HttpResponse } from 'msw';
@@ -49,8 +49,16 @@ describe('SourceManager', () => {
     });
 
     it('should return undefined for a non-existent source (404)', async () => {
-      const source = await jules.sources.get({ github: 'non/existent' });
-      expect(source).toBeUndefined();
+      vi.useFakeTimers();
+      try {
+        const promise = jules.sources.get({ github: 'non/existent' });
+        // Advance enough time to exhaust retries
+        await vi.advanceTimersByTimeAsync(60000);
+        const source = await promise;
+        expect(source).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should throw a JulesApiError for other server errors (e.g., 500)', async () => {
