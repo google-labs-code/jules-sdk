@@ -85,7 +85,9 @@ function toIssueDocMarkdown(issues: Issue[]) {
   return lines.join("\n");
 }
 
-export async function getIssuesAsMarkdown(owner: string, repo: string) {
-  const issues = await getIssues(owner, repo);
+export async function getIssuesAsMarkdown() {
+  const issues = await getIssues();
   return toIssueDocMarkdown(issues);
 }
+
+console.log(getIssuesAsMarkdown())

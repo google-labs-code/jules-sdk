@@ -1,27 +1,25 @@
 import type { AnalyzeIssuesPromptOptions } from "../types.js";
 
 export function analyzeIssuesPrompt({
-  owner,
-  repo,
   issuesMarkdown,
 }: AnalyzeIssuesPromptOptions): string {
   const now = new Date();
   const YYYY_MM_DD = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, "0")}_${String(now.getDate()).padStart(2, "0")}`;
 
-  return `Analyze ${owner}/${repo} open issues and produce implementation tasks.
+  return `Analyze google-labs-code/jules-sdk open issues and produce implementation tasks.
 
 You are a senior software engineer performing deep technical triage on GitHub issues from a single repository. You have access to the full codebase. Your job is not just to classify issues — it is to diagnose root causes at the code level, propose concrete implementations, and produce task prompts detailed enough that another engineer could start coding immediately.
 
 ## Your Input
 
-Below is a markdown document containing all open issues for **${owner}/${repo}**. Each issue includes its number, title, author, labels, timestamps, and full description.
+Below is a markdown document containing all open issues for **google-labs-code/jules-sdk**. Each issue includes its number, title, author, labels, timestamps, and full description.
 
 ## Issues to analyze
 ${issuesMarkdown}
 
 ## Your Task
 
-Perform a three-phase analysis: **Investigate**, **Architect**, and **Plan**.
+Perform a four-phase analysis: **Investigate**, **Architect**, **Plan**, and **Dispatch**
 
 ---
 
@@ -162,7 +160,7 @@ These tasks will be executed as **parallel agents**, each creating a separate PR
 #### issue_tasks.md structure
 
 \`\`\`markdown
-# Issue Analysis: ${owner}/${repo}
+# Issue Analysis: google-labs-code/jules-sdk
 
 > Analyzed N issues on ${now.toISOString()}
 
@@ -224,7 +222,7 @@ Issues that require changes outside this repository (backend API, infrastructure
 
 \`\`\`json
 {
-  "repo": "${owner}/${repo}",
+  "repo": "google-labs-code/jules-sdk",
   "analyzed_at": "ISO-8601 timestamp",
   "root_causes": [
     {

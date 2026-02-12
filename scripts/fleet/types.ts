@@ -35,7 +35,5 @@ export interface UnaddressableIssue {
 }
 
 export interface AnalyzeIssuesPromptOptions {
-  owner: string;
-  repo: string;
   issuesMarkdown: string;
 }
