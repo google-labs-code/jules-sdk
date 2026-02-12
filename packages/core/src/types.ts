@@ -893,7 +893,7 @@ export interface AutomatedSession {
    * const run = await jules.run({ ... });
    * const outcome = await run.result();
    */
-  result(): Promise<SessionOutcome>;
+  result(options?: { timeoutMs?: number }): Promise<SessionOutcome>;
 }
 
 // -----------------------------------------------------------------------------
@@ -1083,7 +1083,7 @@ export interface SessionClient {
    * const outcome = await session.result();
    * console.log(`Session finished with state: ${outcome.state}`);
    */
-  result(): Promise<SessionOutcome>;
+  result(options?: { timeoutMs?: number }): Promise<SessionOutcome>;
 
   /**
    * Pauses execution and waits until the session to reach a specific state.

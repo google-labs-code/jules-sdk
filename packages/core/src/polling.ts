@@ -16,6 +16,7 @@
 
 // src/polling.ts
 import { ApiClient } from './api.js';
+import { TimeoutError } from './errors.js';
 import { SessionResource } from './types.js';
 
 // A helper function for delaying execution.
@@ -29,7 +30,9 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * @param apiClient The API client for making requests.
  * @param predicateFn A function that returns `true` if polling should stop.
  * @param pollingInterval The interval in milliseconds between poll attempts.
+ * @param timeoutMs Optional timeout in milliseconds.
  * @returns The session resource that satisfied the predicate.
+ * @throws {TimeoutError} If the timeout is exceeded.
  * @internal
  */
 export async function pollSession(
@@ -37,8 +40,15 @@ export async function pollSession(
   apiClient: ApiClient,
   predicateFn: (session: SessionResource) => boolean,
   pollingInterval: number,
+  timeoutMs?: number,
 ): Promise<SessionResource> {
+  const startTime = Date.now();
+
   while (true) {
+    if (timeoutMs && Date.now() - startTime > timeoutMs) {
+      throw new TimeoutError(`Timed out waiting for session ${sessionId}`);
+    }
+
     const session = await apiClient.request<SessionResource>(
       `sessions/${sessionId}`,
     );
@@ -57,13 +67,16 @@ export async function pollSession(
  * @param sessionId The ID of the session to poll.
  * @param apiClient The API client for making requests.
  * @param pollingInterval The interval in milliseconds between poll attempts.
+ * @param timeoutMs Optional timeout in milliseconds.
  * @returns The final SessionResource.
+ * @throws {TimeoutError} If the timeout is exceeded.
  * @internal
  */
 export async function pollUntilCompletion(
   sessionId: string,
   apiClient: ApiClient,
   pollingInterval: number,
+  timeoutMs?: number,
 ): Promise<SessionResource> {
   return pollSession(
     sessionId,
@@ -73,5 +86,6 @@ export async function pollUntilCompletion(
       return state === 'completed' || state === 'failed';
     },
     pollingInterval,
+    timeoutMs,
   );
 }
