@@ -148,3 +148,12 @@ export class InvalidStateError extends JulesError {
     super(message);
   }
 }
+
+/**
+ * Thrown when an operation times out.
+ */
+export class TimeoutError extends JulesError {
+  constructor(message: string) {
+    super(message);
+  }
+}

@@ -17,8 +17,9 @@
 // src/polling.ts
 import { ApiClient } from './api.js';
 import { SessionResource } from './types.js';
+import { TimeoutError } from './errors.js';
 
-// A helper function for delaying execution.
+// A helper function for delays execution.
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -29,6 +30,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * @param apiClient The API client for making requests.
  * @param predicateFn A function that returns `true` if polling should stop.
  * @param pollingInterval The interval in milliseconds between poll attempts.
+ * @param timeoutMs Optional timeout in milliseconds. If provided, the promise will reject with a TimeoutError if the predicate is not met within this time.
  * @returns The session resource that satisfied the predicate.
  * @internal
  */
@@ -37,8 +39,16 @@ export async function pollSession(
   apiClient: ApiClient,
   predicateFn: (session: SessionResource) => boolean,
   pollingInterval: number,
+  timeoutMs?: number,
 ): Promise<SessionResource> {
+  const startTime = Date.now();
   while (true) {
+    if (timeoutMs && Date.now() - startTime > timeoutMs) {
+      throw new TimeoutError(
+        `Polling for session ${sessionId} timed out after ${timeoutMs}ms`,
+      );
+    }
+
     const session = await apiClient.request<SessionResource>(
       `sessions/${sessionId}`,
     );
@@ -57,6 +67,7 @@ export async function pollSession(
  * @param sessionId The ID of the session to poll.
  * @param apiClient The API client for making requests.
  * @param pollingInterval The interval in milliseconds between poll attempts.
+ * @param timeoutMs Optional timeout in milliseconds.
  * @returns The final SessionResource.
  * @internal
  */
@@ -64,6 +75,7 @@ export async function pollUntilCompletion(
   sessionId: string,
   apiClient: ApiClient,
   pollingInterval: number,
+  timeoutMs?: number,
 ): Promise<SessionResource> {
   return pollSession(
     sessionId,
@@ -73,5 +85,6 @@ export async function pollUntilCompletion(
       return state === 'completed' || state === 'failed';
     },
     pollingInterval,
+    timeoutMs,
   );
 }

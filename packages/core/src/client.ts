@@ -558,11 +558,12 @@ export class JulesClientImpl implements JulesClient {
           this.platform,
         );
       }.bind(this),
-      result: async () => {
+      result: async (options?: { timeoutMs?: number }) => {
         const finalSession = await pollUntilCompletion(
           sessionId,
           this.apiClient,
           this.config.pollingIntervalMs,
+          options?.timeoutMs,
         );
         // Cache the final state
         await this.storage.upsert(finalSession);
@@ -633,7 +634,9 @@ export class JulesClientImpl implements JulesClient {
           method: 'POST',
           body: {
             ...body,
-            automationMode: 'AUTOMATION_MODE_UNSPECIFIED',
+            automationMode: config.autoPr
+              ? 'AUTO_CREATE_PR'
+              : 'AUTOMATION_MODE_UNSPECIFIED',
             requirePlanApproval: config.requireApproval ?? true,
           },
         },
