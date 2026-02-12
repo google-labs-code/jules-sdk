@@ -28,6 +28,9 @@ import { server } from './mocks/server.js';
 import { http, HttpResponse } from 'msw';
 import { ApiClient } from '../src/api.js';
 import { streamActivities } from '../src/streaming.js';
+import { DefaultActivityClient } from '../src/activities/client.js';
+import { NetworkAdapter } from '../src/network/adapter.js';
+import { MemoryStorage } from '../src/storage/memory.js';
 import { Activity } from '../src/types.js';
 
 // Set up the mock server
@@ -196,5 +199,57 @@ describe('streamActivities', () => {
     expect(requestCount).toBe(2);
     expect(activities).toHaveLength(2); // Should not be 3
     expect(activities.map((a) => a.id)).toEqual(['1', '2']);
+  });
+
+  it('should retry on initial 404 in DefaultActivityClient.stream()', async () => {
+    let callCount = 0;
+    const activities = [
+      {
+        name: `sessions/${SESSION_ID}/activities/1`,
+        userMessaged: { userMessage: 'Hello' },
+        createTime: '2023-01-01T00:00:00Z',
+      },
+    ];
+
+    server.use(
+      http.get(`${BASE_URL}/sessions/${SESSION_ID}/activities`, () => {
+        callCount++;
+        if (callCount < 3) {
+          return new HttpResponse(null, {
+            status: 404,
+            statusText: 'Not Found',
+          });
+        }
+        return HttpResponse.json({ activities });
+      }),
+    );
+
+    const storage = new MemoryStorage();
+    const network = new NetworkAdapter(
+      apiClient,
+      SESSION_ID,
+      POLLING_INTERVAL,
+      mockPlatform,
+    );
+    const client = new DefaultActivityClient(storage, network);
+
+    const stream = client.stream();
+    const iterator = stream[Symbol.asyncIterator]();
+
+    // Start consuming stream. This triggers hydrate().
+    const nextPromise = iterator.next();
+
+    // Advance time to allow retries.
+    // Initial delay 1000ms.
+    // Retry 1: 1000ms delay.
+    // Retry 2: 2000ms delay.
+    // We need to advance enough time.
+    await vi.advanceTimersByTimeAsync(5000);
+
+    const result = await nextPromise;
+    expect(result.value).toEqual(expect.objectContaining({ id: '1' }));
+    expect(callCount).toBe(3);
+
+    await iterator.return(undefined);
   });
 });

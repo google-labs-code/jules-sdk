@@ -23,6 +23,7 @@ import { Activity, Artifact } from '../types.js';
 import { ActivityStorage } from '../storage/types.js';
 import { ActivityClient, ListOptions, SelectOptions } from './types.js';
 import { isSessionFrozen } from '../utils/page-token.js';
+import { withFirstRequestRetry } from '../retry-utils.js';
 
 /**
  * Creates a filter string for the Jules API to fetch activities
@@ -175,12 +176,24 @@ export class DefaultActivityClient implements ActivityClient {
 
     let count = 0;
     let nextPageToken: string | undefined;
+    let isFirstRequest = true;
 
     do {
-      const response = await this.network.listActivities({
-        filter,
-        pageToken: nextPageToken,
-      });
+      let response;
+      if (isFirstRequest && !filter) {
+        response = await withFirstRequestRetry(() =>
+          this.network.listActivities({
+            filter,
+            pageToken: nextPageToken,
+          }),
+        );
+      } else {
+        response = await this.network.listActivities({
+          filter,
+          pageToken: nextPageToken,
+        });
+      }
+      isFirstRequest = false;
 
       for (const activity of response.activities) {
         // The API filter should prevent us from receiving activities we already

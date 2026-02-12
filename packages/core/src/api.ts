@@ -106,17 +106,27 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
+      if (
+        response.status === 429 ||
+        [500, 502, 503, 504].includes(response.status)
+      ) {
         // Time-based retry: Keep retrying until maxRetryTimeMs is exhausted
         const startTime = (options as any)._rateLimitStartTime || Date.now();
         const elapsed = Date.now() - startTime;
         const retryCount = (options as any)._rateLimitRetryCount || 0;
 
         if (elapsed < this.rateLimitConfig.maxRetryTimeMs) {
-          // Exponential backoff capped at maxDelayMs
-          const rawDelay =
+          // Exponential backoff with jitter, capped at maxDelayMs
+          // delay = min(maxDelay, base * 2^retry + random(0, base * 0.1))
+          const baseDelay =
             this.rateLimitConfig.baseDelayMs * Math.pow(2, retryCount);
-          const delay = Math.min(rawDelay, this.rateLimitConfig.maxDelayMs);
+          const jitter =
+            Math.random() * (this.rateLimitConfig.baseDelayMs * 0.1);
+          const delay = Math.min(
+            baseDelay + jitter,
+            this.rateLimitConfig.maxDelayMs,
+          );
+
           await new Promise((resolve) => setTimeout(resolve, delay));
           return this.request<T>(endpoint, {
             ...options,
@@ -125,11 +135,14 @@ export class ApiClient {
           } as any);
         }
 
-        throw new JulesRateLimitError(
-          url.toString(),
-          response.status,
-          response.statusText,
-        );
+        if (response.status === 429) {
+          throw new JulesRateLimitError(
+            url.toString(),
+            response.status,
+            response.statusText,
+          );
+        }
+        // Fall through to default error handling for 5xx if retries exhausted
       }
 
       switch (response.status) {

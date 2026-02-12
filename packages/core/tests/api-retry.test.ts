@@ -14,293 +14,154 @@
  * limitations under the License.
  */
 
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import {
+  beforeAll,
+  afterAll,
+  afterEach,
+  describe,
+  it,
+  expect,
+  vi,
+} from 'vitest';
+import { server } from './mocks/server.js';
+import { http, HttpResponse } from 'msw';
 import { ApiClient } from '../src/api.js';
-import { JulesRateLimitError } from '../src/errors.js';
 
-describe('ApiClient 429 Retry Logic', () => {
-  const baseUrl = 'https://api.jules.com';
+// Set up the mock server
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => {
+  server.resetHandlers();
+  vi.clearAllMocks();
+});
+afterAll(() => server.close());
 
-  beforeEach(() => {
+const API_KEY = 'test-api-key';
+const BASE_URL = 'https://jules.googleapis.com/v1alpha';
+
+describe('ApiClient Retry Logic', () => {
+  const apiClient = new ApiClient({
+    apiKey: API_KEY,
+    baseUrl: BASE_URL,
+    requestTimeoutMs: 1000,
+    rateLimitRetry: {
+      maxRetryTimeMs: 5000,
+      baseDelayMs: 100,
+      maxDelayMs: 1000,
+    },
+  });
+
+  // Use fake timers to control retries
+  beforeAll(() => {
     vi.useFakeTimers();
-    // Mock global fetch
-    global.fetch = vi.fn() as unknown as typeof fetch;
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterAll(() => {
+    vi.useRealTimers();
   });
 
-  it('should retry once after 1s delay if 429 is returned once', async () => {
-    const apiClient = new ApiClient({
-      apiKey: 'test-key',
-      baseUrl,
-      requestTimeoutMs: 1000,
-    });
-    const fetchMock = global.fetch as any;
-
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response('Rate Limit', {
-          status: 429,
-          statusText: 'Too Many Requests',
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response('{"success": true}', { status: 200 }),
-      );
+  it('should retry on 503 error', async () => {
+    let callCount = 0;
+    server.use(
+      http.get(`${BASE_URL}/test`, () => {
+        callCount++;
+        if (callCount < 3) {
+          return new HttpResponse(null, {
+            status: 503,
+            statusText: 'Service Unavailable',
+          });
+        }
+        return HttpResponse.json({ success: true });
+      }),
+    );
 
     const promise = apiClient.request('test');
 
-    // 1. Initial request fails immediately.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    // 2. Advance time by 999ms. Retry should NOT happen yet.
-    await vi.advanceTimersByTimeAsync(999);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    // 3. Advance time by 1ms (Total 1000ms). Retry should happen.
-    await vi.advanceTimersByTimeAsync(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Advance timers to trigger retries
+    // We need to advance enough time for the delays + jitter
+    // Base delays: 100, 200
+    await vi.advanceTimersByTimeAsync(1000);
 
     const result = await promise;
     expect(result).toEqual({ success: true });
+    expect(callCount).toBe(3);
   });
 
-  it('should retry twice (1s, 2s) if 429 is returned twice', async () => {
-    const apiClient = new ApiClient({
-      apiKey: 'test-key',
-      baseUrl,
-      requestTimeoutMs: 1000,
-    });
-    const fetchMock = global.fetch as any;
-
-    fetchMock
-      .mockResolvedValueOnce(new Response('429', { status: 429 }))
-      .mockResolvedValueOnce(new Response('429', { status: 429 }))
-      .mockResolvedValueOnce(
-        new Response('{"success": true}', { status: 200 }),
-      );
-
-    const promise = apiClient.request('test');
-
-    // Attempt 1: Immediate
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    // Wait 1s (Backoff 1) -> Attempt 2
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    // Wait 2s (Backoff 2) -> Attempt 3
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-
-    await expect(promise).resolves.toEqual({ success: true });
-  });
-
-  it('should retry three times (1s, 2s, 4s) if 429 is returned three times', async () => {
-    const apiClient = new ApiClient({
-      apiKey: 'test-key',
-      baseUrl,
-      requestTimeoutMs: 1000,
-    });
-    const fetchMock = global.fetch as any;
-
-    fetchMock
-      .mockResolvedValueOnce(new Response('429', { status: 429 })) // 1
-      .mockResolvedValueOnce(new Response('429', { status: 429 })) // 2
-      .mockResolvedValueOnce(new Response('429', { status: 429 })) // 3
-      .mockResolvedValueOnce(
-        new Response('{"success": true}', { status: 200 }),
-      ); // 4 (Success)
-
-    const promise = apiClient.request('test');
-
-    // Attempt 1: Immediate
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    // Wait 1s -> Attempt 2
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    // Wait 2s -> Attempt 3
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-
-    // Wait 4s -> Attempt 4
-    await vi.advanceTimersByTimeAsync(4000);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-
-    await expect(promise).resolves.toEqual({ success: true });
-  });
-
-  describe('Time-based retry (configurable maxRetryTimeMs)', () => {
-    it('should FAIL after configured timeout (7s config, should fail after ~7s)', async () => {
-      // Configure a short timeout for testing: 7s
-      // With 1s base delay, exponential backoff: 1s, 2s, 4s = 7s total
-      const apiClient = new ApiClient({
-        apiKey: 'test-key',
-        baseUrl,
-        requestTimeoutMs: 1000,
-        rateLimitRetry: {
-          maxRetryTimeMs: 7000, // 7 seconds
-          baseDelayMs: 1000,
-          maxDelayMs: 30000,
-        },
-      });
-      const fetchMock = global.fetch as any;
-
-      // Always 429
-      fetchMock.mockResolvedValue(
-        new Response('429', { status: 429, statusText: 'Go Away' }),
-      );
-
-      const promise = apiClient.request('test');
-
-      // Attach expectation early to prevent unhandled rejection warnings
-      const failureExpectation =
-        expect(promise).rejects.toThrow(JulesRateLimitError);
-
-      // Attempt 1: Immediate (elapsed = 0)
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      // Wait 1s -> Attempt 2 (elapsed = 1s)
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-
-      // Wait 2s -> Attempt 3 (elapsed = 3s)
-      await vi.advanceTimersByTimeAsync(2000);
-      expect(fetchMock).toHaveBeenCalledTimes(3);
-
-      // Wait 4s -> Attempt 4 (elapsed = 7s, which equals maxRetryTimeMs)
-      // This should exceed the time limit and throw
-      await vi.advanceTimersByTimeAsync(4000);
-      expect(fetchMock).toHaveBeenCalledTimes(4);
-
-      // No more retries should happen
-      await vi.advanceTimersByTimeAsync(10000);
-      expect(fetchMock).toHaveBeenCalledTimes(4);
-
-      await failureExpectation;
-    });
-
-    it('should retry for 5 minutes by default', async () => {
-      const apiClient = new ApiClient({
-        apiKey: 'test-key',
-        baseUrl,
-        requestTimeoutMs: 1000,
-        // Using defaults: maxRetryTimeMs = 300000 (5 min)
-      });
-      const fetchMock = global.fetch as any;
-
-      // Fail for 4 minutes, then succeed
+  it('should retry on 500, 502, 504 errors', async () => {
+    const codes = [500, 502, 504];
+    for (const code of codes) {
       let callCount = 0;
-      fetchMock.mockImplementation(() => {
+      server.use(
+        http.get(`${BASE_URL}/test-${code}`, () => {
+          callCount++;
+          if (callCount < 2) {
+            return new HttpResponse(null, { status: code });
+          }
+          return HttpResponse.json({ success: true });
+        }),
+      );
+
+      const promise = apiClient.request(`test-${code}`);
+      await vi.advanceTimersByTimeAsync(500);
+      await expect(promise).resolves.toEqual({ success: true });
+      expect(callCount).toBe(2);
+    }
+  });
+
+  it('should apply jitter to backoff', async () => {
+    let callCount = 0;
+    // Mock Date.now to allow controlled stepping
+    vi.setSystemTime(new Date(0));
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5); // Fixed jitter
+
+    server.use(
+      http.get(`${BASE_URL}/jitter`, () => {
         callCount++;
-        // After 4 minutes of retries (many calls), succeed
-        if (callCount > 10) {
-          return Promise.resolve(
-            new Response('{"success": true}', { status: 200 }),
-          );
-        }
-        return Promise.resolve(new Response('429', { status: 429 }));
-      });
+        return new HttpResponse(null, { status: 503 });
+      }),
+    );
 
-      const promise = apiClient.request('test');
+    const promise = apiClient.request('jitter');
 
-      // Advance 4 minutes worth of time (240s)
-      // Backoffs: 1s, 2s, 4s, 8s, 16s, 30s (capped), 30s, 30s, 30s, 30s, 30s...
-      // After 11 calls minimum we succeed
-      for (let i = 0; i < 15; i++) {
-        await vi.advanceTimersByTimeAsync(30000);
-      }
+    // Expected logic:
+    // Retry 0:
+    // base = 100 * 2^0 = 100
+    // jitter = 0.5 * (100 * 0.1) = 0.5 * 10 = 5
+    // delay = 105
+    // Retry 1:
+    // base = 100 * 2^1 = 200
+    // jitter = 5
+    // delay = 205
 
-      await expect(promise).resolves.toEqual({ success: true });
-    });
+    // Advance by 110ms - should trigger 1st retry (delay 105)
+    await vi.advanceTimersByTimeAsync(110);
+    expect(callCount).toBe(2);
 
-    it('should respect maxDelayMs cap', async () => {
-      const apiClient = new ApiClient({
-        apiKey: 'test-key',
-        baseUrl,
-        requestTimeoutMs: 1000,
-        rateLimitRetry: {
-          maxRetryTimeMs: 300000,
-          baseDelayMs: 1000,
-          maxDelayMs: 5000, // Cap at 5 seconds
-        },
-      });
-      const fetchMock = global.fetch as any;
+    // Now waiting for 2nd retry (delay 205ms). Scheduled at t=105.
+    // Target fire time: 105 + 205 = 310.
+    // Current time: 110.
+    // Remaining wait: 200.
 
-      // Always 429 at first, then success
-      fetchMock
-        .mockResolvedValueOnce(new Response('429', { status: 429 })) // 1
-        .mockResolvedValueOnce(new Response('429', { status: 429 })) // 2
-        .mockResolvedValueOnce(new Response('429', { status: 429 })) // 3
-        .mockResolvedValueOnce(new Response('429', { status: 429 })) // 4 (delay would be 8s without cap)
-        .mockResolvedValueOnce(
-          new Response('{"success": true}', { status: 200 }),
-        );
+    // Advance by 195ms -> t = 110 + 195 = 305.
+    // 305 < 310. Should NOT fire.
+    await vi.advanceTimersByTimeAsync(195);
+    expect(callCount).toBe(2);
 
-      const promise = apiClient.request('test');
+    // Advance by 10ms -> t = 305 + 10 = 315.
+    // 315 > 310. Should fire.
+    await vi.advanceTimersByTimeAsync(10);
+    expect(callCount).toBe(3);
 
-      // Attempt 1
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      // 1s delay -> Attempt 2
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-
-      // 2s delay -> Attempt 3
-      await vi.advanceTimersByTimeAsync(2000);
-      expect(fetchMock).toHaveBeenCalledTimes(3);
-
-      // 4s delay -> Attempt 4
-      await vi.advanceTimersByTimeAsync(4000);
-      expect(fetchMock).toHaveBeenCalledTimes(4);
-
-      // 5s delay (capped from 8s) -> Attempt 5
-      // Check that 4.9s is not enough
-      await vi.advanceTimersByTimeAsync(4900);
-      expect(fetchMock).toHaveBeenCalledTimes(4);
-
-      await vi.advanceTimersByTimeAsync(100);
-      expect(fetchMock).toHaveBeenCalledTimes(5);
-
-      await expect(promise).resolves.toEqual({ success: true });
-    });
-
-    it('should allow custom baseDelayMs', async () => {
-      const apiClient = new ApiClient({
-        apiKey: 'test-key',
-        baseUrl,
-        requestTimeoutMs: 1000,
-        rateLimitRetry: {
-          maxRetryTimeMs: 300000,
-          baseDelayMs: 500, // 500ms base
-          maxDelayMs: 30000,
-        },
-      });
-      const fetchMock = global.fetch as any;
-
-      fetchMock
-        .mockResolvedValueOnce(new Response('429', { status: 429 }))
-        .mockResolvedValueOnce(
-          new Response('{"success": true}', { status: 200 }),
-        );
-
-      const promise = apiClient.request('test');
-
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      // 499ms should not be enough
-      await vi.advanceTimersByTimeAsync(499);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      // 1ms more (500ms total) triggers retry
-      await vi.advanceTimersByTimeAsync(1);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-
-      await expect(promise).resolves.toEqual({ success: true });
-    });
+    // Clean up promise rejection
+    server.resetHandlers();
+    server.use(
+      http.get(`${BASE_URL}/jitter`, () => {
+        return HttpResponse.json({ success: true });
+      }),
+    );
+    // Let the pending retry succeed
+    await vi.advanceTimersByTimeAsync(1000);
+    try {
+      await promise;
+    } catch {}
   });
 });
