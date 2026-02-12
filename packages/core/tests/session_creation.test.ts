@@ -35,6 +35,16 @@ const server = setupServer(
       });
     },
   ),
+  http.get(
+    'https://jules.googleapis.com/v1alpha/sessions/SESSION_TEST',
+    () => {
+      return HttpResponse.json({
+        id: 'SESSION_TEST',
+        name: 'sessions/SESSION_TEST',
+        state: 'IN_PROGRESS',
+      });
+    }
+  )
 );
 
 beforeAll(() => {
@@ -55,7 +65,7 @@ describe('jules.session() autoPr behavior', () => {
   let jules: JulesClient;
 
   beforeEach(() => {
-    jules = defaultJules.with({ apiKey: 'test-key' });
+    jules = defaultJules.with({ apiKey: 'test-key', config: { pollingIntervalMs: 50 } });
   });
 
   it('should set automationMode to AUTO_CREATE_PR when autoPr is true', async () => {
@@ -78,5 +88,19 @@ describe('jules.session() autoPr behavior', () => {
     expect(capturedRequestBody.automationMode).toBe(
       'AUTOMATION_MODE_UNSPECIFIED',
     );
+  });
+
+  it('should timeout if session does not complete', async () => {
+    vi.useFakeTimers();
+
+    const run = await jules.run({
+        prompt: 'test',
+    });
+
+    const resultPromise = run.result({ timeoutMs: 200 });
+    const assertion = expect(resultPromise).rejects.toThrow(/Timed out/i);
+
+    await vi.advanceTimersByTimeAsync(300);
+    await assertion;
   });
 });

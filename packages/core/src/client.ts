@@ -558,11 +558,12 @@ export class JulesClientImpl implements JulesClient {
           this.platform,
         );
       }.bind(this),
-      result: async () => {
+      result: async (options?: { timeoutMs?: number }) => {
         const finalSession = await pollUntilCompletion(
           sessionId,
           this.apiClient,
           this.config.pollingIntervalMs,
+          options?.timeoutMs,
         );
         // Cache the final state
         await this.storage.upsert(finalSession);

@@ -256,11 +256,12 @@ export class SessionClientImpl implements SessionClient {
    * @returns The final outcome of the session.
    * @throws {AutomatedSessionFailedError} If the session ends in a 'failed' state.
    */
-  async result(): Promise<SessionOutcome> {
+  async result(options?: { timeoutMs?: number }): Promise<SessionOutcome> {
     const finalSession = await pollUntilCompletion(
       this.id,
       this.apiClient,
       this.config.pollingIntervalMs,
+      options?.timeoutMs,
     );
     // Write-Through: Persist final state
     await this.sessionStorage.upsert(finalSession);
