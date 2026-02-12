@@ -1,4 +1,3 @@
-
 import {
   describe,
   it,
@@ -9,22 +8,18 @@ import {
   beforeAll,
   afterAll,
 } from 'vitest';
-import {
-  jules as defaultJules,
-  JulesClient,
-} from '../src/index.js';
+import { jules as defaultJules, JulesClient } from '../src/index.js';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
-// --- Mock API Server Setup ---
 let capturedRequestBody: any;
 
 const server = setupServer(
   http.get(
-    'https://jules.googleapis.com/v1alpha/sources/github/bobalover/boba-auth',
+    'https://jules.googleapis.com/v1alpha/sources/github/test-owner/test-repo',
     () => {
       return HttpResponse.json({
-        name: 'sources/github/bobalover/boba-auth',
+        name: 'sources/github/test-owner/test-repo',
         githubRepo: {},
       });
     },
@@ -34,12 +29,12 @@ const server = setupServer(
     async ({ request }) => {
       capturedRequestBody = await request.json();
       return HttpResponse.json({
-        id: 'SESSION_REPRO',
-        name: 'sessions/SESSION_REPRO',
+        id: 'SESSION_TEST',
+        name: 'sessions/SESSION_TEST',
         ...capturedRequestBody,
       });
     },
-  )
+  ),
 );
 
 beforeAll(() => {
@@ -51,32 +46,37 @@ afterEach(() => {
   capturedRequestBody = undefined;
   vi.useRealTimers();
 });
-
-beforeEach(() => {
-  server.resetHandlers();
-});
-
 afterAll(() => {
   server.close();
   delete process.env.JULES_FORCE_MEMORY_STORAGE;
 });
 
-describe('Reproduction: jules.session() autoPr', () => {
+describe('jules.session() autoPr behavior', () => {
   let jules: JulesClient;
 
   beforeEach(() => {
     jules = defaultJules.with({ apiKey: 'test-key' });
   });
 
-  it('demonstrates the bug: autoPr: true is ignored in session()', async () => {
+  it('should set automationMode to AUTO_CREATE_PR when autoPr is true', async () => {
     await jules.session({
-      prompt: 'Refactor the auth flow.',
-      source: { github: 'bobalover/boba-auth', baseBranch: 'main' },
+      prompt: 'Test prompt',
+      source: { github: 'test-owner/test-repo', baseBranch: 'main' },
       autoPr: true,
     });
 
-    expect(capturedRequestBody).toBeDefined();
-    // This assertion confirms the CURRENT BROKEN behavior
-    expect(capturedRequestBody.automationMode).toBe('AUTOMATION_MODE_UNSPECIFIED');
+    expect(capturedRequestBody.automationMode).toBe('AUTO_CREATE_PR');
+  });
+
+  it('should set automationMode to AUTOMATION_MODE_UNSPECIFIED when autoPr is false', async () => {
+    await jules.session({
+      prompt: 'Test prompt',
+      source: { github: 'test-owner/test-repo', baseBranch: 'main' },
+      autoPr: false,
+    });
+
+    expect(capturedRequestBody.automationMode).toBe(
+      'AUTOMATION_MODE_UNSPECIFIED',
+    );
   });
 });

@@ -633,7 +633,9 @@ export class JulesClientImpl implements JulesClient {
           method: 'POST',
           body: {
             ...body,
-            automationMode: 'AUTOMATION_MODE_UNSPECIFIED',
+            automationMode: config.autoPr
+              ? 'AUTO_CREATE_PR'
+              : 'AUTOMATION_MODE_UNSPECIFIED',
             requirePlanApproval: config.requireApproval ?? true,
           },
         },
