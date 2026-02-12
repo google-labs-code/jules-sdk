@@ -62,12 +62,18 @@ describe('jules.run()', () => {
 
   // Test for initial session setup and validation
   it('should throw SourceNotFoundError if the source cannot be resolved', async () => {
-    await expect(
-      jules.run({
-        ...MOCK_AUTOMATED_SESSION_CONFIG,
-        source: { github: 'non/existent', baseBranch: 'main' },
-      }),
-    ).rejects.toThrow(SourceNotFoundError);
+    const runPromise = jules.run({
+      ...MOCK_AUTOMATED_SESSION_CONFIG,
+      source: { github: 'non/existent', baseBranch: 'main' },
+    });
+
+    // Attach the handler *before* advancing timers to avoid unhandled rejection warnings
+    const rejection = expect(runPromise).rejects.toThrow(SourceNotFoundError);
+
+    // Advance timers to allow retries to exhaust
+    await vi.advanceTimersByTimeAsync(60000);
+
+    await rejection;
   });
 
   // Test for correct session creation payload
