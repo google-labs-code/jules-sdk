@@ -26,6 +26,7 @@ import {
 import { server } from './mocks/server.js';
 import { http, HttpResponse } from 'msw';
 import { ApiClient } from '../src/api.js';
+import { JulesApiError } from '../src/errors.js';
 
 // Set up the mock server
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -163,5 +164,30 @@ describe('ApiClient Retry Logic', () => {
     try {
       await promise;
     } catch {}
+  });
+
+  it('should FAIL after configured maxRetryTimeMs', async () => {
+    let callCount = 0;
+    server.use(
+      http.get(`${BASE_URL}/timeout`, () => {
+        callCount++;
+        return new HttpResponse(null, { status: 503 });
+      }),
+    );
+
+    // Default maxRetryTimeMs is 5000 in this test suite config
+    const promise = apiClient.request('timeout');
+    const expectation = expect(promise).rejects.toThrow(JulesApiError);
+
+    // Advance beyond maxRetryTimeMs (5000ms)
+    // Retry 0: t=0, delay=100 (+ jitter). Scheduled for ~100-110.
+    // Retry 1: t=100, delay=200. Scheduled for ~300.
+    // Retry 2: t=300, delay=400. Scheduled for ~700.
+    // ...
+    // Advance by 6000ms to be sure.
+    await vi.advanceTimersByTimeAsync(6000);
+
+    await expectation;
+    expect(callCount).toBeGreaterThan(1); // Should have retried a few times
   });
 });

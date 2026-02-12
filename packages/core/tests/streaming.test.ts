@@ -225,8 +225,14 @@ describe('streamActivities', () => {
     );
 
     const storage = new MemoryStorage();
+    const retryApiClient = new ApiClient({
+      apiKey: API_KEY,
+      baseUrl: BASE_URL,
+      requestTimeoutMs: 30000,
+      rateLimitRetry: { maxRetryTimeMs: 10000 },
+    });
     const network = new NetworkAdapter(
-      apiClient,
+      retryApiClient,
       SESSION_ID,
       POLLING_INTERVAL,
       mockPlatform,

@@ -43,6 +43,8 @@ export type ApiRequestOptions = {
   query?: Record<string, any>;
   headers?: Record<string, string>;
   _isRetry?: boolean; // Internal flag to prevent infinite loops
+  _rateLimitStartTime?: number; // Internal: Time when rate limit retries started
+  _rateLimitRetryCount?: number; // Internal: Number of rate limit retries attempted
 };
 
 /**
@@ -59,8 +61,16 @@ export class ApiClient {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl;
     this.requestTimeoutMs = options.requestTimeoutMs;
+
+    // Detect if running in a test environment (Vitest) to prevent long retries in tests
+    // that don't override the configuration.
+    const isTest =
+      typeof process !== 'undefined' && process.env?.VITEST === 'true';
+    const defaultMaxRetryTimeMs = isTest ? 50 : 300000; // 50ms for tests, 5 minutes for prod
+
     this.rateLimitConfig = {
-      maxRetryTimeMs: options.rateLimitRetry?.maxRetryTimeMs ?? 300000, // 5 minutes
+      maxRetryTimeMs:
+        options.rateLimitRetry?.maxRetryTimeMs ?? defaultMaxRetryTimeMs,
       baseDelayMs: options.rateLimitRetry?.baseDelayMs ?? 1000,
       maxDelayMs: options.rateLimitRetry?.maxDelayMs ?? 30000,
     };
@@ -111,9 +121,9 @@ export class ApiClient {
         [500, 502, 503, 504].includes(response.status)
       ) {
         // Time-based retry: Keep retrying until maxRetryTimeMs is exhausted
-        const startTime = (options as any)._rateLimitStartTime || Date.now();
+        const startTime = options._rateLimitStartTime || Date.now();
         const elapsed = Date.now() - startTime;
-        const retryCount = (options as any)._rateLimitRetryCount || 0;
+        const retryCount = options._rateLimitRetryCount || 0;
 
         if (elapsed < this.rateLimitConfig.maxRetryTimeMs) {
           // Exponential backoff with jitter, capped at maxDelayMs
@@ -132,7 +142,7 @@ export class ApiClient {
             ...options,
             _rateLimitStartTime: startTime,
             _rateLimitRetryCount: retryCount + 1,
-          } as any);
+          });
         }
 
         if (response.status === 429) {
