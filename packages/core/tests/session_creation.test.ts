@@ -1,5 +1,13 @@
-
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+} from 'vitest';
 import { jules as defaultJules, JulesClient } from '../src/index.js';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
@@ -77,7 +85,9 @@ describe('jules.session() autoPr behavior', () => {
       autoPr: false,
     });
 
-    expect(capturedRequestBody.automationMode).toBe('AUTOMATION_MODE_UNSPECIFIED');
+    expect(capturedRequestBody.automationMode).toBe(
+      'AUTOMATION_MODE_UNSPECIFIED',
+    );
   });
 
   it('should timeout if session does not complete', async () => {

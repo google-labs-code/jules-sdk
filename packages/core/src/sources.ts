@@ -17,6 +17,7 @@
 // src/sources.ts
 import { ApiClient } from './api.js';
 import { JulesApiError } from './errors.js';
+import { withFirstRequestRetry } from './retry-utils.js';
 import { Source, SourceManager, GitHubRepo } from './types.js';
 
 // Internal type representing the raw source from the REST API
@@ -114,7 +115,9 @@ class SourceManagerImpl {
     const resourceName = `sources/github/${github}`;
 
     try {
-      const rawSource = await this.apiClient.request<RawSource>(resourceName);
+      const rawSource = await withFirstRequestRetry(() =>
+        this.apiClient.request<RawSource>(resourceName),
+      );
       if (!rawSource) {
         return undefined;
       }
