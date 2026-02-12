@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-mcp",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "type": "module",
   "description": "An MCP Toolkit for Jules",
   "types": "./dist/index.d.ts",
@@ -56,10 +56,10 @@
     "commander": "^14.0.2"
   },
   "peerDependencies": {
-    "@google/jules-sdk": "0.0.2"
+    "@google/jules-sdk": "0.0.6"
   },
   "devDependencies": {
-    "@google/jules-sdk": "0.0.2",
+    "@google/jules-sdk": "0.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.15.0",
     "js-yaml": "^4.1.1",

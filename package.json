@@ -2,14 +2,15 @@
   "name": "jules-sdk-monorepo",
   "private": true,
   "type": "module",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=18"
   },
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "scripts/*"
   ],
   "description": "Official Jules TypeScript SDK",
   "scripts": {
@@ -31,11 +32,14 @@
     "tabWidth": 2
   },
   "devDependencies": {
+    "@octokit/core": "^7.0.6",
     "@types/node": "^22.15.0",
     "fake-indexeddb": "^6.2.5",
+    "find-up": "^8.0.0",
     "glob": "^13.0.0",
     "msw": "^2.10.4",
     "niftty": "^0.1.3",
+    "octokit": "^5.0.5",
     "prettier": "^3.6.2",
     "tsx": "^4.20.6",
     "turbo": "^2.0.6",
@@ -45,5 +49,9 @@
     "vitest": "^3.2.4",
     "yaml": "^2.8.2",
     "zod-to-json-schema": "^3.24.0"
+  },
+  "dependencies": {
+    "@types/bun": "^1.3.9",
+    "i": "^0.3.7"
   }
 }

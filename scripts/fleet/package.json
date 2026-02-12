@@ -1,0 +1,9 @@
+{
+  "name": "analyze-issues",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@google/jules-sdk": "*",
+    "octokit": "*"
+  }
+}
