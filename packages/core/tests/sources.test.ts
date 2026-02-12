@@ -49,8 +49,15 @@ describe('SourceManager', () => {
     });
 
     it('should return undefined for a non-existent source (404)', async () => {
-      const source = await jules.sources.get({ github: 'non/existent' });
+      vi.useFakeTimers();
+      const promise = jules.sources.get({ github: 'non/existent' });
+
+      // Exhaust retries
+      await vi.advanceTimersByTimeAsync(60000);
+
+      const source = await promise;
       expect(source).toBeUndefined();
+      vi.useRealTimers();
     });
 
     it('should throw a JulesApiError for other server errors (e.g., 500)', async () => {
