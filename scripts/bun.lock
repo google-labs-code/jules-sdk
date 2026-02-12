@@ -1,0 +1,18 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "scripts",
+      "dependencies": {
+        "@google/jules-sdk": "*",
+      },
+    },
+  },
+  "packages": {
+    "@google/jules-sdk": ["@google/jules-sdk@0.0.6", "", { "dependencies": { "yaml": "^2.8.2", "zod": "^3.25.76" } }, "sha512-ZW1r0QN26RNi0eA8xIB1criJh3gVIvAPtLh6gaWTkqvjviGmRGxwa4dXi0OQgRJdgnYIgneFKD+QHj9yL/hbrg=="],
+
+    "yaml": ["yaml@2.8.2", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A=="],
+
+    "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+  }
+}
