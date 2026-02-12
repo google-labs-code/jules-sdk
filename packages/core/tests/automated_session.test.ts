@@ -30,6 +30,7 @@ import { http, HttpResponse } from 'msw';
 import {
   AutomatedSessionFailedError,
   SourceNotFoundError,
+  TimeoutError,
 } from '../src/errors.js';
 import { Activity } from '../src/types.js';
 
@@ -201,5 +202,81 @@ describe('jules.run()', () => {
     await iterator.return!();
 
     expect(activity.type).toBe('sessionCompleted');
+  });
+
+  // Test run timeout
+  it('should throw TimeoutError if run result exceeds timeout', async () => {
+    server.use(
+      http.post(`${BASE_URL}/sessions`, () =>
+        HttpResponse.json({
+          id: MOCK_SESSION_ID,
+          name: `sessions/${MOCK_SESSION_ID}`,
+        }),
+      ),
+      http.get(`${BASE_URL}/sessions/${MOCK_SESSION_ID}/activities`, () => {
+        return HttpResponse.json({
+          activities: [],
+        });
+      }),
+      http.get(`${BASE_URL}/sessions/${MOCK_SESSION_ID}`, () => {
+        return HttpResponse.json({ id: MOCK_SESSION_ID, state: 'inProgress' });
+      }),
+    );
+    const automatedSession = await jules.run(MOCK_AUTOMATED_SESSION_CONFIG);
+    const promise = automatedSession.result({ timeoutMs: 50 });
+    const expectation = expect(promise).rejects.toThrow(TimeoutError);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expectation;
+  });
+});
+
+describe('jules.session() configuration', () => {
+  const jules = defaultJules.with({ apiKey: API_KEY });
+
+  it('should send correct automationMode when autoPr is set', async () => {
+    let requestBody: any;
+    server.use(
+      http.get(`${BASE_URL}/sources/github/owner/repo`, () => {
+        return HttpResponse.json({
+          name: 'sources/github/owner/repo',
+          githubRepo: {},
+        });
+      }),
+      http.post(`${BASE_URL}/sessions`, async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json({
+          id: 'session-config-test',
+          name: 'sessions/session-config-test',
+        });
+      }),
+      http.get(`${BASE_URL}/sessions/session-config-test`, () => {
+          return HttpResponse.json({ id: 'session-config-test', state: 'completed', outputs: [] });
+      })
+    );
+
+    // Case 1: autoPr: true
+    await jules.session({
+      prompt: 'test',
+      autoPr: true,
+      source: { github: 'owner/repo', baseBranch: 'main' },
+    });
+    expect(requestBody.automationMode).toBe('AUTO_CREATE_PR');
+
+    // Case 2: autoPr: false
+    await jules.session({
+      prompt: 'test',
+      autoPr: false,
+      source: { github: 'owner/repo', baseBranch: 'main' },
+    });
+    expect(requestBody.automationMode).toBe('AUTOMATION_MODE_UNSPECIFIED');
+
+    // Case 3: autoPr: undefined (default)
+    await jules.session({
+      prompt: 'test',
+      source: { github: 'owner/repo', baseBranch: 'main' },
+    });
+    expect(requestBody.automationMode).toBe('AUTOMATION_MODE_UNSPECIFIED');
   });
 });

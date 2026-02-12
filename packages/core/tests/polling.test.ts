@@ -18,6 +18,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { pollSession, pollUntilCompletion } from '../src/polling.js';
 import { ApiClient } from '../src/api.js';
 import { SessionResource, SessionOutcome } from '../src/types.js';
+import { TimeoutError } from '../src/errors.js';
 
 const mockOutcome: SessionOutcome = {
   sessionId: 'test-session-id',
@@ -192,6 +193,33 @@ describe('polling helpers', () => {
 
       expect(result).toEqual(completedSession);
       expect(mockApiClient.request).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw TimeoutError if timeout is exceeded', async () => {
+      vi.useFakeTimers();
+
+      const runningSession: SessionResource = {
+        ...baseSession,
+        state: 'inProgress',
+        updateTime: '2023-01-01T00:00:00Z',
+      };
+
+      vi.mocked(mockApiClient.request).mockResolvedValue(runningSession);
+
+      const promise = pollUntilCompletion(
+        sessionId,
+        mockApiClient,
+        pollingInterval,
+        pollingInterval * 2, // Timeout after 2 intervals
+      );
+
+      // Attach expectation before advancing timers to catch rejection
+      const expectation = expect(promise).rejects.toThrow(TimeoutError);
+
+      // Advance time beyond the timeout
+      await vi.advanceTimersByTimeAsync(pollingInterval * 3);
+
+      await expectation;
     });
   });
 });

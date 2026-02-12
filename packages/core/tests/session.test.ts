@@ -32,6 +32,7 @@ import {
   AutomatedSessionFailedError,
   InvalidStateError,
   JulesError,
+  TimeoutError,
 } from '../src/index.js';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
@@ -371,6 +372,29 @@ describe('SessionClient', () => {
     await expect(failedSession.result()).rejects.toThrow(
       AutomatedSessionFailedError,
     );
+  });
+
+  it('result() should throw TimeoutError if session exceeds timeout', async () => {
+    vi.useFakeTimers();
+    server.use(
+      http.get(
+        'https://jules.googleapis.com/v1alpha/sessions/SESSION_123',
+        () => {
+          return HttpResponse.json({
+            id: 'SESSION_123',
+            state: 'inProgress',
+          });
+        },
+      ),
+    );
+
+    const promise = session.result({ timeoutMs: 50 });
+    const expectation = expect(promise).rejects.toThrow(TimeoutError);
+
+    // Advance time beyond timeout
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expectation;
   });
 
   describe('stream()', () => {
