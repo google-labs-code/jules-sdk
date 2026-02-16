@@ -30,6 +30,16 @@ type ListActivitiesResponse = {
 };
 
 /**
+ * Default number of retries for initial 404 errors when session is not yet ready.
+ */
+const DEFAULT_INITIAL_RETRIES = 10;
+
+/**
+ * Maximum delay between retries in milliseconds (caps exponential backoff).
+ */
+const MAX_RETRY_DELAY_MS = 30000;
+
+/**
  * Options for controlling the activity stream.
  * @internal
  */
@@ -40,6 +50,11 @@ export type StreamActivitiesOptions = {
   exclude?: {
     originator: Origin;
   };
+  /**
+   * Number of retries for initial 404 errors when session is not yet ready.
+   * @default 10
+   */
+  initialRetries?: number;
 };
 
 /**
@@ -92,10 +107,11 @@ export async function* streamActivities(
         let lastError: JulesApiError = error;
         let successfulResponse: ListActivitiesResponse | undefined;
         let delay = 1000; // Start with a 1-second delay
+        const maxRetries = options.initialRetries ?? DEFAULT_INITIAL_RETRIES;
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < maxRetries; i++) {
           await sleep(delay);
-          delay *= 2; // Double the delay for the next attempt
+          delay = Math.min(delay * 2, MAX_RETRY_DELAY_MS); // Exponential backoff with cap
           try {
             successfulResponse =
               await apiClient.request<ListActivitiesResponse>(
