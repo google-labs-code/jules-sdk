@@ -35,7 +35,7 @@ jobs:
         if: github.event_name == 'pull_request'
         id: changed-files
         run: |
-          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | tr '\n' ' ')
+          FILES=$(git diff --name-only origin/${GITHUB_BASE_REF}...HEAD | tr '\n' ' ')
           echo "list=$FILES" >> $GITHUB_OUTPUT
 
       # 2. Quality Checks (Each captures errors into GITHUB_OUTPUT)
@@ -163,7 +163,13 @@ jobs:
       - name: Fail Job if Errors
         if: always()
         run: |
-          if [ -n "${{ steps.types.outputs.log }}" ] || [ -n "${{ steps.tests.outputs.log }}" ] || [ -n "${{ steps.build.outputs.log }}" ] || [ -n "${{ steps.smoke.outputs.log }}" ] || [ -n "${{ steps.attribution.outputs.log }}" ]; then
+          if [ -n "${STEPS_TYPES_OUTPUTS_LOG}" ] || [ -n "${STEPS_TESTS_OUTPUTS_LOG}" ] || [ -n "${STEPS_BUILD_OUTPUTS_LOG}" ] || [ -n "${STEPS_SMOKE_OUTPUTS_LOG}" ] || [ -n "${STEPS_ATTRIBUTION_OUTPUTS_LOG}" ]; then
             echo "One or more checks failed."
             exit 1
           fi
+        env:
+          STEPS_TYPES_OUTPUTS_LOG: ${{ steps.types.outputs.log }}
+          STEPS_TESTS_OUTPUTS_LOG: ${{ steps.tests.outputs.log }}
+          STEPS_BUILD_OUTPUTS_LOG: ${{ steps.build.outputs.log }}
+          STEPS_SMOKE_OUTPUTS_LOG: ${{ steps.smoke.outputs.log }}
+          STEPS_ATTRIBUTION_OUTPUTS_LOG: ${{ steps.attribution.outputs.log }}
