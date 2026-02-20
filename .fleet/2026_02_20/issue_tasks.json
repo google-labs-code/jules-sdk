@@ -1,0 +1,86 @@
+{
+  "repo": "google-labs-code/jules-sdk",
+  "analyzed_at": "2026-02-20T19:47:44.314Z",
+  "root_causes": [
+    {
+      "id": "rc-config-consistency",
+      "title": "Inconsistent autoPr Configuration Mapping",
+      "severity": "medium",
+      "issues": [24, 18],
+      "files": ["packages/core/src/client.ts"],
+      "description": "jules.session(config) ignores autoPr and hardcodes automationMode to UNSPECIFIED, unlike jules.run(config).",
+      "solution_summary": "Update jules.session(config) to respect autoPr."
+    },
+    {
+      "id": "rc-infinite-polling",
+      "title": "Infinite Polling in result()",
+      "severity": "high",
+      "issues": [23],
+      "files": ["packages/core/src/polling.ts", "packages/core/src/session.ts"],
+      "description": "pollUntilCompletion uses an infinite loop without a timeout parameter.",
+      "solution_summary": "Add timeoutMs to pollUntilCompletion and SessionClient.result(), throw TimeoutError on timeout."
+    },
+    {
+      "id": "rc-api-resilience",
+      "title": "API Client Resilience (Missing 5xx Retries & Concurrency)",
+      "severity": "high",
+      "issues": [20],
+      "files": ["packages/core/src/api.ts"],
+      "description": "ApiClient only retries 429 errors. Transient 5xx errors cause failures. No client-side concurrency limiting leads to flooding.",
+      "solution_summary": "Add retry logic for 500, 502, 503, 504. Implement a semaphore for concurrent requests."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "fix-config-consistency",
+      "title": "Fix Inconsistent autoPr Configuration in Session Creation",
+      "root_cause": "rc-config-consistency",
+      "issues": [24, 18],
+      "files": ["packages/core/src/client.ts"],
+      "new_files": [],
+      "test_files": ["packages/core/tests/session.test.ts"],
+      "risk": "low",
+      "prompt": "The `jules.session(config)` method currently ignores the `autoPr` setting in the configuration object, always sending `automationMode: 'AUTOMATION_MODE_UNSPECIFIED'` to the backend. This behavior is inconsistent with `jules.run(config)` and prevents users from creating automated sessions via the `session()` API.\n\nYour task is to fix this inconsistency in `packages/core/src/client.ts`.\n\n### Requirements\n\n1.  **Update `session(config)` Implementation**:\n    In `packages/core/src/client.ts`, modify the `session(config)` implementation to determine the `automationMode` based on `config.autoPr`, using the same logic as `run(config)`:\n    ```typescript\n    automationMode:\n      config.autoPr === false\n        ? 'AUTOMATION_MODE_UNSPECIFIED'\n        : 'AUTO_CREATE_PR',\n    ```\n\n2.  **Verify with Tests**:\n    Update `packages/core/tests/session.test.ts` to verify that:\n    - `jules.session({ autoPr: true })` sends `AUTO_CREATE_PR`.\n    - `jules.session({ autoPr: false })` sends `AUTOMATION_MODE_UNSPECIFIED`.\n    - `jules.session({})` (default) behavior aligns with `run()` (likely `AUTO_CREATE_PR`).\n\n### File Boundary\n\nYou may ONLY modify:\n- `packages/core/src/client.ts`\n- `packages/core/tests/session.test.ts`\n\nDo not modify any other files. If tests in other files fail, adjust your implementation to be backward compatible."
+    },
+    {
+      "id": "add-polling-timeout",
+      "title": "Add Timeout Mechanism to Session Polling",
+      "root_cause": "rc-infinite-polling",
+      "issues": [23],
+      "files": ["packages/core/src/polling.ts", "packages/core/src/session.ts", "packages/core/src/types.ts", "packages/core/src/errors.ts"],
+      "new_files": [],
+      "test_files": ["packages/core/tests/polling.test.ts"],
+      "risk": "medium",
+      "prompt": "The `pollUntilCompletion` function currently polls indefinitely, which can cause the application to hang if the session never reaches a terminal state. We need to add a timeout mechanism.\n\nYour task is to implement timeouts for polling operations in `packages/core/src/polling.ts` and expose this configuration in `packages/core/src/session.ts`.\n\n### Requirements\n\n1.  **Define `TimeoutError`**:\n    Add a new `TimeoutError` class in `packages/core/src/errors.ts` extending `JulesError`.\n\n2.  **Update Polling Logic**:\n    Modify `pollSession` and `pollUntilCompletion` in `packages/core/src/polling.ts` to accept an optional `timeoutMs` parameter.\n    - If `timeoutMs` is provided, the function should throw a `TimeoutError` if the condition is not met within the specified time.\n    - Ensure the timeout works correctly with the polling interval.\n\n3.  **Update Session Client**:\n    Modify `SessionClient` interface in `packages/core/src/types.ts` and `SessionClientImpl` in `packages/core/src/session.ts` to accept an optional configuration object with `timeoutMs` in `result()` and `waitFor()`.\n    - Pass this timeout to the polling functions.\n\n4.  **Verify with Tests**:\n    Update `packages/core/tests/polling.test.ts` to verify that:\n    - Polling throws `TimeoutError` when the timeout is exceeded.\n    - Polling succeeds if the condition is met before the timeout.\n\n### File Boundary\n\nYou may ONLY modify:\n- `packages/core/src/polling.ts`\n- `packages/core/src/session.ts`\n- `packages/core/src/types.ts`\n- `packages/core/src/errors.ts`\n- `packages/core/tests/polling.test.ts`\n\nDo not modify any other files."
+    },
+    {
+      "id": "improve-api-resilience",
+      "title": "Improve API Client Resilience and Concurrency Control",
+      "root_cause": "rc-api-resilience",
+      "issues": [20],
+      "files": ["packages/core/src/api.ts"],
+      "new_files": [],
+      "test_files": ["packages/core/tests/api.test.ts"],
+      "risk": "medium",
+      "prompt": "The `ApiClient` currently lacks robustness for high-concurrency scenarios and transient server errors (5xx). This leads to failures when users run multiple sessions in parallel.\n\nYour task is to improve the resilience of `packages/core/src/api.ts`.\n\n### Requirements\n\n1.  **Implement 5xx Retries**:\n    Update `ApiClient.request` to retry on HTTP status codes 500, 502, 503, and 504, in addition to the existing 429 retry logic.\n    - Use the same exponential backoff strategy as for 429 errors.\n    - Ensure `maxRetryTimeMs` applies to these retries as well.\n\n2.  **Implement Concurrency Control**:\n    Add a concurrency limiter to `ApiClient` to prevent flooding the server with too many parallel requests.\n    - You can use a simple semaphore or queue mechanism.\n    - Set a reasonable default limit (e.g., 50 concurrent requests).\n    - Ensure that requests exceeding the limit wait for a slot.\n\n3.  **Verify with Tests**:\n    Update `packages/core/tests/api.test.ts` to verify that:\n    - The client retries on 503 errors and eventually succeeds or fails after retries.\n    - The concurrency limiter restricts the number of simultaneous `fetch` calls.\n\n### File Boundary\n\nYou may ONLY modify:\n- `packages/core/src/api.ts`\n- `packages/core/tests/api.test.ts`\n\nDo not modify any other files."
+    }
+  ],
+  "unaddressable": [
+    {
+      "issue": 18,
+      "reason": "The combination `requireApproval: false` + `AUTOMATION_MODE_UNSPECIFIED` is rejected by the backend with `FAILED_PRECONDITION`. This is a server-side constraint.",
+      "suggested_owner": "Backend Team"
+    }
+  ],
+  "file_ownership": {
+    "packages/core/src/client.ts": "fix-config-consistency",
+    "packages/core/tests/session.test.ts": "fix-config-consistency",
+    "packages/core/src/polling.ts": "add-polling-timeout",
+    "packages/core/src/session.ts": "add-polling-timeout",
+    "packages/core/src/types.ts": "add-polling-timeout",
+    "packages/core/src/errors.ts": "add-polling-timeout",
+    "packages/core/tests/polling.test.ts": "add-polling-timeout",
+    "packages/core/src/api.ts": "improve-api-resilience",
+    "packages/core/tests/api.test.ts": "improve-api-resilience"
+  }
+}

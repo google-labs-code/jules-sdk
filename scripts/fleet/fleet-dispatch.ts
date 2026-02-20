@@ -15,14 +15,15 @@
 import path from "node:path";
 import { findUpSync } from "find-up";
 import type { IssueAnalysis } from "./types.js";
-import { jules } from "@google/jules-sdk";
+import { jules } from "../../packages/core/src/index.ts";
 import { getGitRepoInfo, getCurrentBranch } from "./github/git.js";
 
 const date = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" })
   .format(new Date())
   .replaceAll("-", "_");
 
-const root = path.dirname(findUpSync(".git")!);
+const gitPath = findUpSync(".git");
+const root = gitPath ? path.dirname(gitPath) : process.cwd();
 const fleetDir = path.join(root, ".fleet", date);
 const tasksPath = path.join(fleetDir, "issue_tasks.json");
 const analysis = await Bun.file(tasksPath).json() as IssueAnalysis;
