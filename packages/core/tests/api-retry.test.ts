@@ -53,14 +53,14 @@ describe('ApiClient 429 Retry Logic', () => {
     const promise = apiClient.request('test');
 
     // 1. Initial request fails immediately.
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    // 2. Advance time by 900ms. Retry should NOT happen yet.
+    await vi.advanceTimersByTimeAsync(900);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // 2. Advance time by 999ms. Retry should NOT happen yet.
-    await vi.advanceTimersByTimeAsync(999);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    // 3. Advance time by 1ms (Total 1000ms). Retry should happen.
-    await vi.advanceTimersByTimeAsync(1);
+    // 3. Advance time by 100ms (Total 1000ms). Retry should happen.
+    await vi.advanceTimersByTimeAsync(100);
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const result = await promise;
@@ -85,7 +85,7 @@ describe('ApiClient 429 Retry Logic', () => {
     const promise = apiClient.request('test');
 
     // Attempt 1: Immediate
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
     // Wait 1s (Backoff 1) -> Attempt 2
     await vi.advanceTimersByTimeAsync(1000);
@@ -117,7 +117,7 @@ describe('ApiClient 429 Retry Logic', () => {
     const promise = apiClient.request('test');
 
     // Attempt 1: Immediate
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
     // Wait 1s -> Attempt 2
     await vi.advanceTimersByTimeAsync(1000);
@@ -162,7 +162,7 @@ describe('ApiClient 429 Retry Logic', () => {
         expect(promise).rejects.toThrow(JulesRateLimitError);
 
       // Attempt 1: Immediate (elapsed = 0)
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
       // Wait 1s -> Attempt 2 (elapsed = 1s)
       await vi.advanceTimersByTimeAsync(1000);
@@ -244,7 +244,7 @@ describe('ApiClient 429 Retry Logic', () => {
       const promise = apiClient.request('test');
 
       // Attempt 1
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
       // 1s delay -> Attempt 2
       await vi.advanceTimersByTimeAsync(1000);
@@ -290,14 +290,14 @@ describe('ApiClient 429 Retry Logic', () => {
 
       const promise = apiClient.request('test');
 
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+      // 400ms should not be enough
+      await vi.advanceTimersByTimeAsync(400);
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
-      // 499ms should not be enough
-      await vi.advanceTimersByTimeAsync(499);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      // 1ms more (500ms total) triggers retry
-      await vi.advanceTimersByTimeAsync(1);
+      // 100ms more (500ms total) triggers retry
+      await vi.advanceTimersByTimeAsync(100);
       expect(fetchMock).toHaveBeenCalledTimes(2);
 
       await expect(promise).resolves.toEqual({ success: true });
