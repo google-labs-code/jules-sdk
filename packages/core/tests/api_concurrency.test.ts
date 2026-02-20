@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ApiClient } from '../src/api.js';
 
@@ -32,14 +31,16 @@ describe('ApiClient Concurrency Control', () => {
       activeRequests++;
       maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
       // Simulate a slow request
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       activeRequests--;
       completedRequests++;
       return new Response('{"success": true}', { status: 200 });
     });
 
     const numRequests = 50;
-    const promises = Array.from({ length: numRequests }, () => apiClient.request('test'));
+    const promises = Array.from({ length: numRequests }, () =>
+      apiClient.request('test'),
+    );
 
     // Advance time to process requests
     // Each batch of 10 takes 100ms. Total 50 requests => 5 batches => 500ms total.
@@ -77,13 +78,15 @@ describe('ApiClient Concurrency Control', () => {
     fetchMock.mockImplementation(async () => {
       activeRequests++;
       maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       activeRequests--;
       return new Response('{"success": true}', { status: 200 });
     });
 
     const numRequests = 100;
-    const promises = Array.from({ length: numRequests }, () => apiClient.request('test'));
+    const promises = Array.from({ length: numRequests }, () =>
+      apiClient.request('test'),
+    );
 
     // Allow things to start
     await vi.advanceTimersByTimeAsync(50);

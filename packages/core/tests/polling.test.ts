@@ -25,7 +25,11 @@ const mockOutcome: SessionOutcome = {
   title: 'test session',
   state: 'completed',
   outputs: [],
-  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  generatedFiles: () => ({
+    all: () => [],
+    get: () => undefined,
+    filter: () => [],
+  }),
   changeSet: () => undefined,
 };
 

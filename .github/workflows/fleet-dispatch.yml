@@ -21,13 +21,13 @@ name: Fleet Dispatch
 on:
   schedule:
     # Runs daily at 6am UTC (customize as needed)
-    - cron: "0 6 * * *"
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       base_branch:
-        description: "Base branch for Jules sessions"
+        description: 'Base branch for Jules sessions'
         type: string
-        default: "main"
+        default: 'main'
 
 concurrency:
   group: fleet-dispatch
@@ -43,7 +43,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: "1.3.1"
+          bun-version: '1.3.1'
 
       - name: Install dependencies
         run: |

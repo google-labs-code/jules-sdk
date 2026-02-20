@@ -177,7 +177,9 @@ describe('getSessionState', () => {
 
     expect(result.lastActivity?.activityId).toBe('activity-2');
     expect(result.lastAgentMessage?.activityId).toBe('activity-2');
-    expect(result.lastAgentMessage?.content).toBe('Latest message - need more info');
+    expect(result.lastAgentMessage?.content).toBe(
+      'Latest message - need more info',
+    );
   });
 
   it('omits lastAgentMessage when no agentMessaged activities', async () => {
@@ -202,5 +204,3 @@ describe('getSessionState', () => {
     expect(result.lastAgentMessage).toBeUndefined();
   });
 });
-
-

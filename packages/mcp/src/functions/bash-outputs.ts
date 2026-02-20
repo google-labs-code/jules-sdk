@@ -60,7 +60,11 @@ function aggregateOutput(activities: Activity[], sessionId: string) {
   };
 }
 
-function collectActivityOutput(activity: Activity, outputs: BashOutput[], summary: BashOutputsSummary) {
+function collectActivityOutput(
+  activity: Activity,
+  outputs: BashOutput[],
+  summary: BashOutputsSummary,
+) {
   for (const artifact of activity.artifacts) {
     if (artifact.type === 'bashOutput') {
       outputs.push({

@@ -61,21 +61,31 @@ try {
   console.log('─'.repeat(50));
 
   files.all().forEach((file: GeneratedFile) => {
-    const label = file.changeType === 'created' ? '[A]'
-      : file.changeType === 'deleted' ? '[D]'
-        : '[M]';
+    const label =
+      file.changeType === 'created'
+        ? '[A]'
+        : file.changeType === 'deleted'
+          ? '[D]'
+          : '[M]';
     const stats = `+${file.additions} -${file.deletions}`;
 
     console.log(`  ${label} ${file.path.padEnd(35)} ${stats}`);
   });
 
   // Summary totals
-  const totals = files.all().reduce(
-    (acc, f) => ({ additions: acc.additions + f.additions, deletions: acc.deletions + f.deletions }),
-    { additions: 0, deletions: 0 }
-  );
+  const totals = files
+    .all()
+    .reduce(
+      (acc, f) => ({
+        additions: acc.additions + f.additions,
+        deletions: acc.deletions + f.deletions,
+      }),
+      { additions: 0, deletions: 0 },
+    );
   console.log('─'.repeat(50));
-  console.log(`  ${files.all().length} file(s) changed, +${totals.additions} -${totals.deletions}`);
+  console.log(
+    `  ${files.all().length} file(s) changed, +${totals.additions} -${totals.deletions}`,
+  );
   console.log('\n✅ Session finished:', outcome.state);
 
   if (changeSet) {

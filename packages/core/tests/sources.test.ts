@@ -63,6 +63,7 @@ describe('SourceManager', () => {
 
       vi.useFakeTimers();
       const testJules = defaultJules.with({
+        apiKey: API_KEY,
         config: { rateLimitRetry: { maxRetryTimeMs: 7000 } },
       });
 
@@ -146,6 +147,7 @@ describe('SourceManager', () => {
 
       vi.useFakeTimers();
       const testJules = defaultJules.with({
+        apiKey: API_KEY,
         config: { rateLimitRetry: { maxRetryTimeMs: 7000 } },
       });
 

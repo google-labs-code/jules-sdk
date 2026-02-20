@@ -354,9 +354,7 @@ describe('ApiClient 429 Retry Logic', () => {
       fetchMock
         .mockResolvedValueOnce(new Response('Server Error', { status: 500 }))
         .mockResolvedValueOnce(new Response('Bad Gateway', { status: 502 }))
-        .mockResolvedValueOnce(
-          new Response('Gateway Timeout', { status: 504 }),
-        )
+        .mockResolvedValueOnce(new Response('Gateway Timeout', { status: 504 }))
         .mockResolvedValueOnce(
           new Response('{"success": true}', { status: 200 }),
         );

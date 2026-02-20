@@ -1,4 +1,8 @@
-import { JulesClientImpl, MemoryStorage, MemorySessionStorage } from '@google/jules-sdk';
+import {
+  JulesClientImpl,
+  MemoryStorage,
+  MemorySessionStorage,
+} from '@google/jules-sdk';
 import type {
   Activity,
   JulesClient,
