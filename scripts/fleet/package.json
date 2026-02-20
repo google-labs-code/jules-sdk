@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@google/jules-sdk": "workspace:*",
+    "@google/jules-sdk": "^0.0.6",
     "octokit": "^4.1.0",
     "find-up": "^7.0.0"
   },
