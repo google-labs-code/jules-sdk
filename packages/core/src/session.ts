@@ -253,14 +253,18 @@ export class SessionClientImpl implements SessionClient {
    * - Polls the session API until state is 'completed' or 'failed'.
    * - Maps the final session resource to a friendly `Outcome` object.
    *
+   * @param options Optional configuration for the operation.
+   * @param options.timeoutMs Maximum time in milliseconds to wait for the session to complete.
    * @returns The final outcome of the session.
    * @throws {AutomatedSessionFailedError} If the session ends in a 'failed' state.
+   * @throws {TimeoutError} If the operation times out.
    */
-  async result(): Promise<SessionOutcome> {
+  async result(options?: { timeoutMs?: number }): Promise<SessionOutcome> {
     const finalSession = await pollUntilCompletion(
       this.id,
       this.apiClient,
       this.config.pollingIntervalMs,
+      options?.timeoutMs,
     );
     // Write-Through: Persist final state
     await this.sessionStorage.upsert(finalSession);
@@ -277,11 +281,17 @@ export class SessionClientImpl implements SessionClient {
    * - Resolves immediately if the session is already in the target state (or terminal).
    *
    * @param targetState The target state to wait for.
+   * @param options Optional configuration for the operation.
+   * @param options.timeoutMs Maximum time in milliseconds to wait for the state.
+   * @throws {TimeoutError} If the operation times out.
    *
    * @example
    * await session.waitFor('awaitingPlanApproval');
    */
-  async waitFor(targetState: SessionState): Promise<void> {
+  async waitFor(
+    targetState: SessionState,
+    options?: { timeoutMs?: number },
+  ): Promise<void> {
     await pollSession(
       this.id,
       this.apiClient,
@@ -294,6 +304,7 @@ export class SessionClientImpl implements SessionClient {
         );
       },
       this.config.pollingIntervalMs,
+      options?.timeoutMs,
     );
   }
 

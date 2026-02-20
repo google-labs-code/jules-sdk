@@ -128,6 +128,15 @@ export class AutomatedSessionFailedError extends JulesError {
 }
 
 /**
+ * Thrown when an operation exceeds its specified timeout.
+ */
+export class TimeoutError extends JulesError {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+/**
  * Thrown when attempting to start a sync while another sync is already in progress.
  * This prevents data corruption and thundering herd issues.
  */
