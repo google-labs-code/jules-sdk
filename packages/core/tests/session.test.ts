@@ -165,6 +165,38 @@ describe('jules.session()', () => {
     expect(session.id).toBe('SESSION_123');
     expect(capturedRequestBody).toBeDefined();
     expect(capturedRequestBody.requirePlanApproval).toBe(true);
+    // Should default to AUTO_CREATE_PR as per issue #18
+    expect(capturedRequestBody.automationMode).toBe('AUTO_CREATE_PR');
+  });
+
+  it('should respect autoPr: false', async () => {
+    await jules.session({
+      prompt: 'Refactor.',
+      source: { github: 'bobalover/boba-auth', baseBranch: 'main' },
+      autoPr: false,
+    });
+    expect(capturedRequestBody.automationMode).toBe(
+      'AUTOMATION_MODE_UNSPECIFIED',
+    );
+  });
+
+  it('should respect autoPr: true', async () => {
+    await jules.session({
+      prompt: 'Refactor.',
+      source: { github: 'bobalover/boba-auth', baseBranch: 'main' },
+      autoPr: true,
+    });
+    expect(capturedRequestBody.automationMode).toBe('AUTO_CREATE_PR');
+  });
+
+  it('should allow requireApproval: false with correct automationMode', async () => {
+    await jules.session({
+      prompt: 'Refactor.',
+      source: { github: 'bobalover/boba-auth', baseBranch: 'main' },
+      requireApproval: false,
+    });
+    expect(capturedRequestBody.requirePlanApproval).toBe(false);
+    expect(capturedRequestBody.automationMode).toBe('AUTO_CREATE_PR');
   });
 
   it('should rehydrate a session from an ID without an API call', () => {
