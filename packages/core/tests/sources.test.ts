@@ -61,11 +61,17 @@ describe('SourceManager', () => {
         }),
       );
 
-      await expect(
-        jules.sources.get({ github: 'server/error' }),
-      ).rejects.toThrow(JulesApiError);
+      vi.useFakeTimers();
+      const testJules = defaultJules.with({
+        config: { rateLimitRetry: { maxRetryTimeMs: 7000 } },
+      });
 
-      const promise = jules.sources.get({ github: 'server/error' });
+      const promise = testJules.sources.get({ github: 'server/error' });
+      const expectation = expect(promise).rejects.toThrow(JulesApiError);
+
+      await vi.advanceTimersByTimeAsync(10000);
+      await expectation;
+
       await expect(promise).rejects.toMatchObject({
         status: 500,
         url: `${BASE_URL}/sources/github/server/error`,
@@ -73,6 +79,8 @@ describe('SourceManager', () => {
       await expect(promise).rejects.toSatisfy((e: JulesApiError) => {
         return e.message.includes('Internal Server Error');
       });
+
+      vi.useRealTimers();
     });
   });
 
@@ -136,16 +144,26 @@ describe('SourceManager', () => {
         }),
       );
 
+      vi.useFakeTimers();
+      const testJules = defaultJules.with({
+        config: { rateLimitRetry: { maxRetryTimeMs: 7000 } },
+      });
+
       async function consumeGenerator() {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for await (const _ of jules.sources()) {
+        for await (const _ of testJules.sources()) {
           // This loop will throw
         }
       }
 
       const promise = consumeGenerator();
-      await expect(promise).rejects.toThrow(JulesApiError);
+      const expectation = expect(promise).rejects.toThrow(JulesApiError);
+
+      await vi.advanceTimersByTimeAsync(10000);
+      await expectation;
       await expect(promise).rejects.toMatchObject({ status: 500 });
+
+      vi.useRealTimers();
     });
   });
 });

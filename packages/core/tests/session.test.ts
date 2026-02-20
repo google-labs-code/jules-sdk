@@ -370,20 +370,33 @@ describe('SessionClient', () => {
     });
 
     it('should throw an error if the session ends before a reply is received', async () => {
+      const failSession = jules.session('SESSION_FAIL_EARLY');
       vi.useFakeTimers();
       server.use(
+        http.post(
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_FAIL_EARLY:sendMessage',
+          () => {
+            return HttpResponse.json({});
+          },
+        ),
         http.get(
-          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123/activities',
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_FAIL_EARLY/activities',
           () => {
             return HttpResponse.json({
-              activities: [{ name: 'a/1', sessionCompleted: {} }],
+              activities: [
+                {
+                  name: 'a/1',
+                  createTime: new Date(Date.now() + 1000).toISOString(),
+                  sessionCompleted: {},
+                },
+              ],
             });
           },
         ),
       );
 
-      const askPromise = session.ask('Will you reply?');
-      vi.runAllTimers();
+      const askPromise = failSession.ask('Will you reply?');
+      await vi.advanceTimersByTimeAsync(1000);
       await expect(askPromise).rejects.toThrow(JulesError);
     });
   });
