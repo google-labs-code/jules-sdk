@@ -166,6 +166,34 @@ describe('jules.session()', () => {
     expect(capturedRequestBody.requirePlanApproval).toBe(true);
   });
 
+  it('should send AUTO_CREATE_PR when autoPr is true', async () => {
+    await jules.session({
+      prompt: 'test',
+      source: { github: 'bobalover/boba-auth', baseBranch: 'main' },
+      autoPr: true,
+    });
+    expect(capturedRequestBody.automationMode).toBe('AUTO_CREATE_PR');
+  });
+
+  it('should send AUTOMATION_MODE_UNSPECIFIED when autoPr is false', async () => {
+    await jules.session({
+      prompt: 'test',
+      source: { github: 'bobalover/boba-auth', baseBranch: 'main' },
+      autoPr: false,
+    });
+    expect(capturedRequestBody.automationMode).toBe(
+      'AUTOMATION_MODE_UNSPECIFIED',
+    );
+  });
+
+  it('should send AUTO_CREATE_PR when autoPr is undefined (default)', async () => {
+    await jules.session({
+      prompt: 'test',
+      source: { github: 'bobalover/boba-auth', baseBranch: 'main' },
+    });
+    expect(capturedRequestBody.automationMode).toBe('AUTO_CREATE_PR');
+  });
+
   it('should rehydrate a session from an ID without an API call', () => {
     const spy = vi.spyOn(global, 'fetch');
     const session = jules.session('EXISTING_SESSION');
