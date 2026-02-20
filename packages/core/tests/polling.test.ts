@@ -18,6 +18,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { pollSession, pollUntilCompletion } from '../src/polling.js';
 import { ApiClient } from '../src/api.js';
 import { SessionResource, SessionOutcome } from '../src/types.js';
+import { TimeoutError } from '../src/errors.js';
 
 const mockOutcome: SessionOutcome = {
   sessionId: 'test-session-id',
@@ -124,6 +125,34 @@ describe('polling helpers', () => {
       expect(result).toEqual(completedSession);
       expect(mockApiClient.request).toHaveBeenCalledTimes(3);
     });
+
+    it('should throw TimeoutError when timeout is exceeded', async () => {
+      vi.useFakeTimers();
+
+      const runningSession: SessionResource = {
+        ...baseSession,
+        state: 'inProgress',
+      };
+
+      vi.mocked(mockApiClient.request).mockResolvedValue(runningSession);
+
+      const timeoutMs = 150;
+      const promise = pollSession(
+        sessionId,
+        mockApiClient,
+        (s) => s.state === 'completed',
+        pollingInterval,
+        timeoutMs,
+      );
+
+      // Attach handler before advancing time to catch rejection
+      const validation = expect(promise).rejects.toThrow(TimeoutError);
+
+      // Advance time beyond timeout
+      await vi.advanceTimersByTimeAsync(200);
+
+      await validation;
+    });
   });
 
   describe('pollUntilCompletion', () => {
@@ -192,6 +221,33 @@ describe('polling helpers', () => {
 
       expect(result).toEqual(completedSession);
       expect(mockApiClient.request).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw TimeoutError when timeout is exceeded', async () => {
+      vi.useFakeTimers();
+
+      const runningSession: SessionResource = {
+        ...baseSession,
+        state: 'inProgress',
+      };
+
+      vi.mocked(mockApiClient.request).mockResolvedValue(runningSession);
+
+      const timeoutMs = 150;
+      const promise = pollUntilCompletion(
+        sessionId,
+        mockApiClient,
+        pollingInterval,
+        timeoutMs,
+      );
+
+      // Attach handler before advancing time to catch rejection
+      const validation = expect(promise).rejects.toThrow(TimeoutError);
+
+      // Advance time beyond timeout
+      await vi.advanceTimersByTimeAsync(200);
+
+      await validation;
     });
   });
 });
