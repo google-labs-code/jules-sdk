@@ -49,8 +49,7 @@ jobs:
         run: bun install
 
       - name: Create planning session
-        working-directory: scripts/fleet
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           FLEET_BASE_BRANCH: ${{ inputs.base_branch || 'main' }}
-        run: bun fleet-plan.ts
+        run: bun scripts/fleet/fleet-plan.ts
