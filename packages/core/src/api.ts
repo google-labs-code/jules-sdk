@@ -126,18 +126,18 @@ export class ApiClient {
         const retryCount = options._rateLimitRetryCount || 0;
 
         if (elapsed < this.rateLimitConfig.maxRetryTimeMs) {
-          // Exponential backoff with jitter, capped at maxDelayMs
-          // delay = min(maxDelay, base * 2^retry + random(0, base * 0.1))
-          const baseDelay =
+          // Exponential backoff with Full Jitter
+          const rawDelay =
             this.rateLimitConfig.baseDelayMs * Math.pow(2, retryCount);
-          const jitter =
-            Math.random() * (this.rateLimitConfig.baseDelayMs * 0.1);
-          const delay = Math.min(
-            baseDelay + jitter,
+          const cappedDelay = Math.min(
+            rawDelay,
             this.rateLimitConfig.maxDelayMs,
           );
+          // Randomize between 0 and cappedDelay
+          const delay = Math.floor(Math.random() * cappedDelay);
+          const finalDelay = Math.max(1, delay);
 
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, finalDelay));
           return this.request<T>(endpoint, {
             ...options,
             _rateLimitStartTime: startTime,

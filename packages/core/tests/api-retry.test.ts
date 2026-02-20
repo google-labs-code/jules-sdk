@@ -123,32 +123,34 @@ describe('ApiClient Retry Logic', () => {
 
     const promise = apiClient.request('jitter');
 
-    // Expected logic:
+    // Expected logic (Full Jitter):
     // Retry 0:
-    // base = 100 * 2^0 = 100
-    // jitter = 0.5 * (100 * 0.1) = 0.5 * 10 = 5
-    // delay = 105
+    // rawDelay = 100 * 2^0 = 100
+    // cappedDelay = min(100, 1000) = 100
+    // delay = floor(0.5 * 100) = 50
+    // finalDelay = max(1, 50) = 50
+
+    // Advance by 45ms - should NOT trigger 1st retry yet
+    await vi.advanceTimersByTimeAsync(45);
+    expect(callCount).toBe(1); // Initial call only
+
+    // Advance by 10ms -> 55ms total. Should trigger 1st retry (delay 50)
+    await vi.advanceTimersByTimeAsync(10);
+    expect(callCount).toBe(2);
+
     // Retry 1:
-    // base = 100 * 2^1 = 200
-    // jitter = 5
-    // delay = 205
+    // rawDelay = 100 * 2^1 = 200
+    // cappedDelay = min(200, 1000) = 200
+    // delay = floor(0.5 * 200) = 100
+    // finalDelay = max(1, 100) = 100
+    // Scheduled at t ~ 50ms. Target = 150ms.
 
-    // Advance by 110ms - should trigger 1st retry (delay 105)
-    await vi.advanceTimersByTimeAsync(110);
+    // Current time: 55ms.
+    // Advance by 90ms -> 145ms total. Should NOT trigger 2nd retry yet
+    await vi.advanceTimersByTimeAsync(90);
     expect(callCount).toBe(2);
 
-    // Now waiting for 2nd retry (delay 205ms). Scheduled at t=105.
-    // Target fire time: 105 + 205 = 310.
-    // Current time: 110.
-    // Remaining wait: 200.
-
-    // Advance by 195ms -> t = 110 + 195 = 305.
-    // 305 < 310. Should NOT fire.
-    await vi.advanceTimersByTimeAsync(195);
-    expect(callCount).toBe(2);
-
-    // Advance by 10ms -> t = 305 + 10 = 315.
-    // 315 > 310. Should fire.
+    // Advance by 10ms -> 155ms total. Should trigger 2nd retry (target 150)
     await vi.advanceTimersByTimeAsync(10);
     expect(callCount).toBe(3);
 

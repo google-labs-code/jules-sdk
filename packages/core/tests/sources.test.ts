@@ -15,7 +15,7 @@
  */
 
 // tests/sources.test.ts
-import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
+import { beforeAll, afterAll, afterEach, describe, it, expect, vi } from 'vitest';
 import { server } from './mocks/server.js';
 import { jules as defaultJules, Source } from '../src/index.js';
 import { http, HttpResponse } from 'msw';
@@ -49,8 +49,19 @@ describe('SourceManager', () => {
     });
 
     it('should return undefined for a non-existent source (404)', async () => {
-      const source = await jules.sources.get({ github: 'non/existent' });
-      expect(source).toBeUndefined();
+      vi.useFakeTimers();
+      try {
+        const promise = jules.sources.get({ github: 'non/existent' });
+
+        // Advance timers enough to exhaust retries (default maxRetries=5, initialDelay=1000)
+        // Delays: 1000 + 2000 + 4000 + 8000 + 16000 = 31000ms
+        await vi.advanceTimersByTimeAsync(40000);
+
+        const source = await promise;
+        expect(source).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should throw a JulesApiError for other server errors (e.g., 500)', async () => {
@@ -73,6 +84,42 @@ describe('SourceManager', () => {
       await expect(promise).rejects.toSatisfy((e: JulesApiError) => {
         return e.message.includes('Internal Server Error');
       });
+    });
+
+    it('should retry on transient 404 error (eventual consistency)', async () => {
+      vi.useFakeTimers();
+      try {
+        let callCount = 0;
+        server.use(
+          http.get(`${BASE_URL}/sources/github/transient/repo`, () => {
+            callCount++;
+            if (callCount === 1) {
+              return new HttpResponse(null, {
+                status: 404,
+                statusText: 'Not Found',
+              });
+            }
+            return HttpResponse.json({
+              name: 'sources/github/transient/repo',
+              id: 'transient/repo',
+              githubRepo: { owner: 'transient', repo: 'repo' },
+            });
+          }),
+        );
+
+        const promise = jules.sources.get({ github: 'transient/repo' });
+
+        // Advance timers to trigger retry
+        // Initial delay is 1000ms
+        await vi.advanceTimersByTimeAsync(1100);
+
+        const source = await promise;
+        expect(source).toBeDefined();
+        expect(source?.id).toBe('transient/repo');
+        expect(callCount).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
