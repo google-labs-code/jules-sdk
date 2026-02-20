@@ -62,4 +62,85 @@ describe('ApiClient (Unit)', () => {
       MissingApiKeyError,
     );
   });
+
+  describe('Resilience & Concurrency', () => {
+    it('Retries on 5xx errors (503 Service Unavailable)', async () => {
+      // Mock fetch to return 503 twice, then 200
+      let callCount = 0;
+      mockFetch.mockImplementation(async () => {
+        callCount++;
+        if (callCount <= 2) {
+          return {
+            ok: false,
+            status: 503,
+            statusText: 'Service Unavailable',
+            text: async () => 'Service Unavailable',
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ success: true }),
+        };
+      });
+
+      const client = new ApiClient({
+        baseUrl: 'https://api.jules.com',
+        requestTimeoutMs: 1000,
+        apiKey: 'test-api-key',
+        rateLimitRetry: {
+          baseDelayMs: 10,
+          maxDelayMs: 20,
+        },
+      });
+
+      const result = await client.request('test-endpoint');
+
+      expect(callCount).toBe(3);
+      expect(result).toEqual({ success: true });
+    });
+
+    it('Concurrency limiter restricts simultaneous requests', async () => {
+      const client = new ApiClient({
+        baseUrl: 'https://api.jules.com',
+        requestTimeoutMs: 1000,
+        apiKey: 'test-api-key',
+        maxConcurrentRequests: 2,
+      });
+
+      mockFetch.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ success: true }),
+        };
+      });
+
+      const startTime = Date.now();
+      await Promise.all([
+        client.request('1'),
+        client.request('2'),
+        client.request('3'),
+        client.request('4'),
+        client.request('5'),
+      ]);
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+      // With concurrency 2 and 50ms delay:
+      // Batch 1: req 1, 2 start. (0ms)
+      // Batch 1 finishes at 50ms.
+      // Batch 2: req 3, 4 start. (50ms)
+      // Batch 2 finishes at 100ms.
+      // Batch 3: req 5 starts. (100ms)
+      // Batch 3 finishes at 150ms.
+      // Total should be around 150ms.
+      // If no limit (concurrency 5):
+      // All start at 0ms, finish at 50ms.
+
+      expect(duration).toBeGreaterThanOrEqual(100);
+      expect(duration).toBeLessThan(300); // giving some buffer
+    });
+  });
 });
