@@ -24,6 +24,35 @@ import {
   MissingApiKeyError,
 } from './errors.js';
 
+class Semaphore {
+  private count: number;
+  private queue: Array<(value: void | PromiseLike<void>) => void> = [];
+
+  constructor(count: number) {
+    this.count = count;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.count > 0) {
+      this.count--;
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const resolve = this.queue.shift();
+      if (resolve) resolve();
+    } else {
+      this.count++;
+    }
+  }
+}
+
 export type RateLimitRetryConfig = {
   maxRetryTimeMs: number;
   baseDelayMs: number;
@@ -35,6 +64,7 @@ export type ApiClientOptions = {
   baseUrl: string;
   requestTimeoutMs: number;
   rateLimitRetry?: Partial<RateLimitRetryConfig>;
+  maxConcurrentRequests?: number;
 };
 
 export type ApiRequestOptions = {
@@ -54,11 +84,13 @@ export class ApiClient {
   private readonly baseUrl: string;
   private readonly requestTimeoutMs: number;
   private readonly rateLimitConfig: RateLimitRetryConfig;
+  private readonly semaphore: Semaphore;
 
   constructor(options: ApiClientOptions) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl;
     this.requestTimeoutMs = options.requestTimeoutMs;
+    this.semaphore = new Semaphore(options.maxConcurrentRequests ?? 50);
     this.rateLimitConfig = {
       maxRetryTimeMs: options.rateLimitRetry?.maxRetryTimeMs ?? 300000, // 5 minutes
       baseDelayMs: options.rateLimitRetry?.baseDelayMs ?? 1000,
@@ -99,14 +131,23 @@ export class ApiClient {
     }
 
     // 2. Execute Request
-    const response = await this.fetchWithTimeout(url.toString(), {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    await this.semaphore.acquire();
+    let response: Response;
+    try {
+      response = await this.fetchWithTimeout(url.toString(), {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } finally {
+      this.semaphore.release();
+    }
 
     if (!response.ok) {
-      if (response.status === 429) {
+      if (
+        response.status === 429 ||
+        [500, 502, 503, 504].includes(response.status)
+      ) {
         // Time-based retry: Keep retrying until maxRetryTimeMs is exhausted
         const startTime = (options as any)._rateLimitStartTime || Date.now();
         const elapsed = Date.now() - startTime;
@@ -125,11 +166,13 @@ export class ApiClient {
           } as any);
         }
 
-        throw new JulesRateLimitError(
-          url.toString(),
-          response.status,
-          response.statusText,
-        );
+        if (response.status === 429) {
+          throw new JulesRateLimitError(
+            url.toString(),
+            response.status,
+            response.statusText,
+          );
+        }
       }
 
       switch (response.status) {
