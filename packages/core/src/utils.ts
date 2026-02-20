@@ -80,8 +80,14 @@ export function sanitizeUrl(url: string | URL): string {
   const urlString = url.toString();
   try {
     const parsedUrl = new URL(urlString);
-    parsedUrl.search = '';
+
+    const sensitiveKeys = ['key', 'token', 'apiKey', 'access_token'];
+    for (const key of sensitiveKeys) {
+      parsedUrl.searchParams.delete(key);
+    }
+
     parsedUrl.hash = '';
+
     let result = parsedUrl.toString();
     // URL.toString() might add a trailing slash if there was none and no path.
     // We want to preserve the original URL's "slashedness" for consistency.

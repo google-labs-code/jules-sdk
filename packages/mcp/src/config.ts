@@ -21,7 +21,7 @@ export async function loadConfig(): Promise<Config> {
   return {};
 }
 
-export async function saveConfig(config: Config) {
+export async function saveConfig(config: Config): Promise<void> {
   try {
     await fs.promises.mkdir(CONFIG_DIR, { recursive: true });
     await fs.promises.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), {

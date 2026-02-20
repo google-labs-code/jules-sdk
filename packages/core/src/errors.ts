@@ -75,8 +75,13 @@ export class JulesApiError extends JulesError {
  */
 export class JulesAuthenticationError extends JulesApiError {
   constructor(url: string, status: number, statusText: string) {
-    super(url, status, statusText);
-    this.message = `[${status} ${statusText}] Authentication to ${this.url} failed. Ensure your API key is correct.`;
+    const sanitizedUrl = sanitizeUrl(url);
+    super(
+      url,
+      status,
+      statusText,
+      `[${status} ${statusText}] Authentication to ${sanitizedUrl} failed. Ensure your API key is correct.`,
+    );
   }
 }
 
@@ -85,8 +90,13 @@ export class JulesAuthenticationError extends JulesApiError {
  */
 export class JulesRateLimitError extends JulesApiError {
   constructor(url: string, status: number, statusText: string) {
-    super(url, status, statusText);
-    this.message = `[${status} ${statusText}] API rate limit exceeded for ${this.url}.`;
+    const sanitizedUrl = sanitizeUrl(url);
+    super(
+      url,
+      status,
+      statusText,
+      `[${status} ${statusText}] API rate limit exceeded for ${sanitizedUrl}.`,
+    );
   }
 }
 
