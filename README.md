@@ -158,6 +158,7 @@ const sessions = await jules.all(largeList, mapFn, {
 ```
 
 ### Query your local knowledge base
+
 The SDK caches session data locally and exposes a query language for filtering and projecting across all sessions.
 
 ```typescript

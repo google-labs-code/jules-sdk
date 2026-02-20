@@ -250,8 +250,8 @@ describe('SessionClient', () => {
     });
 
     it('should call API and throw error if session is not awaiting plan approval', async () => {
-    // The approve() method now calls the API directly without pre-checking state.
-    // The API returns a 400 error for invalid state.
+      // The approve() method now calls the API directly without pre-checking state.
+      // The API returns a 400 error for invalid state.
       const invalidStateSession = jules.session('SESSION_INVALID_STATE');
       await expect(invalidStateSession.approve()).rejects.toThrow();
       // API was called (no pre-check)

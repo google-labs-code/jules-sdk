@@ -1,0 +1,82 @@
+{
+  "repo": "google-labs-code/jules-sdk",
+  "analyzed_at": "2026-02-20T19:22:31.946Z",
+  "root_causes": [
+    {
+      "id": "rc-session-reliability",
+      "title": "Inconsistent Session Configuration & Polling",
+      "severity": "high",
+      "issues": [18, 23, 24],
+      "files": [
+        "packages/core/src/client.ts",
+        "packages/core/src/polling.ts",
+        "packages/core/src/session.ts",
+        "packages/core/src/errors.ts",
+        "packages/core/src/types.ts"
+      ],
+      "description": "Session creation ignores `autoPr` config, leading to backend errors when `requireApproval: false` is used. Polling functions lack timeout mechanisms, causing indefinite hangs.",
+      "solution_summary": "Align `session()` config logic with `run()`. Add timeout support to polling functions and `result()` methods."
+    },
+    {
+      "id": "rc-api-resilience",
+      "title": "API Client Resilience & Rate Limiting",
+      "severity": "medium",
+      "issues": [20],
+      "files": ["packages/core/src/api.ts", "packages/core/src/sources.ts"],
+      "description": "ApiClient lacks jitter in backoff, exacerbating rate limits. SourceManager lacks retry for transient 404s.",
+      "solution_summary": "Add jitter to ApiClient retry. Add `withFirstRequestRetry` to `SourceManager.get`."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-session-reliability",
+      "title": "Enhance Session Reliability",
+      "root_cause": "rc-session-reliability",
+      "issues": [18, 23, 24],
+      "files": [
+        "packages/core/src/client.ts",
+        "packages/core/src/polling.ts",
+        "packages/core/src/session.ts",
+        "packages/core/src/errors.ts",
+        "packages/core/src/types.ts"
+      ],
+      "new_files": [],
+      "test_files": [
+        "packages/core/tests/session.test.ts",
+        "packages/core/tests/polling.test.ts",
+        "packages/core/tests/errors.test.ts"
+      ],
+      "risk": "medium",
+      "prompt": "You are assigned to fix issues #18, #23, and #24 in the `google-labs-code/jules-sdk` repository.\n\n### Objectives\n1.  **Fix Session Configuration (#18, #24):** Update `jules.session()` to respect the `autoPr` configuration option, similar to `jules.run()`. This ensures that `requireApproval: false` can be used without triggering a `FAILED_PRECONDITION` error from the backend (which occurs when automation mode is unspecified).\n2.  **Fix Polling Hangs (#23):** Add a timeout mechanism to the session polling logic (`result()` and underlying `pollSession`/`pollUntilCompletion`) to prevent indefinite hanging when the session does not reach a terminal state.\n\n### Files to Modify\n-   `packages/core/src/errors.ts`: Add and export a `TimeoutError` class.\n-   `packages/core/src/polling.ts`: Update `pollSession` and `pollUntilCompletion` to accept an optional `timeoutMs` argument. Throw `TimeoutError` if the timeout is exceeded.\n-   `packages/core/src/types.ts`: Update `SessionClient` and `AutomatedSession` interfaces so their `result()` methods accept `{ timeoutMs?: number }`.\n-   `packages/core/src/session.ts`: Update `SessionClientImpl.result()` to accept `{ timeoutMs }` and pass it to `pollUntilCompletion`.\n-   `packages/core/src/client.ts`: \n    -   Update `session()` implementation to set `automationMode` based on `config.autoPr` (true -> 'AUTO_CREATE_PR', false -> 'AUTOMATION_MODE_UNSPECIFIED').\n    -   Update `run()` implementation to pass `timeoutMs` from its returned `result()` method to `pollUntilCompletion`.\n\n### Implementation Details\n\n**1. `packages/core/src/errors.ts`**\n```typescript\nexport class TimeoutError extends JulesError {\n  constructor(message = 'Operation timed out') {\n    super(message);\n  }\n}\n```\n\n**2. `packages/core/src/polling.ts`**\nUpdate `pollSession` signature:\n```typescript\nexport async function pollSession(\n  sessionId: string,\n  apiClient: ApiClient,\n  predicateFn: (session: SessionResource) => boolean,\n  pollingInterval: number,\n  timeoutMs?: number // New optional argument\n): Promise<SessionResource> { ... }\n```\nImplement timeout logic using `Date.now()` checks inside the loop or a timeout race. If timed out, throw `TimeoutError`.\nUpdate `pollUntilCompletion` to pass `timeoutMs` through.\n\n**3. `packages/core/src/client.ts`**\nIn `session(config)`:\n```typescript\n          automationMode:\n            config.autoPr === false\n              ? 'AUTOMATION_MODE_UNSPECIFIED'\n              : 'AUTO_CREATE_PR',\n```\n(Ensure `requirePlanApproval` is also passed correctly).\n\n**4. Tests**\n-   **`packages/core/tests/session.test.ts`**: Add a test case for `session({ autoPr: true })` verifying the request body contains `AUTO_CREATE_PR`. Add a test case for `result({ timeoutMs: 100 })` verifying it throws `TimeoutError` if the session mocks don't complete in time.\n-   **`packages/core/tests/polling.test.ts`**: Add unit tests for `pollSession` confirming it respects the timeout.\n\n### Acceptance Criteria\n1.  `jules.session({ autoPr: true })` sends `automationMode: 'AUTO_CREATE_PR'`.\n2.  `jules.session({ requireApproval: false, autoPr: true })` does not throw `FAILED_PRECONDITION` (mock the backend response if needed, but primarily ensure the request payload is correct).\n3.  `session.result({ timeoutMs: 1000 })` throws `TimeoutError` if polling exceeds 1000ms.\n4.  `run().result({ timeoutMs: 1000 })` throws `TimeoutError` if polling exceeds 1000ms.\n5.  Existing tests pass.\n\n### File Boundary\nYou may ONLY modify the files listed above. If a test file outside your boundary fails, you must make your source changes backward-compatible so the existing test passes unmodified. Do NOT rename, move, or delete any files outside your boundary."
+    },
+    {
+      "id": "task-api-resilience",
+      "title": "Enhance API Resilience",
+      "root_cause": "rc-api-resilience",
+      "issues": [20],
+      "files": ["packages/core/src/api.ts", "packages/core/src/sources.ts"],
+      "new_files": [],
+      "test_files": [
+        "packages/core/tests/api-retry.test.ts",
+        "packages/core/tests/sources.test.ts"
+      ],
+      "risk": "low",
+      "prompt": "You are assigned to fix issue #20 in the `google-labs-code/jules-sdk` repository.\n\n### Objectives\n1.  **Add Jitter to API Retries:** Update the `ApiClient` to use randomized jitter in its exponential backoff for 429 errors. This prevents thundering herd issues during high concurrency.\n2.  **Retry Transient Source Errors:** Update `SourceManager.get` to retry on 404 errors using `withFirstRequestRetry`. This handles eventual consistency and transient failures under load.\n\n### Files to Modify\n-   `packages/core/src/api.ts`: Update 429 retry logic.\n-   `packages/core/src/sources.ts`: Wrap `apiClient.request` in `get()` with `withFirstRequestRetry`.\n\n### Implementation Details\n\n**1. `packages/core/src/api.ts`**\nIn `request` method, when handling 429:\n```typescript\n          // Exponential backoff with Full Jitter\n          const rawDelay = this.rateLimitConfig.baseDelayMs * Math.pow(2, retryCount);\n          const cappedDelay = Math.min(rawDelay, this.rateLimitConfig.maxDelayMs);\n          // Randomize between 0 and cappedDelay\n          const delay = Math.floor(Math.random() * cappedDelay);\n```\nEnsure you handle the case where `delay` might be 0 (maybe min 1ms?).\n\n**2. `packages/core/src/sources.ts`**\nImport `withFirstRequestRetry` from `./retry-utils.js`.\nIn `get(filter)`:\n```typescript\n    try {\n      const rawSource = await withFirstRequestRetry(() => \n        this.apiClient.request<RawSource>(resourceName)\n      );\n      // ...\n```\nNote: `withFirstRequestRetry` retries 404s. If it still fails after retries, it throws. You need to catch the final error and if it is 404, return `undefined` (as per existing logic).\n\n**3. Tests**\n-   **`packages/core/tests/api-retry.test.ts`**: Update tests. Since jitter introduces randomness, you cannot check for exact delay times. Use `expect.closeTo` or checking ranges, OR mock `Math.random` to return a predictable value (e.g., 1.0 or 0.5) during tests.\n-   **`packages/core/tests/sources.test.ts`**: Add a test case where the first request to `get()` fails with 404, but a subsequent retry succeeds. Verify `get()` returns the source instead of `undefined`.\n\n### Acceptance Criteria\n1.  API retries for 429 status codes use randomized delays (jitter).\n2.  `SourceManager.get` retries on 404 errors before giving up.\n3.  If `SourceManager.get` exhausts retries and still gets 404, it returns `undefined` (preserving existing behavior).\n\n### File Boundary\nYou may ONLY modify the files listed above. If a test file outside your boundary fails, you must make your source changes backward-compatible so the existing test passes unmodified. Do NOT rename, move, or delete any files outside your boundary."
+    }
+  ],
+  "unaddressable": [],
+  "file_ownership": {
+    "packages/core/src/client.ts": "task-session-reliability",
+    "packages/core/src/polling.ts": "task-session-reliability",
+    "packages/core/src/session.ts": "task-session-reliability",
+    "packages/core/src/errors.ts": "task-session-reliability",
+    "packages/core/src/types.ts": "task-session-reliability",
+    "packages/core/tests/session.test.ts": "task-session-reliability",
+    "packages/core/tests/polling.test.ts": "task-session-reliability",
+    "packages/core/tests/errors.test.ts": "task-session-reliability",
+    "packages/core/src/api.ts": "task-api-resilience",
+    "packages/core/src/sources.ts": "task-api-resilience",
+    "packages/core/tests/api-retry.test.ts": "task-api-resilience",
+    "packages/core/tests/sources.test.ts": "task-api-resilience"
+  }
+}

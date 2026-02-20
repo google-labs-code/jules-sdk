@@ -22,12 +22,19 @@ import { SessionResource, SessionOutcome } from '../src/types.js';
 import { NodeSessionStorage } from '../src/storage/node-fs.js';
 import { SessionCursor } from '../src/sessions.js';
 
-const createMockOutcome = (sessionId: string, title: string): SessionOutcome => ({
+const createMockOutcome = (
+  sessionId: string,
+  title: string,
+): SessionOutcome => ({
   sessionId,
   title,
   state: 'completed',
   outputs: [],
-  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  generatedFiles: () => ({
+    all: () => [],
+    get: () => undefined,
+    filter: () => [],
+  }),
   changeSet: () => undefined,
 });
 

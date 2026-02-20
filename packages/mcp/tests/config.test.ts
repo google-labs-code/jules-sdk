@@ -52,7 +52,7 @@ describe('MCP Configuration', () => {
     it('should return empty object on parse error', () => {
       (fs.existsSync as any).mockReturnValue(true);
       (fs.readFileSync as any).mockReturnValue('invalid-json');
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const config = loadConfig();
       expect(config).toEqual({});

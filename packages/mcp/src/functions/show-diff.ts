@@ -55,7 +55,7 @@ export async function showDiff(
 
   // If activityId is provided, find the changeSet from that specific activity
   if (activityId) {
-    const activity = activities.find(a => a.id === activityId);
+    const activity = activities.find((a) => a.id === activityId);
     if (!activity) {
       return {
         sessionId: snapshot.id,
@@ -73,16 +73,19 @@ export async function showDiff(
     }
 
     // Find changeSet artifact in this activity
-    const changeSetArtifact = activity.artifacts.find(a => a.type === 'changeSet');
+    const changeSetArtifact = activity.artifacts.find(
+      (a) => a.type === 'changeSet',
+    );
     if (changeSetArtifact) {
       changeSet = changeSetArtifact as ChangeSetArtifact;
     }
   } else {
     // Get the changeSet from the snapshot (session outcome)
     // FIX: Defensive check for changeSet being a function
-    changeSet = typeof snapshot.changeSet === 'function'
-      ? snapshot.changeSet() as ChangeSetArtifact | undefined
-      : undefined;
+    changeSet =
+      typeof snapshot.changeSet === 'function'
+        ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
+        : undefined;
   }
 
   if (!changeSet) {

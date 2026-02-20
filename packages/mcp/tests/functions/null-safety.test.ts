@@ -24,17 +24,17 @@ describe('Null Safety & Resilience', () => {
       const snapshot = createMockSnapshot({
         id: 'session-new',
         state: 'queued',
-        title: 'New Session'
+        title: 'New Session',
       });
 
       const mockSession = {
         snapshot: vi.fn().mockResolvedValue({
           ...snapshot,
-          activities: undefined
+          activities: undefined,
         }),
         activities: {
-          hydrate: vi.fn().mockResolvedValue(0)
-        }
+          hydrate: vi.fn().mockResolvedValue(0),
+        },
       };
 
       vi.spyOn(mockClient, 'session').mockReturnValue(mockSession as any);
@@ -45,20 +45,20 @@ describe('Null Safety & Resilience', () => {
     });
 
     it('codeReview should return empty files list when activities are undefined', async () => {
-       const snapshot = createMockSnapshot({
+      const snapshot = createMockSnapshot({
         id: 'session-new',
         state: 'queued',
-        title: 'New Session'
+        title: 'New Session',
       });
 
       const mockSession = {
         snapshot: vi.fn().mockResolvedValue({
           ...snapshot,
-          activities: undefined
+          activities: undefined,
         }),
         activities: {
-          hydrate: vi.fn().mockResolvedValue(0)
-        }
+          hydrate: vi.fn().mockResolvedValue(0),
+        },
       };
       vi.spyOn(mockClient, 'session').mockReturnValue(mockSession as any);
 
@@ -67,24 +67,26 @@ describe('Null Safety & Resilience', () => {
     });
 
     it('showDiff should return empty patch when activities are undefined and activityId is provided', async () => {
-       const snapshot = createMockSnapshot({
+      const snapshot = createMockSnapshot({
         id: 'session-new',
         state: 'queued',
-        title: 'New Session'
+        title: 'New Session',
       });
 
       const mockSession = {
         snapshot: vi.fn().mockResolvedValue({
           ...snapshot,
-          activities: undefined
+          activities: undefined,
         }),
         activities: {
-          hydrate: vi.fn().mockResolvedValue(0)
-        }
+          hydrate: vi.fn().mockResolvedValue(0),
+        },
       };
       vi.spyOn(mockClient, 'session').mockReturnValue(mockSession as any);
 
-      const result = await showDiff(mockClient, 'session-new', { activityId: 'non-existent' });
+      const result = await showDiff(mockClient, 'session-new', {
+        activityId: 'non-existent',
+      });
       expect(result.unidiffPatch).toBe('');
     });
   });
@@ -94,7 +96,7 @@ describe('Null Safety & Resilience', () => {
       const snapshot = createMockSnapshot({
         id: 'session-stable',
         state: 'completed',
-        title: 'Completed Session'
+        title: 'Completed Session',
       });
 
       (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
@@ -106,10 +108,10 @@ describe('Null Safety & Resilience', () => {
     });
 
     it('showDiff should handle non-function changeSet gracefully', async () => {
-       const snapshot = createMockSnapshot({
+      const snapshot = createMockSnapshot({
         id: 'session-stable',
         state: 'completed',
-        title: 'Completed Session'
+        title: 'Completed Session',
       });
 
       (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
