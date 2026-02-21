@@ -23,11 +23,7 @@ export default defineTool({
     required: ['sessionId'],
   },
   handler: async (client: JulesClient, args: any) => {
-    const result = await getBashOutputs(
-      client,
-      args.sessionId,
-      args.activityIds,
-    );
+    const result = await getBashOutputs(client, args.sessionId, args.activityIds);
     return toMcpResponse(result);
   },
 });
