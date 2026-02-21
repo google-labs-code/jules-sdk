@@ -27,7 +27,7 @@ export async function configAction(options: ConfigOptions) {
       });
     }
 
-    saveConfig({ apiKey });
+    await saveConfig({ apiKey });
     console.log(chalk.green('✓ Configuration saved successfully.'));
   } catch (error) {
     if (error instanceof Error && error.name === 'ExitPromptError') {

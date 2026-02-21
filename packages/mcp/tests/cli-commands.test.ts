@@ -30,11 +30,11 @@ describe('CLI Commands', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     processExitSpy = vi
       .spyOn(process, 'exit')
-      .mockImplementation((() => { }) as any);
+      .mockImplementation((() => {}) as any);
     processStdoutWriteSpy = vi
       .spyOn(process.stdout, 'write')
       .mockImplementation(() => true);
@@ -56,7 +56,7 @@ describe('CLI Commands', () => {
   describe('doctorAction', () => {
     it('should exit 0 if all checks pass', async () => {
       // Mock checks passing
-      (resolveApiKey as any).mockReturnValue('valid-key');
+      (resolveApiKey as any).mockResolvedValue('valid-key');
       const mockClient = {
         sessions: vi.fn().mockResolvedValue([]), // mock thenable cursor
       };
@@ -72,7 +72,7 @@ describe('CLI Commands', () => {
 
     it('should exit 1 if checks fail', async () => {
       // Mock failure (missing API key)
-      (resolveApiKey as any).mockReturnValue(undefined);
+      (resolveApiKey as any).mockResolvedValue(undefined);
 
       await doctorAction();
 
@@ -85,7 +85,7 @@ describe('CLI Commands', () => {
     it('should check connectivity', async () => {
       const dns = await import('dns/promises');
       (dns.default.lookup as any).mockResolvedValue({ address: '1.1.1.1' });
-      (resolveApiKey as any).mockReturnValue('valid-key');
+      (resolveApiKey as any).mockResolvedValue('valid-key');
       const mockClient = { sessions: vi.fn().mockResolvedValue([]) };
       (jules.with as any).mockReturnValue(mockClient);
 
@@ -94,5 +94,4 @@ describe('CLI Commands', () => {
       expect(dns.default.lookup).toHaveBeenCalled();
     });
   });
-
 });
