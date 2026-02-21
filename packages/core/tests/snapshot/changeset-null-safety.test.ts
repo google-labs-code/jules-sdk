@@ -20,7 +20,7 @@ import { SessionResource, SessionOutcome, PullRequest } from '../../src/types.js
 
 /**
  * Tests for the changeSet null-safety fix in SessionSnapshotImpl.
- * 
+ *
  * Bug: When session.outcome.changeSet is undefined or not a function,
  * snapshot.changeSet() would throw "TypeError: snapshot.changeSet is not a function"
  */

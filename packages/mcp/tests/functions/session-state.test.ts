@@ -202,5 +202,3 @@ describe('getSessionState', () => {
     expect(result.lastAgentMessage).toBeUndefined();
   });
 });
-
-

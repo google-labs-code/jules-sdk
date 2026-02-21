@@ -27,11 +27,11 @@ export interface GitRepoInfo {
 /**
  * Parses the current git repository's remote URL to extract owner and repo.
  * Supports both HTTPS and SSH remote URL formats.
- * 
+ *
  * @param remoteName - The name of the remote to parse (default: "origin")
  * @returns The parsed repository information
  * @throws Error if not in a git repository or remote URL cannot be parsed
- * 
+ *
  * @example
  * const repo = await getGitRepoInfo();
  * console.log(repo.fullName); // "owner/repo"
@@ -39,7 +39,7 @@ export interface GitRepoInfo {
 export async function getGitRepoInfo(remoteName = "origin"): Promise<GitRepoInfo> {
   const { stdout } = await execAsync(`git remote get-url ${remoteName}`);
   const remoteUrl = stdout.trim();
-  
+
   return parseGitRemoteUrl(remoteUrl);
 }
 
@@ -48,7 +48,7 @@ export async function getGitRepoInfo(remoteName = "origin"): Promise<GitRepoInfo
  * Supports both HTTPS and SSH URL formats:
  * - https://github.com/owner/repo.git
  * - git@github.com:owner/repo.git
- * 
+ *
  * @param remoteUrl - The git remote URL to parse
  * @returns The parsed repository information
  * @throws Error if the URL format is not recognized
@@ -64,7 +64,7 @@ export function parseGitRemoteUrl(remoteUrl: string): GitRepoInfo {
       fullName: `${owner}/${repo.replace(/\.git$/, "")}`
     };
   }
-  
+
   // HTTPS format: https://github.com/owner/repo.git
   const httpsMatch = remoteUrl.match(/https?:\/\/github\.com\/([^/]+)\/(.+?)(\.git)?$/);
   if (httpsMatch) {
@@ -75,13 +75,13 @@ export function parseGitRemoteUrl(remoteUrl: string): GitRepoInfo {
       fullName: `${owner}/${repo.replace(/\.git$/, "")}`
     };
   }
-  
+
   throw new Error(`Unable to parse git remote URL: ${remoteUrl}`);
 }
 
 /**
  * Gets the current git branch name.
- * 
+ *
  * @returns The current branch name
  * @throws Error if not in a git repository
  */

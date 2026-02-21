@@ -51,6 +51,7 @@ describe('ApiClient 429 Retry Logic', () => {
       );
 
     const promise = apiClient.request('test');
+    await vi.advanceTimersByTimeAsync(0);
 
     // 1. Initial request fails immediately.
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -83,6 +84,8 @@ describe('ApiClient 429 Retry Logic', () => {
       );
 
     const promise = apiClient.request('test');
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
 
     // Attempt 1: Immediate
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -115,6 +118,7 @@ describe('ApiClient 429 Retry Logic', () => {
       ); // 4 (Success)
 
     const promise = apiClient.request('test');
+    await vi.advanceTimersByTimeAsync(0);
 
     // Attempt 1: Immediate
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -160,6 +164,8 @@ describe('ApiClient 429 Retry Logic', () => {
       // Attach expectation early to prevent unhandled rejection warnings
       const failureExpectation =
         expect(promise).rejects.toThrow(JulesRateLimitError);
+
+      await vi.advanceTimersByTimeAsync(0);
 
       // Attempt 1: Immediate (elapsed = 0)
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -207,6 +213,7 @@ describe('ApiClient 429 Retry Logic', () => {
       });
 
       const promise = apiClient.request('test');
+      await vi.advanceTimersByTimeAsync(0);
 
       // Advance 4 minutes worth of time (240s)
       // Backoffs: 1s, 2s, 4s, 8s, 16s, 30s (capped), 30s, 30s, 30s, 30s, 30s...
@@ -242,6 +249,7 @@ describe('ApiClient 429 Retry Logic', () => {
         );
 
       const promise = apiClient.request('test');
+      await vi.advanceTimersByTimeAsync(0);
 
       // Attempt 1
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -289,6 +297,7 @@ describe('ApiClient 429 Retry Logic', () => {
         );
 
       const promise = apiClient.request('test');
+      await vi.advanceTimersByTimeAsync(0);
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -301,6 +310,90 @@ describe('ApiClient 429 Retry Logic', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
 
       await expect(promise).resolves.toEqual({ success: true });
+    });
+  });
+
+  describe('5xx Retry Logic', () => {
+    it('should retry on 503 Service Unavailable', async () => {
+      const apiClient = new ApiClient({
+        apiKey: 'test-key',
+        baseUrl,
+        requestTimeoutMs: 1000,
+      });
+      const fetchMock = global.fetch as any;
+
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response('Service Unavailable', { status: 503 }),
+        )
+        .mockResolvedValueOnce(
+          new Response('{"success": true}', { status: 200 }),
+        );
+
+      const promise = apiClient.request('test');
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Attempt 1
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Wait 1s
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      await expect(promise).resolves.toEqual({ success: true });
+    });
+
+    it('should retry on 500, 502, 504', async () => {
+      const apiClient = new ApiClient({
+        apiKey: 'test-key',
+        baseUrl,
+        requestTimeoutMs: 1000,
+      });
+      const fetchMock = global.fetch as any;
+
+      fetchMock
+        .mockResolvedValueOnce(new Response('Server Error', { status: 500 }))
+        .mockResolvedValueOnce(new Response('Bad Gateway', { status: 502 }))
+        .mockResolvedValueOnce(new Response('Gateway Timeout', { status: 504 }))
+        .mockResolvedValueOnce(
+          new Response('{"success": true}', { status: 200 }),
+        );
+
+      const promise = apiClient.request('test');
+      await vi.advanceTimersByTimeAsync(0);
+
+      // 1. 500
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // 2. 502 (after 1s)
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // 3. 504 (after 2s)
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+
+      // 4. Success (after 4s)
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+
+      await expect(promise).resolves.toEqual({ success: true });
+    });
+
+    it('should NOT retry on 501 Not Implemented', async () => {
+      const apiClient = new ApiClient({
+        apiKey: 'test-key',
+        baseUrl,
+        requestTimeoutMs: 1000,
+      });
+      const fetchMock = global.fetch as any;
+
+      fetchMock.mockResolvedValue(
+        new Response('Not Implemented', { status: 501 }),
+      );
+
+      await expect(apiClient.request('test')).rejects.toThrow();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 });
