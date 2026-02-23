@@ -241,6 +241,13 @@ export class SessionClientImpl implements SessionClient {
       if (activity.type === 'agentMessaged') {
         return activity;
       }
+
+      if (
+        activity.type === 'sessionCompleted' ||
+        activity.type === 'sessionFailed'
+      ) {
+        throw new JulesError('Session ended before the agent replied.');
+      }
     }
 
     throw new JulesError('Session ended before the agent replied.');

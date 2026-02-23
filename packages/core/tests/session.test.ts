@@ -278,8 +278,8 @@ describe('SessionClient', () => {
     });
 
     it('should call API and throw error if session is not awaiting plan approval', async () => {
-    // The approve() method now calls the API directly without pre-checking state.
-    // The API returns a 400 error for invalid state.
+      // The approve() method now calls the API directly without pre-checking state.
+      // The API returns a 400 error for invalid state.
       const invalidStateSession = jules.session('SESSION_INVALID_STATE');
       await expect(invalidStateSession.approve()).rejects.toThrow();
       // API was called (no pre-check)
@@ -370,20 +370,33 @@ describe('SessionClient', () => {
     });
 
     it('should throw an error if the session ends before a reply is received', async () => {
+      const failSession = jules.session('SESSION_FAIL_EARLY');
       vi.useFakeTimers();
       server.use(
+        http.post(
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_FAIL_EARLY:sendMessage',
+          () => {
+            return HttpResponse.json({});
+          },
+        ),
         http.get(
-          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123/activities',
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_FAIL_EARLY/activities',
           () => {
             return HttpResponse.json({
-              activities: [{ name: 'a/1', sessionCompleted: {} }],
+              activities: [
+                {
+                  name: 'a/1',
+                  createTime: new Date(Date.now() + 1000).toISOString(),
+                  sessionCompleted: {},
+                },
+              ],
             });
           },
         ),
       );
 
-      const askPromise = session.ask('Will you reply?');
-      vi.runAllTimers();
+      const askPromise = failSession.ask('Will you reply?');
+      await vi.advanceTimersByTimeAsync(1000);
       await expect(askPromise).rejects.toThrow(JulesError);
     });
   });

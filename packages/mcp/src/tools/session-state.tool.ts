@@ -52,5 +52,3 @@ IMPORTANT:
     return toMcpResponse(result);
   },
 });
-
-

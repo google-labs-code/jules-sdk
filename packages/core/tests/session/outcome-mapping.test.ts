@@ -20,7 +20,7 @@ import { SessionClientImpl } from '../../src/session.js';
 /**
  * Tests to ensure session.info() always populates outcome correctly,
  * regardless of whether data comes from cache or network.
- * 
+ *
  * This prevents regressions of the bug where cached sessions had undefined outcome,
  * causing changeSet() to return undefined and MCP tools to report "0 files changed".
  */

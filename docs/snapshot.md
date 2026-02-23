@@ -139,8 +139,8 @@ If you specify both `include` and `exclude`, **`include` takes precedence**:
 
 ```typescript
 // Only 'id' and 'state' are returned; 'exclude' is ignored
-snapshot.toJSON({ 
-  include: ['id', 'state'], 
+snapshot.toJSON({
+  include: ['id', 'state'],
   exclude: ['prompt']  // ← ignored!
 });
 ```

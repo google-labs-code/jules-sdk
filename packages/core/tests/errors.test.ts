@@ -161,17 +161,35 @@ describe('Error Handling', () => {
       }),
     );
 
-    const promise = jules.session({
+    vi.useFakeTimers();
+
+    const testJules = defaultJules.with({
+      apiKey: TEST_API_KEY,
+      baseUrl: TEST_BASE_URL,
+      config: {
+        rateLimitRetry: {
+          maxRetryTimeMs: 7000,
+        },
+      },
+    });
+
+    const promise = testJules.session({
       prompt: 'test',
       source: { github: 'test/repo', baseBranch: 'main' },
     });
 
-    await expect(promise).rejects.toThrow(JulesApiError);
+    const expectation = expect(promise).rejects.toThrow(JulesApiError);
+
+    await vi.advanceTimersByTimeAsync(10000);
+
+    await expectation;
     await expect(promise).rejects.toHaveProperty('url', expectedUrl);
     await expect(promise).rejects.toHaveProperty('status', 500);
     await expect(promise).rejects.toSatisfy((e: JulesApiError) =>
       e.message.includes('Internal Server Error'),
     );
+
+    vi.useRealTimers();
   });
 
   it('should throw JulesNetworkError on fetch failure for session creation', async () => {

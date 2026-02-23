@@ -349,4 +349,3 @@ export interface WorkInProgressResult {
   summary: WorkInProgressSummary;
   formatted: string;
 }
-
