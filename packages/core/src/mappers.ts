@@ -98,6 +98,7 @@ export function mapRestActivityToSdkActivity(
     createTime,
     originator,
     artifacts: rawArtifacts,
+    description,
   } = restActivity;
 
   const activityId = name.split('/').pop();
@@ -110,6 +111,7 @@ export function mapRestActivityToSdkActivity(
   const baseActivity = {
     name,
     id: activityId,
+    description,
     createTime,
     originator: originator || 'system',
     artifacts,

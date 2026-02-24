@@ -98,6 +98,19 @@ describe('mapRestActivityToSdkActivity', () => {
     expect((sdkActivity as any).message).toBe('Hello there!');
   });
 
+  it('should map a description field correctly', () => {
+    const restActivity = {
+      ...BASE_REST_ACTIVITY,
+      description: 'An agent description',
+      agentMessaged: { agentMessage: 'Hello there!' },
+    };
+    const sdkActivity = mapRestActivityToSdkActivity(
+      restActivity,
+      mockPlatform,
+    );
+    expect((sdkActivity as any).description).toBe('An agent description');
+  });
+
   it('should map a progressUpdated activity correctly', () => {
     const restActivity = {
       ...BASE_REST_ACTIVITY,
