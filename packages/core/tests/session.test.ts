@@ -68,8 +68,16 @@ const server = setupServer(
     ({ request }) => {
       return HttpResponse.json({
         id: 'SESSION_123',
-        state: 'completed',
-        outputs: [{ pullRequest: { url: 'http://pr.url' } }],
+        state: 'COMPLETED',
+        outputs: [
+          {
+            pullRequest: {
+              url: 'http://pr.url',
+              title: 'Title',
+              description: 'Desc',
+            },
+          },
+        ],
       });
     },
   ),
@@ -79,7 +87,7 @@ const server = setupServer(
     () => {
       return HttpResponse.json({
         id: 'SESSION_APPROVE',
-        state: 'awaitingPlanApproval',
+        state: 'AWAITING_PLAN_APPROVAL',
       });
     },
   ),
@@ -88,7 +96,7 @@ const server = setupServer(
     () => {
       return HttpResponse.json({
         id: 'SESSION_INVALID_STATE',
-        state: 'inProgress',
+        state: 'IN_PROGRESS',
       });
     },
   ),
@@ -120,7 +128,7 @@ const server = setupServer(
   http.get('https://jules.googleapis.com/v1alpha/sessions/SESSION_FAIL', () => {
     return HttpResponse.json({
       id: 'SESSION_FAIL',
-      state: 'failed',
+      state: 'FAILED',
       outputs: [],
     });
   }),
@@ -224,7 +232,8 @@ describe('SessionClient', () => {
           'https://jules.googleapis.com/v1alpha/sessions/SESSION_123',
           () => {
             callCount++;
-            const state = callCount > 1 ? 'awaitingPlanApproval' : 'inProgress';
+            const state =
+              callCount > 1 ? 'AWAITING_PLAN_APPROVAL' : 'IN_PROGRESS';
             return HttpResponse.json({ id: 'SESSION_123', state });
           },
         ),
@@ -250,7 +259,7 @@ describe('SessionClient', () => {
         http.get(
           'https://jules.googleapis.com/v1alpha/sessions/SESSION_123',
           () => {
-            return HttpResponse.json({ id: 'SESSION_123', state: 'completed' });
+            return HttpResponse.json({ id: 'SESSION_123', state: 'COMPLETED' });
           },
         ),
       );
@@ -267,7 +276,7 @@ describe('SessionClient', () => {
           () => {
             return HttpResponse.json({
               id: 'SESSION_APPROVE',
-              state: 'awaitingPlanApproval',
+              state: 'AWAITING_PLAN_APPROVAL',
             });
           },
         ),

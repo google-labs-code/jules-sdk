@@ -20,7 +20,10 @@ import { ActivityClient, SelectOptions } from './activities/types.js';
 import { ApiClient, ApiRequestOptions } from './api.js';
 import { InternalConfig } from './client.js';
 import { InvalidStateError, JulesError } from './errors.js';
-import { mapSessionResourceToOutcome } from './mappers.js';
+import {
+  mapRestSessionToSdkSession,
+  mapSessionResourceToOutcome,
+} from './mappers.js';
 import { NetworkAdapter } from './network/adapter.js';
 import { pollSession, pollUntilCompletion } from './polling.js';
 import { ActivityStorage, SessionStorage } from './storage/types.js';
@@ -33,6 +36,7 @@ import {
   SessionClient,
   SessionResource,
   SessionState,
+  RestSessionResource,
 } from './types.js';
 import { isCacheValid } from './caching.js';
 import { SessionSnapshotImpl } from './snapshot.js';
@@ -61,6 +65,7 @@ export class SessionClientImpl implements SessionClient {
   private config: InternalConfig;
   private sessionStorage: SessionStorage; // Added property
   private _activities: ActivityClient;
+  private platform: any;
 
   /**
    * Creates a new instance of SessionClientImpl.
@@ -84,6 +89,7 @@ export class SessionClientImpl implements SessionClient {
     this.apiClient = apiClient;
     this.config = config;
     this.sessionStorage = sessionStorage;
+    this.platform = platform;
 
     // --- WIRING THE NEW ENGINE ---
     const network = new NetworkAdapter(
@@ -271,6 +277,7 @@ export class SessionClientImpl implements SessionClient {
       this.id,
       this.apiClient,
       this.config.pollingIntervalMs,
+      this.platform,
       options?.timeoutMs,
     );
     // Write-Through: Persist final state
@@ -303,14 +310,13 @@ export class SessionClientImpl implements SessionClient {
       this.id,
       this.apiClient,
       (session) => {
-        const state = session.state.toLowerCase();
+        const state = session.state;
         return (
-          state === targetState.toLowerCase() ||
-          state === 'completed' ||
-          state === 'failed'
+          state === targetState || state === 'completed' || state === 'failed'
         );
       },
       this.config.pollingIntervalMs,
+      this.platform,
       options?.timeoutMs,
     );
   }
@@ -328,7 +334,10 @@ export class SessionClientImpl implements SessionClient {
     } else {
       // TIER 1: HOT (Network Fetch)
       try {
-        resource = await this.request<SessionResource>(`sessions/${this.id}`);
+        const restResource = await this.request<RestSessionResource>(
+          `sessions/${this.id}`,
+        );
+        resource = mapRestSessionToSdkSession(restResource, this.platform);
         await this.sessionStorage.upsert(resource);
       } catch (e: any) {
         if (e.status === 404 && cached) {

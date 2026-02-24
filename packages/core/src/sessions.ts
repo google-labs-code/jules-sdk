@@ -15,8 +15,9 @@
  */
 
 import { ApiClient } from './api.js';
-import { SessionResource } from './types.js';
+import { SessionResource, RestSessionResource } from './types.js';
 import { SessionStorage } from './storage/types.js';
+import { mapRestSessionToSdkSession } from './mappers.js';
 
 export type ListSessionsOptions = {
   pageSize?: number;
@@ -61,6 +62,7 @@ export class SessionCursor
   constructor(
     private apiClient: ApiClient,
     private storage: SessionStorage,
+    private platform: any,
     private options: ListSessionsOptions = {},
   ) {}
 
@@ -133,11 +135,13 @@ export class SessionCursor
 
     // Use the existing ApiClient from your SDK
     const response = await this.apiClient.request<{
-      sessions?: SessionResource[];
+      sessions?: RestSessionResource[];
       nextPageToken?: string;
     }>('sessions', { query: params });
 
-    const sessions = response.sessions || [];
+    const sessions = (response.sessions || []).map((s) =>
+      mapRestSessionToSdkSession(s, this.platform),
+    );
 
     // Write-Through Cache: Persist fetched sessions immediately
     // Default to true if undefined

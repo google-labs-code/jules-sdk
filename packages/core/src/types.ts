@@ -203,6 +203,26 @@ export interface SessionConfig {
 // -----------------------------------------------------------------------------
 
 /**
+ * Raw REST API representation of a GitHub Repo.
+ */
+export interface RestGitHubRepo {
+  owner: string;
+  repo: string;
+  isPrivate: boolean;
+  defaultBranch?: string;
+  branches?: string[];
+}
+
+/**
+ * Raw REST API representation of a Source.
+ */
+export interface RestSource {
+  name: string;
+  id: string;
+  githubRepo?: RestGitHubRepo;
+}
+
+/**
  * Represents the details of a GitHub repository connected to Jules.
  * Maps to the `GitHubRepo` message in the REST API.
  */
@@ -243,6 +263,43 @@ export type Source = {
 // -----------------------------------------------------------------------------
 // Session Types
 // -----------------------------------------------------------------------------
+
+/**
+ * Raw REST API representation of a Pull Request.
+ */
+export interface RestPullRequest {
+  url: string;
+  title: string;
+  description: string;
+}
+
+/**
+ * Raw REST API representation of a Session Output.
+ */
+export interface RestSessionOutput {
+  pullRequest?: RestPullRequest;
+  changeSet?: ChangeSet;
+}
+
+/**
+ * Raw REST API representation of a Session Resource.
+ */
+export interface RestSessionResource {
+  name: string;
+  id: string;
+  prompt: string;
+  sourceContext: SourceContext;
+  source?: RestSource;
+  title: string;
+  createTime: string;
+  updateTime: string;
+  state: string; // SCREAMING_SNAKE_CASE
+  url: string;
+  outputs?: RestSessionOutput[];
+  activities?: any[];
+  generatedFiles?: GeneratedFile[];
+  archived?: boolean;
+}
 
 /**
  * Represents the possible states of a session.

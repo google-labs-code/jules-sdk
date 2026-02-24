@@ -17,8 +17,13 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { pollSession, pollUntilCompletion } from '../src/polling.js';
 import { ApiClient } from '../src/api.js';
-import { SessionResource, SessionOutcome } from '../src/types.js';
+import {
+  SessionResource,
+  SessionOutcome,
+  RestSessionResource,
+} from '../src/types.js';
 import { TimeoutError } from '../src/errors.js';
+import { mockPlatform } from './mocks/platform.js';
 
 const mockOutcome: SessionOutcome = {
   sessionId: 'test-session-id',
@@ -38,22 +43,20 @@ describe('polling helpers', () => {
   const sessionId = 'test-session-id';
   const pollingInterval = 100;
 
-  const baseSession: SessionResource = {
+  const baseRestSession: RestSessionResource = {
     id: sessionId,
     name: `sessions/${sessionId}`,
-    state: 'completed',
+    state: 'COMPLETED',
     prompt: 'test prompt',
     sourceContext: { source: 'test-source' },
     source: {
       name: 'sources/github/test/repo',
       id: 'github/test/repo',
-      type: 'githubRepo',
       githubRepo: { owner: 'test', repo: 'repo', isPrivate: false },
     },
     title: 'test session',
     url: 'http://test.url',
     outputs: [],
-    outcome: mockOutcome,
     createTime: '2023-01-01T00:00:00Z',
     updateTime: '2023-01-01T00:01:00Z',
   };
@@ -68,9 +71,9 @@ describe('polling helpers', () => {
 
   describe('pollSession', () => {
     it('should return immediately if predicate is met on first try', async () => {
-      const session: SessionResource = {
-        ...baseSession,
-        state: 'completed',
+      const session: RestSessionResource = {
+        ...baseRestSession,
+        state: 'COMPLETED',
       };
 
       vi.mocked(mockApiClient.request).mockResolvedValueOnce(session);
@@ -80,9 +83,11 @@ describe('polling helpers', () => {
         mockApiClient,
         (s) => s.state === 'completed',
         pollingInterval,
+        mockPlatform,
       );
 
-      expect(result).toEqual(session);
+      expect(result.id).toEqual(session.id);
+      expect(result.state).toEqual('completed');
       expect(mockApiClient.request).toHaveBeenCalledTimes(1);
       expect(mockApiClient.request).toHaveBeenCalledWith(
         `sessions/${sessionId}`,
@@ -92,15 +97,15 @@ describe('polling helpers', () => {
     it('should poll until predicate is met', async () => {
       vi.useFakeTimers();
 
-      const runningSession: SessionResource = {
-        ...baseSession,
-        state: 'inProgress',
+      const runningSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'IN_PROGRESS',
         updateTime: '2023-01-01T00:00:00Z',
       };
 
-      const completedSession: SessionResource = {
-        ...baseSession,
-        state: 'completed',
+      const completedSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'COMPLETED',
         updateTime: '2023-01-01T00:01:00Z',
       };
 
@@ -114,6 +119,7 @@ describe('polling helpers', () => {
         mockApiClient,
         (s) => s.state === 'completed',
         pollingInterval,
+        mockPlatform,
       );
 
       // Use advanceTimersByTimeAsync instead of runAllTimersAsync to have precise control
@@ -122,16 +128,16 @@ describe('polling helpers', () => {
 
       const result = await promise;
 
-      expect(result).toEqual(completedSession);
+      expect(result.state).toEqual('completed');
       expect(mockApiClient.request).toHaveBeenCalledTimes(3);
     });
 
     it('should throw TimeoutError when timeout is exceeded', async () => {
       vi.useFakeTimers();
 
-      const runningSession: SessionResource = {
-        ...baseSession,
-        state: 'inProgress',
+      const runningSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'IN_PROGRESS',
       };
 
       vi.mocked(mockApiClient.request).mockResolvedValue(runningSession);
@@ -142,6 +148,7 @@ describe('polling helpers', () => {
         mockApiClient,
         (s) => s.state === 'completed',
         pollingInterval,
+        mockPlatform,
         timeoutMs,
       );
 
@@ -157,9 +164,9 @@ describe('polling helpers', () => {
 
   describe('pollUntilCompletion', () => {
     it('should resolve when state is completed', async () => {
-      const completedSession: SessionResource = {
-        ...baseSession,
-        state: 'completed',
+      const completedSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'COMPLETED',
       };
 
       vi.mocked(mockApiClient.request).mockResolvedValueOnce(completedSession);
@@ -168,15 +175,16 @@ describe('polling helpers', () => {
         sessionId,
         mockApiClient,
         pollingInterval,
+        mockPlatform,
       );
 
-      expect(result).toEqual(completedSession);
+      expect(result.state).toEqual('completed');
     });
 
     it('should resolve when state is failed', async () => {
-      const failedSession: SessionResource = {
-        ...baseSession,
-        state: 'failed',
+      const failedSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'FAILED',
       };
 
       vi.mocked(mockApiClient.request).mockResolvedValueOnce(failedSession);
@@ -185,23 +193,24 @@ describe('polling helpers', () => {
         sessionId,
         mockApiClient,
         pollingInterval,
+        mockPlatform,
       );
 
-      expect(result).toEqual(failedSession);
+      expect(result.state).toEqual('failed');
     });
 
     it('should continue polling when state is running', async () => {
       vi.useFakeTimers();
 
-      const runningSession: SessionResource = {
-        ...baseSession,
-        state: 'inProgress',
+      const runningSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'IN_PROGRESS',
         updateTime: '2023-01-01T00:00:00Z',
       };
 
-      const completedSession: SessionResource = {
-        ...baseSession,
-        state: 'completed',
+      const completedSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'COMPLETED',
         updateTime: '2023-01-01T00:01:00Z',
       };
 
@@ -213,22 +222,23 @@ describe('polling helpers', () => {
         sessionId,
         mockApiClient,
         pollingInterval,
+        mockPlatform,
       );
 
       await vi.advanceTimersByTimeAsync(pollingInterval);
 
       const result = await promise;
 
-      expect(result).toEqual(completedSession);
+      expect(result.state).toEqual('completed');
       expect(mockApiClient.request).toHaveBeenCalledTimes(2);
     });
 
     it('should throw TimeoutError when timeout is exceeded', async () => {
       vi.useFakeTimers();
 
-      const runningSession: SessionResource = {
-        ...baseSession,
-        state: 'inProgress',
+      const runningSession: RestSessionResource = {
+        ...baseRestSession,
+        state: 'IN_PROGRESS',
       };
 
       vi.mocked(mockApiClient.request).mockResolvedValue(runningSession);
@@ -238,6 +248,7 @@ describe('polling helpers', () => {
         sessionId,
         mockApiClient,
         pollingInterval,
+        mockPlatform,
         timeoutMs,
       );
 

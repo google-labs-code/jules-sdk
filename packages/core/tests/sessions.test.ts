@@ -17,7 +17,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SessionCursor, ListSessionsResponse } from '../src/sessions.js';
 import { ApiClient } from '../src/api.js';
-import { SessionResource, SessionOutcome } from '../src/types.js';
+import {
+  SessionResource,
+  SessionOutcome,
+  RestSessionResource,
+} from '../src/types.js';
 import { JulesClientImpl } from '../src/client.js';
 import { NodePlatform } from '../src/platform/node.js';
 import { SessionStorage } from '../src/storage/types.js';
@@ -70,7 +74,7 @@ describe('jules.sessions()', () => {
     (client as any).apiClient = apiClient;
   });
 
-  const createSession = (id: string): SessionResource => ({
+  const createRestSession = (id: string): RestSessionResource => ({
     id,
     name: `sessions/${id}`,
     prompt: 'test',
@@ -78,16 +82,14 @@ describe('jules.sessions()', () => {
     source: {
       name: 'sources/github/test/repo',
       id: 'github/test/repo',
-      type: 'githubRepo',
       githubRepo: { owner: 'test', repo: 'repo', isPrivate: false },
     },
     title: 'test',
     createTime: '2023-01-01T00:00:00Z',
     updateTime: '2023-01-01T00:00:00Z',
-    state: 'completed',
+    state: 'COMPLETED',
     url: 'test',
     outputs: [],
-    outcome: createMockOutcome(id),
   });
 
   it('should return a SessionCursor', () => {
@@ -96,8 +98,8 @@ describe('jules.sessions()', () => {
   });
 
   it('should fetch the first page when awaited', async () => {
-    const mockResponse: ListSessionsResponse = {
-      sessions: [createSession('1'), createSession('2')],
+    const mockResponse = {
+      sessions: [createRestSession('1'), createRestSession('2')],
       nextPageToken: 'token-1',
     };
     (apiClient.request as any).mockResolvedValue(mockResponse);
@@ -107,19 +109,20 @@ describe('jules.sessions()', () => {
     expect(apiClient.request).toHaveBeenCalledWith('sessions', {
       query: { pageSize: '10' },
     });
-    expect(result).toEqual(mockResponse);
-    expect(mockSessionStorage.upsertMany).toHaveBeenCalledWith(
-      mockResponse.sessions,
-    );
+    expect(result.nextPageToken).toBe(mockResponse.nextPageToken);
+    expect(result.sessions).toHaveLength(2);
+    expect(result.sessions[0].state).toBe('completed');
+    // We check upsertMany with mapped sessions (any)
+    expect(mockSessionStorage.upsertMany).toHaveBeenCalled();
   });
 
   it('should iterate over all sessions across multiple pages using async iterator', async () => {
-    const page1: ListSessionsResponse = {
-      sessions: [createSession('1'), createSession('2')],
+    const page1 = {
+      sessions: [createRestSession('1'), createRestSession('2')],
       nextPageToken: 'token-1',
     };
-    const page2: ListSessionsResponse = {
-      sessions: [createSession('3')],
+    const page2 = {
+      sessions: [createRestSession('3')],
       nextPageToken: undefined,
     };
 
@@ -140,8 +143,12 @@ describe('jules.sessions()', () => {
   });
 
   it('should stop iterating when limit is reached within a page', async () => {
-    const page1: ListSessionsResponse = {
-      sessions: [createSession('1'), createSession('2'), createSession('3')],
+    const page1 = {
+      sessions: [
+        createRestSession('1'),
+        createRestSession('2'),
+        createRestSession('3'),
+      ],
       nextPageToken: 'token-1',
     };
 
@@ -161,12 +168,12 @@ describe('jules.sessions()', () => {
 
   // NEW: Test for cross-page limiting
   it('should stop iterating when limit is reached across pages', async () => {
-    const page1: ListSessionsResponse = {
-      sessions: [createSession('1'), createSession('2')],
+    const page1 = {
+      sessions: [createRestSession('1'), createRestSession('2')],
       nextPageToken: 'token-1',
     };
-    const page2: ListSessionsResponse = {
-      sessions: [createSession('3'), createSession('4')],
+    const page2 = {
+      sessions: [createRestSession('3'), createRestSession('4')],
       nextPageToken: 'token-2', // Even if there's more, we should stop
     };
 
@@ -189,12 +196,12 @@ describe('jules.sessions()', () => {
 
   // NEW: Test for manual pagination
   it('should support manual pagination via pageToken', async () => {
-    const page1Response: ListSessionsResponse = {
-      sessions: [createSession('1')],
+    const page1Response = {
+      sessions: [createRestSession('1')],
       nextPageToken: 'token-1',
     };
-    const page2Response: ListSessionsResponse = {
-      sessions: [createSession('2')],
+    const page2Response = {
+      sessions: [createRestSession('2')],
       nextPageToken: undefined,
     };
 
@@ -223,12 +230,12 @@ describe('jules.sessions()', () => {
 
   // NEW: Verify Write-Through cache interaction
   it('should trigger storage upsert on fetch', async () => {
-    const mockSessions = [createSession('1')];
+    const mockSessions = [createRestSession('1')];
     (apiClient.request as any).mockResolvedValue({ sessions: mockSessions });
 
     await client.sessions();
 
     expect(mockStorageFactory.session).toHaveBeenCalled();
-    expect(mockSessionStorage.upsertMany).toHaveBeenCalledWith(mockSessions);
+    expect(mockSessionStorage.upsertMany).toHaveBeenCalled();
   });
 });

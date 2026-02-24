@@ -90,7 +90,7 @@ describe('jules.run()', () => {
       http.get(`${BASE_URL}/sessions/${MOCK_SESSION_ID}`, () => {
         return HttpResponse.json({
           id: MOCK_SESSION_ID,
-          state: 'completed',
+          state: 'COMPLETED',
           outputs: [],
         });
       }),
@@ -125,8 +125,16 @@ describe('jules.run()', () => {
       http.get(`${BASE_URL}/sessions/${MOCK_SESSION_ID}`, () => {
         return HttpResponse.json({
           id: MOCK_SESSION_ID,
-          state: 'completed',
-          outputs: [{ pullRequest: { url: 'http://pr' } }],
+          state: 'COMPLETED',
+          outputs: [
+            {
+              pullRequest: {
+                url: 'http://pr',
+                title: 'Title',
+                description: 'Desc',
+              },
+            },
+          ],
         });
       }),
     );
@@ -159,7 +167,7 @@ describe('jules.run()', () => {
         });
       }),
       http.get(`${BASE_URL}/sessions/${MOCK_SESSION_ID}`, () => {
-        return HttpResponse.json({ id: MOCK_SESSION_ID, state: 'failed' });
+        return HttpResponse.json({ id: MOCK_SESSION_ID, state: 'FAILED' });
       }),
     );
     const automatedSession = await jules.run(MOCK_AUTOMATED_SESSION_CONFIG);

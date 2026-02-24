@@ -31,6 +31,12 @@ import {
   PullRequest,
   RestArtifact,
   SessionResource,
+  RestSessionResource,
+  RestSessionOutput,
+  RestSource,
+  SessionOutput,
+  Source,
+  SessionState,
 } from './types.js';
 
 /**
@@ -154,6 +160,101 @@ export function mapRestActivityToSdkActivity(
 
   // Fallback for unknown activity types.
   throw new Error('Unknown activity type');
+}
+
+export function mapRestStateToSdkState(state: string): SessionState {
+  switch (state) {
+    case 'STATE_UNSPECIFIED':
+      return 'unspecified';
+    case 'QUEUED':
+      return 'queued';
+    case 'PLANNING':
+      return 'planning';
+    case 'AWAITING_PLAN_APPROVAL':
+      return 'awaitingPlanApproval';
+    case 'AWAITING_USER_FEEDBACK':
+      return 'awaitingUserFeedback';
+    case 'IN_PROGRESS':
+      return 'inProgress';
+    case 'PAUSED':
+      return 'paused';
+    case 'FAILED':
+      return 'failed';
+    case 'COMPLETED':
+      return 'completed';
+    default:
+      return 'unspecified';
+  }
+}
+
+export function mapRestSourceToSdkSource(rest: RestSource): Source {
+  if (rest.githubRepo) {
+    return {
+      type: 'githubRepo',
+      name: rest.name,
+      id: rest.id,
+      githubRepo: rest.githubRepo,
+    };
+  }
+  throw new Error(`Unknown source type: ${JSON.stringify(rest)}`);
+}
+
+export function mapRestOutputToSdkOutput(
+  rest: RestSessionOutput,
+): SessionOutput {
+  if (rest.pullRequest) {
+    return {
+      type: 'pullRequest',
+      pullRequest: rest.pullRequest,
+    };
+  }
+  if (rest.changeSet) {
+    return {
+      type: 'changeSet',
+      changeSet: rest.changeSet,
+    };
+  }
+  throw new Error(`Unknown output type: ${JSON.stringify(rest)}`);
+}
+
+export function mapRestSessionToSdkSession(
+  rest: RestSessionResource,
+  platform?: any,
+): SessionResource {
+  const session: SessionResource = {
+    ...rest,
+    state: mapRestStateToSdkState(rest.state),
+    outputs: (rest.outputs || []).map(mapRestOutputToSdkOutput),
+    source: rest.source ? mapRestSourceToSdkSource(rest.source) : undefined,
+    generatedFiles: rest.generatedFiles,
+    activities: undefined,
+    outcome: undefined as any,
+  };
+
+  if (rest.activities && platform) {
+    session.activities = rest.activities.map((a) =>
+      mapRestActivityToSdkActivity(a, platform),
+    );
+  }
+
+  try {
+    session.outcome = mapSessionResourceToOutcome(session);
+  } catch (error) {
+    if (error instanceof AutomatedSessionFailedError) {
+      session.outcome = {
+        sessionId: session.id,
+        title: session.title,
+        state: 'failed',
+        outputs: session.outputs,
+        generatedFiles: () => createGeneratedFiles([]),
+        changeSet: () => undefined,
+      };
+    } else {
+      throw error;
+    }
+  }
+
+  return session;
 }
 
 /**
