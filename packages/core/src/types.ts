@@ -1130,6 +1130,22 @@ export interface SessionClient {
   info(): Promise<SessionResource>;
 
   /**
+   * Archives the session, hiding it from default lists and marking it as inactive.
+   *
+   * @example
+   * await session.archive();
+   */
+  archive(): Promise<void>;
+
+  /**
+   * Unarchives the session, restoring it to the active list.
+   *
+   * @example
+   * await session.unarchive();
+   */
+  unarchive(): Promise<void>;
+
+  /**
    * Creates a point-in-time snapshot of the session with all activities loaded and derived analytics computed.
    * This is a network operation with cache heuristics.
    *

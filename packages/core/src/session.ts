@@ -352,6 +352,46 @@ export class SessionClientImpl implements SessionClient {
   }
 
   /**
+   * Archives the session, hiding it from default lists and marking it as inactive.
+   *
+   * **Side Effects:**
+   * - Sends a POST request to `sessions/{id}:archive`.
+   * - Updates the local cache to reflect the archived status.
+   */
+  async archive(): Promise<void> {
+    await this.request(`sessions/${this.id}:archive`, {
+      method: 'POST',
+      body: {},
+    });
+    // Write-Through: Update local cache if present
+    const cached = await this.sessionStorage.get(this.id);
+    if (cached) {
+      cached.resource.archived = true;
+      await this.sessionStorage.upsert(cached.resource);
+    }
+  }
+
+  /**
+   * Unarchives the session, restoring it to the active list.
+   *
+   * **Side Effects:**
+   * - Sends a POST request to `sessions/{id}:unarchive`.
+   * - Updates the local cache to reflect the unarchived status.
+   */
+  async unarchive(): Promise<void> {
+    await this.request(`sessions/${this.id}:unarchive`, {
+      method: 'POST',
+      body: {},
+    });
+    // Write-Through: Update local cache if present
+    const cached = await this.sessionStorage.get(this.id);
+    if (cached) {
+      cached.resource.archived = false;
+      await this.sessionStorage.upsert(cached.resource);
+    }
+  }
+
+  /**
    * Creates a point-in-time snapshot of the session.
    * This is a network operation that fetches the latest session info and all activities.
    *

@@ -124,6 +124,18 @@ const server = setupServer(
       outputs: [],
     });
   }),
+  http.post(
+    'https://jules.googleapis.com/v1alpha/sessions/SESSION_123:archive',
+    () => {
+      return HttpResponse.json({});
+    },
+  ),
+  http.post(
+    'https://jules.googleapis.com/v1alpha/sessions/SESSION_123:unarchive',
+    () => {
+      return HttpResponse.json({});
+    },
+  ),
 );
 
 beforeAll(() => {
@@ -284,6 +296,40 @@ describe('SessionClient', () => {
       await expect(invalidStateSession.approve()).rejects.toThrow();
       // API was called (no pre-check)
       expect(approvePlanCalled).toBe(true);
+    });
+  });
+
+  describe('archive()', () => {
+    it('should make the archive API call', async () => {
+      let called = false;
+      server.use(
+        http.post(
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123:archive',
+          async () => {
+            called = true;
+            return HttpResponse.json({});
+          },
+        ),
+      );
+      await session.archive();
+      expect(called).toBe(true);
+    });
+  });
+
+  describe('unarchive()', () => {
+    it('should make the unarchive API call', async () => {
+      let called = false;
+      server.use(
+        http.post(
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123:unarchive',
+          async () => {
+            called = true;
+            return HttpResponse.json({});
+          },
+        ),
+      );
+      await session.unarchive();
+      expect(called).toBe(true);
     });
   });
 
