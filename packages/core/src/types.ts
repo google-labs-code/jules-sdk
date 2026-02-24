@@ -210,6 +210,8 @@ export interface GitHubRepo {
   owner: string;
   repo: string;
   isPrivate: boolean;
+  defaultBranch?: string;
+  branches?: string[];
 }
 
 /**
@@ -312,6 +314,8 @@ export interface SourceContext {
   githubRepoContext?: {
     startingBranch: string;
   };
+  workingBranch?: string;
+  environmentVariablesEnabled?: boolean;
 }
 
 /**
@@ -329,7 +333,7 @@ export interface SessionResource {
   id: string;
   prompt: string;
   sourceContext: SourceContext;
-  source: Source;
+  source?: Source;
   title: string;
   /**
    * The time the session was created (RFC 3339 timestamp).
@@ -361,6 +365,7 @@ export interface SessionResource {
    * The generated files of the session if it reaches a stable state.
    */
   generatedFiles?: GeneratedFile[];
+  archived: boolean;
 }
 
 // -----------------------------------------------------------------------------
