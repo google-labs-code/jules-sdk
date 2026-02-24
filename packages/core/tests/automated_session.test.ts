@@ -202,4 +202,83 @@ describe('jules.run()', () => {
 
     expect(activity.type).toBe('sessionCompleted');
   });
+
+  it('should reflect automation settings in session info', async () => {
+    const sessionId = 'auto-session-1';
+    server.use(
+      http.post(`${BASE_URL}/sessions`, () =>
+        HttpResponse.json({
+          id: sessionId,
+          name: `sessions/${sessionId}`,
+          automationMode: 'AUTO_CREATE_PR',
+          requirePlanApproval: false,
+        }),
+      ),
+      http.get(`${BASE_URL}/sessions/${sessionId}`, () =>
+        HttpResponse.json({
+          id: sessionId,
+          automationMode: 'AUTO_CREATE_PR',
+          requirePlanApproval: false,
+        }),
+      ),
+      // Mock dependent calls
+      http.get(`${BASE_URL}/sessions/${sessionId}/activities`, () => {
+        return HttpResponse.json({ activities: [] });
+      }),
+    );
+
+    const run = await jules.run({
+      ...MOCK_AUTOMATED_SESSION_CONFIG,
+      autoPr: true,
+    });
+
+    // We can verify by fetching info via session client
+    const info = await jules.session(run.id).info();
+
+    expect(info.automationMode).toBe('AUTO_CREATE_PR');
+    expect(info.requirePlanApproval).toBe(false);
+  });
+
+  it('should reflect approval settings in session info', async () => {
+    const sessionId = 'approval-session-1';
+    server.use(
+      http.post(`${BASE_URL}/sessions`, () =>
+        HttpResponse.json({
+          id: sessionId,
+          name: `sessions/${sessionId}`,
+          requirePlanApproval: true,
+        }),
+      ),
+      http.get(`${BASE_URL}/sessions/${sessionId}`, () =>
+        HttpResponse.json({
+          id: sessionId,
+          requirePlanApproval: true,
+        }),
+      ),
+    );
+
+    const session = await jules.session({
+      ...MOCK_AUTOMATED_SESSION_CONFIG,
+      requireApproval: true,
+    });
+
+    const info = await session.info();
+    expect(info.requirePlanApproval).toBe(true);
+  });
+
+  it('should identify archived sessions', async () => {
+    const sessionId = 'archived-session-1';
+    server.use(
+      http.get(`${BASE_URL}/sessions/${sessionId}`, () =>
+        HttpResponse.json({
+          id: sessionId,
+          archived: true,
+        }),
+      ),
+    );
+
+    const session = jules.session(sessionId);
+    const info = await session.info();
+    expect(info.archived).toBe(true);
+  });
 });
