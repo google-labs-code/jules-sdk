@@ -129,8 +129,9 @@ The file you pass to \`--body-file\` MUST end with this hidden orchestration pay
     prompt,
     source: {
       github: repoInfo.fullName,
-      baseBranch: process.env.FLEET_BASE_BRANCH,
+      baseBranch: process.env.FLEET_BASE_BRANCH || 'main',
     },
+    requireApproval: false,
     autoPr: false, // Analyzer only creates issues
   });
 
