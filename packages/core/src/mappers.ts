@@ -30,12 +30,16 @@ import {
   SessionOutcome,
   PullRequest,
   RestArtifact,
+  RestSessionResource,
   SessionResource,
+<<<<<<< fix-api-protocol-alignment-structural-unions-3476972031133059438
   RestSessionResource,
   RestSessionOutput,
   RestSource,
   SessionOutput,
   Source,
+=======
+>>>>>>> main
   SessionState,
 } from './types.js';
 
@@ -59,10 +63,21 @@ export function mapRestArtifactToSdkArtifact(
     );
   }
   if ('media' in restArtifact) {
-    return new MediaArtifact(restArtifact.media, platform, activityId);
+    const media = restArtifact.media;
+    // Map mimeType to format
+    if (media.mimeType && !media.format) {
+      media.format = media.mimeType;
+    }
+    return new MediaArtifact(media, platform, activityId);
   }
   if ('bashOutput' in restArtifact) {
-    return new BashArtifact(restArtifact.bashOutput);
+    const bash = restArtifact.bashOutput;
+    // Map output to stdout (and ensure stderr is present)
+    if (bash.output !== undefined && bash.stdout === undefined) {
+      bash.stdout = bash.output;
+      bash.stderr = '';
+    }
+    return new BashArtifact(bash);
   }
   // This provides a fallback, though the API should always provide a known type.
   throw new Error(`Unknown artifact type: ${JSON.stringify(restArtifact)}`);
@@ -255,6 +270,48 @@ export function mapRestSessionToSdkSession(
   }
 
   return session;
+}
+
+/**
+ * Maps a raw session resource from the API to the SDK's SessionResource type.
+ * Normalizes state enum values from SCREAMING_SNAKE_CASE to camelCase.
+ *
+ * @param session The raw session object from the REST API.
+ * @returns A normalized SessionResource object.
+ * @internal
+ */
+export function mapRestSessionToSdkSession(
+  session: RestSessionResource,
+): SessionResource {
+  const stateMapping: Record<string, SessionState> = {
+    UNSPECIFIED: 'unspecified',
+    QUEUED: 'queued',
+    PLANNING: 'planning',
+    AWAITING_PLAN_APPROVAL: 'awaitingPlanApproval',
+    AWAITING_USER_FEEDBACK: 'awaitingUserFeedback',
+    IN_PROGRESS: 'inProgress',
+    PAUSED: 'paused',
+    FAILED: 'failed',
+    COMPLETED: 'completed',
+  };
+
+  const rawState = session.state as string;
+  let state = rawState as SessionState;
+
+  if (rawState && rawState in stateMapping) {
+    state = stateMapping[rawState];
+  } else if (rawState && rawState === rawState.toUpperCase()) {
+    // Fallback for unknown SCREAMING_SNAKE_CASE states
+    state = rawState.toLowerCase() as SessionState;
+  }
+
+  return {
+    ...session,
+    state,
+    // Initialize required SDK-only fields that are missing from raw API response
+    outcome: {} as any, // This will be populated later by mapSessionResourceToOutcome if needed, or ignored for partial updates
+    generatedFiles: undefined,
+  };
 }
 
 /**

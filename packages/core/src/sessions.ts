@@ -33,6 +33,14 @@ export type ListSessionsOptions = {
    * Set to `false` to disable side effects.
    */
   persist?: boolean;
+  /**
+   * Filter string to apply to the list request.
+   * Follows the Google API filtering syntax.
+   *
+   * @example
+   * 'archived = true'
+   */
+  filter?: string;
 };
 
 export type ListSessionsResponse = {
@@ -132,6 +140,7 @@ export class SessionCursor
     if (this.options.pageSize)
       params.pageSize = this.options.pageSize.toString();
     if (pageToken) params.pageToken = pageToken;
+    if (this.options.filter) params.filter = this.options.filter;
 
     // Use the existing ApiClient from your SDK
     const response = await this.apiClient.request<{

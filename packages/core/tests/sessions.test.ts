@@ -238,4 +238,17 @@ describe('jules.sessions()', () => {
     expect(mockStorageFactory.session).toHaveBeenCalled();
     expect(mockSessionStorage.upsertMany).toHaveBeenCalled();
   });
+
+  // NEW: Test for filtering
+  it('should include filter query parameter when provided', async () => {
+    const mockSessions = [createSession('1')];
+    (apiClient.request as any).mockResolvedValue({ sessions: mockSessions });
+
+    const filter = 'archived = true';
+    await client.sessions({ filter });
+
+    expect(apiClient.request).toHaveBeenCalledWith('sessions', {
+      query: { filter },
+    });
+  });
 });
