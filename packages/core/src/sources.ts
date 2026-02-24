@@ -20,10 +20,18 @@ import { JulesApiError } from './errors.js';
 import { Source, SourceManager, GitHubRepo } from './types.js';
 
 // Internal type representing the raw source from the REST API
+interface RestGitHubRepo {
+  owner: string;
+  repo: string;
+  isPrivate: boolean;
+  defaultBranch?: { displayName: string };
+  branches?: { displayName: string }[];
+}
+
 type RawSource = {
   name: string;
   id: string;
-  githubRepo?: GitHubRepo;
+  githubRepo?: RestGitHubRepo;
 };
 
 // Internal type for the paginated list response
@@ -38,7 +46,7 @@ type ListSourcesResponse = {
  */
 function mapRawSourceToSdkSource(rawSource: RawSource): Source {
   if (rawSource.githubRepo) {
-    const { defaultBranch, branches, ...rest } = rawSource.githubRepo as any;
+    const { defaultBranch, branches, ...rest } = rawSource.githubRepo;
 
     return {
       name: rawSource.name,
@@ -47,7 +55,7 @@ function mapRawSourceToSdkSource(rawSource: RawSource): Source {
       githubRepo: {
         ...rest,
         defaultBranch: defaultBranch?.displayName,
-        branches: branches?.map((b: any) => b.displayName),
+        branches: branches?.map((b) => b.displayName),
       },
     };
   }
