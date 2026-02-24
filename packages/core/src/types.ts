@@ -652,6 +652,10 @@ interface BaseActivity {
   name: string;
   id: string;
   /**
+   * A generic, human-readable description for the activity.
+   */
+  description?: string;
+  /**
    * The time at which this activity was created (RFC 3339 timestamp).
    */
   createTime: string;
