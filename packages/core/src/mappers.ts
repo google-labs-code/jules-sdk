@@ -30,8 +30,12 @@ import {
   SessionOutcome,
   PullRequest,
   RestArtifact,
-  RestSessionResource,
   SessionResource,
+  RestSessionResource,
+  RestSessionOutput,
+  RestSource,
+  SessionOutput,
+  Source,
   SessionState,
 } from './types.js';
 
@@ -55,21 +59,10 @@ export function mapRestArtifactToSdkArtifact(
     );
   }
   if ('media' in restArtifact) {
-    const media = restArtifact.media;
-    // Map mimeType to format
-    if (media.mimeType && !media.format) {
-      media.format = media.mimeType;
-    }
-    return new MediaArtifact(media, platform, activityId);
+    return new MediaArtifact(restArtifact.media, platform, activityId);
   }
   if ('bashOutput' in restArtifact) {
-    const bash = restArtifact.bashOutput;
-    // Map output to stdout (and ensure stderr is present)
-    if (bash.output !== undefined && bash.stdout === undefined) {
-      bash.stdout = bash.output;
-      bash.stderr = '';
-    }
-    return new BashArtifact(bash);
+    return new BashArtifact(restArtifact.bashOutput);
   }
   // This provides a fallback, though the API should always provide a known type.
   throw new Error(`Unknown artifact type: ${JSON.stringify(restArtifact)}`);
@@ -171,46 +164,100 @@ export function mapRestActivityToSdkActivity(
   throw new Error('Unknown activity type');
 }
 
-/**
- * Maps a raw session resource from the API to the SDK's SessionResource type.
- * Normalizes state enum values from SCREAMING_SNAKE_CASE to camelCase.
- *
- * @param session The raw session object from the REST API.
- * @returns A normalized SessionResource object.
- * @internal
- */
+export function mapRestStateToSdkState(state: string): SessionState {
+  switch (state) {
+    case 'STATE_UNSPECIFIED':
+      return 'unspecified';
+    case 'QUEUED':
+      return 'queued';
+    case 'PLANNING':
+      return 'planning';
+    case 'AWAITING_PLAN_APPROVAL':
+      return 'awaitingPlanApproval';
+    case 'AWAITING_USER_FEEDBACK':
+      return 'awaitingUserFeedback';
+    case 'IN_PROGRESS':
+      return 'inProgress';
+    case 'PAUSED':
+      return 'paused';
+    case 'FAILED':
+      return 'failed';
+    case 'COMPLETED':
+      return 'completed';
+    default:
+      return 'unspecified';
+  }
+}
+
+export function mapRestSourceToSdkSource(rest: RestSource): Source {
+  if (rest.githubRepo) {
+    return {
+      type: 'githubRepo',
+      name: rest.name,
+      id: rest.id,
+      githubRepo: rest.githubRepo,
+    };
+  }
+  throw new Error(`Unknown source type: ${JSON.stringify(rest)}`);
+}
+
+export function mapRestOutputToSdkOutput(
+  rest: RestSessionOutput,
+): SessionOutput {
+  if (rest.pullRequest) {
+    return {
+      type: 'pullRequest',
+      pullRequest: rest.pullRequest,
+    };
+  }
+  if (rest.changeSet) {
+    return {
+      type: 'changeSet',
+      changeSet: rest.changeSet,
+    };
+  }
+  throw new Error(`Unknown output type: ${JSON.stringify(rest)}`);
+}
+
 export function mapRestSessionToSdkSession(
-  session: RestSessionResource,
+  rest: RestSessionResource,
+  platform?: any,
 ): SessionResource {
-  const stateMapping: Record<string, SessionState> = {
-    UNSPECIFIED: 'unspecified',
-    QUEUED: 'queued',
-    PLANNING: 'planning',
-    AWAITING_PLAN_APPROVAL: 'awaitingPlanApproval',
-    AWAITING_USER_FEEDBACK: 'awaitingUserFeedback',
-    IN_PROGRESS: 'inProgress',
-    PAUSED: 'paused',
-    FAILED: 'failed',
-    COMPLETED: 'completed',
+  const session: SessionResource = {
+    ...rest,
+    archived: rest.archived ?? false,
+    state: mapRestStateToSdkState(rest.state),
+    outputs: (rest.outputs || []).map(mapRestOutputToSdkOutput),
+    source: rest.source ? mapRestSourceToSdkSource(rest.source) : undefined,
+    generatedFiles: rest.generatedFiles,
+    activities: undefined,
+    outcome: undefined as any,
   };
 
-  const rawState = session.state as string;
-  let state = rawState as SessionState;
-
-  if (rawState && rawState in stateMapping) {
-    state = stateMapping[rawState];
-  } else if (rawState && rawState === rawState.toUpperCase()) {
-    // Fallback for unknown SCREAMING_SNAKE_CASE states
-    state = rawState.toLowerCase() as SessionState;
+  if (rest.activities && platform) {
+    session.activities = rest.activities.map((a) =>
+      mapRestActivityToSdkActivity(a, platform),
+    );
   }
 
-  return {
-    ...session,
-    state,
-    // Initialize required SDK-only fields that are missing from raw API response
-    outcome: {} as any, // This will be populated later by mapSessionResourceToOutcome if needed, or ignored for partial updates
-    generatedFiles: undefined,
-  };
+  try {
+    session.outcome = mapSessionResourceToOutcome(session);
+  } catch (error) {
+    if (error instanceof AutomatedSessionFailedError) {
+      session.outcome = {
+        sessionId: session.id,
+        title: session.title,
+        state: 'failed',
+        outputs: session.outputs,
+        generatedFiles: () => createGeneratedFiles([]),
+        changeSet: () => undefined,
+      };
+    } else {
+      throw error;
+    }
+  }
+
+  return session;
 }
 
 /**

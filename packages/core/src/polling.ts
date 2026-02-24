@@ -16,8 +16,9 @@
 
 // src/polling.ts
 import { ApiClient } from './api.js';
-import { SessionResource } from './types.js';
+import { SessionResource, RestSessionResource } from './types.js';
 import { TimeoutError } from './errors.js';
+import { mapRestSessionToSdkSession } from './mappers.js';
 
 // A helper function for delaying execution.
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -40,14 +41,16 @@ export async function pollSession(
   apiClient: ApiClient,
   predicateFn: (session: SessionResource) => boolean,
   pollingInterval: number,
+  platform: any,
   timeoutMs?: number,
 ): Promise<SessionResource> {
   const startTime = Date.now();
 
   while (true) {
-    const session = await apiClient.request<SessionResource>(
+    const restSession = await apiClient.request<RestSessionResource>(
       `sessions/${sessionId}`,
     );
+    const session = mapRestSessionToSdkSession(restSession, platform);
 
     if (predicateFn(session)) {
       return session;
@@ -78,16 +81,18 @@ export async function pollUntilCompletion(
   sessionId: string,
   apiClient: ApiClient,
   pollingInterval: number,
+  platform: any,
   timeoutMs?: number,
 ): Promise<SessionResource> {
   return pollSession(
     sessionId,
     apiClient,
     (session) => {
-      const state = session.state.toLowerCase();
+      const state = session.state;
       return state === 'completed' || state === 'failed';
     },
     pollingInterval,
+    platform,
     timeoutMs,
   );
 }

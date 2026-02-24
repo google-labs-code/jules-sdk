@@ -29,11 +29,15 @@ import {
   SessionOutcome,
   SessionResource,
   StorageFactory,
+  RestSessionResource,
 } from './types.js';
 import { SourceNotFoundError, SyncInProgressError } from './errors.js';
 import { streamActivities } from './streaming.js';
 import { pollUntilCompletion } from './polling.js';
-import { mapSessionResourceToOutcome } from './mappers.js';
+import {
+  mapRestSessionToSdkSession,
+  mapSessionResourceToOutcome,
+} from './mappers.js';
 import { SessionClientImpl } from './session.js';
 import { pMap } from './utils.js';
 import { SessionCursor, ListSessionsOptions } from './sessions.js';
@@ -175,9 +179,10 @@ export class JulesClientImpl implements JulesClient {
       // CTRL-07: Targeted Sync Logic
       if (sessionId) {
         // For a targeted sync, we always fetch from the network, bypassing normal cache checks.
-        const session = await this.apiClient.request<SessionResource>(
+        const restSession = await this.apiClient.request<RestSessionResource>(
           `sessions/${sessionId}`,
         );
+        const session = mapRestSessionToSdkSession(restSession, this.platform);
         // We still upsert to update the cache with the fresh data.
         await this.storage.upsert(session);
         candidates.push(session);
@@ -428,9 +433,10 @@ export class JulesClientImpl implements JulesClient {
 
     // TIER 1 & Fallback: Network Request
     try {
-      const fresh = await this.apiClient.request<SessionResource>(
+      const restFresh = await this.apiClient.request<RestSessionResource>(
         `sessions/${id}`,
       );
+      const fresh = mapRestSessionToSdkSession(restFresh, this.platform);
 
       await this.storage.upsert(fresh);
 
@@ -451,7 +457,12 @@ export class JulesClientImpl implements JulesClient {
    */
   sessions(options?: ListSessionsOptions): SessionCursor {
     // Inject storage into the cursor for Write-Through behavior
-    return new SessionCursor(this.apiClient, this.storage, options);
+    return new SessionCursor(
+      this.apiClient,
+      this.storage,
+      this.platform,
+      options,
+    );
   }
 
   async all<T>(
@@ -528,7 +539,7 @@ export class JulesClientImpl implements JulesClient {
    */
   async run(config: SessionConfig): Promise<AutomatedSession> {
     const body = await this._prepareSessionCreation(config);
-    const sessionResource = await this.apiClient.request<SessionResource>(
+    const restSessionResource = await this.apiClient.request<RestSessionResource>(
       'sessions',
       {
         method: 'POST',
@@ -541,6 +552,10 @@ export class JulesClientImpl implements JulesClient {
           requirePlanApproval: config.requireApproval ?? false,
         },
       },
+    );
+    const sessionResource = mapRestSessionToSdkSession(
+      restSessionResource,
+      this.platform,
     );
 
     // Cache the new session immediately
@@ -563,6 +578,7 @@ export class JulesClientImpl implements JulesClient {
           sessionId,
           this.apiClient,
           this.config.pollingIntervalMs,
+          this.platform,
         );
         // Cache the final state
         await this.storage.upsert(finalSession);
@@ -627,7 +643,7 @@ export class JulesClientImpl implements JulesClient {
     const config = configOrId;
     const sessionPromise = (async () => {
       const body = await this._prepareSessionCreation(config);
-      const session = await this.apiClient.request<SessionResource>(
+      const restSession = await this.apiClient.request<RestSessionResource>(
         'sessions',
         {
           method: 'POST',
@@ -641,6 +657,7 @@ export class JulesClientImpl implements JulesClient {
           },
         },
       );
+      const session = mapRestSessionToSdkSession(restSession, this.platform);
 
       // Cache created session
       await this.storage.upsert(session);

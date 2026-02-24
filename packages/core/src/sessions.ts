@@ -15,8 +15,9 @@
  */
 
 import { ApiClient } from './api.js';
-import { SessionResource } from './types.js';
+import { SessionResource, RestSessionResource } from './types.js';
 import { SessionStorage } from './storage/types.js';
+import { mapRestSessionToSdkSession } from './mappers.js';
 
 export type ListSessionsOptions = {
   pageSize?: number;
@@ -32,14 +33,6 @@ export type ListSessionsOptions = {
    * Set to `false` to disable side effects.
    */
   persist?: boolean;
-  /**
-   * Filter string to apply to the list request.
-   * Follows the Google API filtering syntax.
-   *
-   * @example
-   * 'archived = true'
-   */
-  filter?: string;
 };
 
 export type ListSessionsResponse = {
@@ -69,6 +62,7 @@ export class SessionCursor
   constructor(
     private apiClient: ApiClient,
     private storage: SessionStorage,
+    private platform: any,
     private options: ListSessionsOptions = {},
   ) {}
 
@@ -138,15 +132,16 @@ export class SessionCursor
     if (this.options.pageSize)
       params.pageSize = this.options.pageSize.toString();
     if (pageToken) params.pageToken = pageToken;
-    if (this.options.filter) params.filter = this.options.filter;
 
     // Use the existing ApiClient from your SDK
     const response = await this.apiClient.request<{
-      sessions?: SessionResource[];
+      sessions?: RestSessionResource[];
       nextPageToken?: string;
     }>('sessions', { query: params });
 
-    const sessions = response.sessions || [];
+    const sessions = (response.sessions || []).map((s) =>
+      mapRestSessionToSdkSession(s, this.platform),
+    );
 
     // Write-Through Cache: Persist fetched sessions immediately
     // Default to true if undefined

@@ -19,8 +19,18 @@ import { describe, it, expect } from 'vitest';
 import {
   mapRestActivityToSdkActivity,
   mapRestArtifactToSdkArtifact,
+  mapRestSessionToSdkSession,
+  mapRestOutputToSdkOutput,
+  mapRestSourceToSdkSource,
+  mapRestStateToSdkState,
 } from '../src/mappers.js';
-import { Activity, Artifact } from '../src/types.js';
+import {
+  Activity,
+  Artifact,
+  RestSessionResource,
+  RestSource,
+  RestSessionOutput,
+} from '../src/types.js';
 
 import { mockPlatform } from './mocks/platform.js';
 
@@ -188,5 +198,100 @@ describe('mapRestActivityToSdkActivity', () => {
     expect(() =>
       mapRestActivityToSdkActivity(restActivity, mockPlatform),
     ).toThrow('Unknown activity type');
+  });
+});
+
+describe('mapRestStateToSdkState', () => {
+  it('should map IN_PROGRESS to inProgress', () => {
+    expect(mapRestStateToSdkState('IN_PROGRESS')).toBe('inProgress');
+  });
+  it('should map COMPLETED to completed', () => {
+    expect(mapRestStateToSdkState('COMPLETED')).toBe('completed');
+  });
+});
+
+describe('mapRestSourceToSdkSource', () => {
+  it('should map githubRepo source correctly', () => {
+    const rest: RestSource = {
+      name: 'sources/github/owner/repo',
+      id: 'github/owner/repo',
+      githubRepo: {
+        owner: 'owner',
+        repo: 'repo',
+        isPrivate: false,
+        defaultBranch: 'main',
+      },
+    };
+    const sdk = mapRestSourceToSdkSource(rest);
+    expect(sdk.type).toBe('githubRepo');
+    if (sdk.type === 'githubRepo') {
+      expect(sdk.githubRepo.owner).toBe('owner');
+      expect(sdk.githubRepo.defaultBranch).toBe('main');
+    }
+  });
+});
+
+describe('mapRestOutputToSdkOutput', () => {
+  it('should map pullRequest output correctly', () => {
+    const rest: RestSessionOutput = {
+      pullRequest: {
+        url: 'http://url',
+        title: 'Title',
+        description: 'Desc',
+      },
+    };
+    const sdk = mapRestOutputToSdkOutput(rest);
+    expect(sdk.type).toBe('pullRequest');
+    if (sdk.type === 'pullRequest') {
+      expect(sdk.pullRequest.url).toBe('http://url');
+    }
+  });
+});
+
+describe('mapRestSessionToSdkSession', () => {
+  it('should map session resource correctly', () => {
+    const rest: RestSessionResource = {
+      name: 'sessions/123',
+      id: '123',
+      prompt: 'prompt',
+      title: 'title',
+      createTime: '2023-01-01',
+      updateTime: '2023-01-01',
+      state: 'IN_PROGRESS',
+      url: 'url',
+      outputs: [],
+      sourceContext: { source: 's' },
+    };
+    const sdk = mapRestSessionToSdkSession(rest, mockPlatform);
+    expect(sdk.state).toBe('inProgress');
+    expect(sdk.id).toBe('123');
+    expect(sdk.outcome).toBeDefined();
+  });
+
+  it('should map outputs in session', () => {
+    const rest: RestSessionResource = {
+      // ... minimal required
+      name: 'sessions/123',
+      id: '123',
+      prompt: 'prompt',
+      title: 'title',
+      createTime: '2023-01-01',
+      updateTime: '2023-01-01',
+      state: 'COMPLETED',
+      url: 'url',
+      sourceContext: { source: 's' },
+      outputs: [
+        {
+          pullRequest: {
+            url: 'http://url',
+            title: 'Title',
+            description: 'Desc',
+          },
+        },
+      ],
+    };
+    const sdk = mapRestSessionToSdkSession(rest, mockPlatform);
+    expect(sdk.outputs).toHaveLength(1);
+    expect(sdk.outputs[0].type).toBe('pullRequest');
   });
 });

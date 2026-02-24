@@ -36,6 +36,7 @@ import {
   SessionClient,
   SessionResource,
   SessionState,
+  RestSessionResource,
 } from './types.js';
 import { isCacheValid } from './caching.js';
 import { SessionSnapshotImpl } from './snapshot.js';
@@ -64,6 +65,7 @@ export class SessionClientImpl implements SessionClient {
   private config: InternalConfig;
   private sessionStorage: SessionStorage; // Added property
   private _activities: ActivityClient;
+  private platform: any;
 
   /**
    * Creates a new instance of SessionClientImpl.
@@ -87,6 +89,7 @@ export class SessionClientImpl implements SessionClient {
     this.apiClient = apiClient;
     this.config = config;
     this.sessionStorage = sessionStorage;
+    this.platform = platform;
 
     // --- WIRING THE NEW ENGINE ---
     const network = new NetworkAdapter(
@@ -274,6 +277,7 @@ export class SessionClientImpl implements SessionClient {
       this.id,
       this.apiClient,
       this.config.pollingIntervalMs,
+      this.platform,
       options?.timeoutMs,
     );
     // Write-Through: Persist final state
@@ -305,17 +309,14 @@ export class SessionClientImpl implements SessionClient {
     await pollSession(
       this.id,
       this.apiClient,
-      (rawSession) => {
-        // Safe cast as we know polling returns the raw resource
-        const session = mapRestSessionToSdkSession(
-          rawSession as unknown as RestSessionResource,
-        );
+      (session) => {
         const state = session.state;
         return (
           state === targetState || state === 'completed' || state === 'failed'
         );
       },
       this.config.pollingIntervalMs,
+      this.platform,
       options?.timeoutMs,
     );
   }
@@ -333,10 +334,10 @@ export class SessionClientImpl implements SessionClient {
     } else {
       // TIER 1: HOT (Network Fetch)
       try {
-        const rawResource = await this.request<RestSessionResource>(
+        const restResource = await this.request<RestSessionResource>(
           `sessions/${this.id}`,
         );
-        resource = mapRestSessionToSdkSession(rawResource);
+        resource = mapRestSessionToSdkSession(restResource, this.platform);
         await this.sessionStorage.upsert(resource);
       } catch (e: any) {
         if (e.status === 404 && cached) {
@@ -349,46 +350,6 @@ export class SessionClientImpl implements SessionClient {
     // Single place for outcome mapping - always runs regardless of cache/network path
     resource.outcome = mapSessionResourceToOutcome(resource);
     return resource;
-  }
-
-  /**
-   * Archives the session, hiding it from default lists and marking it as inactive.
-   *
-   * **Side Effects:**
-   * - Sends a POST request to `sessions/{id}:archive`.
-   * - Updates the local cache to reflect the archived status.
-   */
-  async archive(): Promise<void> {
-    await this.request(`sessions/${this.id}:archive`, {
-      method: 'POST',
-      body: {},
-    });
-    // Write-Through: Update local cache if present
-    const cached = await this.sessionStorage.get(this.id);
-    if (cached) {
-      cached.resource.archived = true;
-      await this.sessionStorage.upsert(cached.resource);
-    }
-  }
-
-  /**
-   * Unarchives the session, restoring it to the active list.
-   *
-   * **Side Effects:**
-   * - Sends a POST request to `sessions/{id}:unarchive`.
-   * - Updates the local cache to reflect the unarchived status.
-   */
-  async unarchive(): Promise<void> {
-    await this.request(`sessions/${this.id}:unarchive`, {
-      method: 'POST',
-      body: {},
-    });
-    // Write-Through: Update local cache if present
-    const cached = await this.sessionStorage.get(this.id);
-    if (cached) {
-      cached.resource.archived = false;
-      await this.sessionStorage.upsert(cached.resource);
-    }
   }
 
   /**
