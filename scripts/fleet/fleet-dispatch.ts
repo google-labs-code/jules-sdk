@@ -15,7 +15,7 @@
 import path from "node:path";
 import { findUpSync } from "find-up";
 import type { IssueAnalysis } from "./types.js";
-import { jules } from "../../packages/core/src/index.ts";
+import { jules } from "../../packages/core/src/index.js";
 import { getGitRepoInfo, getCurrentBranch } from "./github/git.js";
 
 const date = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" })
