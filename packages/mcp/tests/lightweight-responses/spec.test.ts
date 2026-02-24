@@ -14,7 +14,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { toLightweight, toSummary } from '../../src/lightweight.js';
-import { JulesMCPServer } from '../../src/server/index.js';
+import { tools } from '../../src/tools.js';
 import * as tokenizer from '../../src/tokenizer.js';
 import { mockPlatform } from '../mocks/platform.js';
 
@@ -132,7 +132,6 @@ describe('Lightweight Responses Spec', async () => {
   );
 
   let mockJules: JulesClient;
-  let mcpServer: JulesMCPServer;
 
   beforeAll(() => {
     mockJules = new JulesClientImpl(
@@ -147,7 +146,6 @@ describe('Lightweight Responses Spec', async () => {
       },
       mockPlatform,
     );
-    mcpServer = new JulesMCPServer(mockJules);
   });
 
   afterAll(() => {
@@ -207,9 +205,11 @@ describe('Lightweight Responses Spec', async () => {
           vi.spyOn(mockJules, 'select').mockResolvedValue(
             tc.given.activities || [createTestActivity({ message: 'test' })],
           );
-          const selectResult = await (
-            mcpServer as unknown as { handleSelect: Function }
-          ).handleSelect({ query: tc.given.query });
+          const tool = tools.find((t) => t.name === 'query_cache');
+          if (!tool) throw new Error('Tool not found: query_cache');
+          const selectResult = await tool.handler(mockJules, {
+            query: tc.given.query,
+          });
           const selectContent = JSON.parse(selectResult.content[0].text);
 
           if (tc.id === 'LIGHT-12') {

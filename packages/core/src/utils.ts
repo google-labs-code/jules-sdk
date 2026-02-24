@@ -71,3 +71,34 @@ export async function pMap<T, R>(
 
   return results;
 }
+
+/**
+ * Sanitizes a URL by removing sensitive information like query parameters and fragments.
+ * This is useful for error messages and logging to avoid leaking credentials.
+ */
+export function sanitizeUrl(url: string | URL): string {
+  const urlString = url.toString();
+  try {
+    const parsedUrl = new URL(urlString);
+
+    const sensitiveKeys = ['key', 'token', 'apiKey', 'access_token'];
+    for (const key of sensitiveKeys) {
+      parsedUrl.searchParams.delete(key);
+    }
+
+    parsedUrl.hash = '';
+
+    let result = parsedUrl.toString();
+    // URL.toString() might add a trailing slash if there was none and no path.
+    // We want to preserve the original URL's "slashedness" for consistency.
+    if (
+      result.endsWith('/') &&
+      !urlString.split('?')[0].split('#')[0].endsWith('/')
+    ) {
+      result = result.slice(0, -1);
+    }
+    return result;
+  } catch {
+    return urlString;
+  }
+}

@@ -36,7 +36,7 @@ export async function doctorAction() {
     {
       name: 'API Key Configuration',
       check: async () => {
-        const apiKey = resolveApiKey();
+        const apiKey = await resolveApiKey();
         if (!apiKey) {
           throw new Error(
             'JULES_API_KEY is missing. Run `jules-mcp config` or set JULES_API_KEY env var.',
@@ -48,7 +48,7 @@ export async function doctorAction() {
     {
       name: 'API Connection',
       check: async () => {
-        const apiKey = resolveApiKey();
+        const apiKey = await resolveApiKey();
         if (!apiKey) throw new Error('Skipped (No API Key)');
 
         const client = jules.with({ apiKey });

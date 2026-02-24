@@ -9,24 +9,22 @@ export interface Config {
 const CONFIG_DIR = path.join(os.homedir(), '.jules');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
-export function loadConfig(): Config {
+export async function loadConfig(): Promise<Config> {
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
-      return JSON.parse(content);
+    const content = await fs.promises.readFile(CONFIG_FILE, 'utf-8');
+    return JSON.parse(content);
+  } catch (error: any) {
+    if (error.code !== 'ENOENT') {
+      console.warn('Failed to load config file:', error);
     }
-  } catch (error) {
-    console.warn('Failed to load config file:', error);
   }
   return {};
 }
 
-export function saveConfig(config: Config) {
+export async function saveConfig(config: Config): Promise<void> {
   try {
-    if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    }
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), {
+    await fs.promises.mkdir(CONFIG_DIR, { recursive: true });
+    await fs.promises.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), {
       mode: 0o600, // Read/write only for the owner
     });
   } catch (error) {
@@ -35,10 +33,10 @@ export function saveConfig(config: Config) {
   }
 }
 
-export function resolveApiKey(): string | undefined {
+export async function resolveApiKey(): Promise<string | undefined> {
   if (process.env.JULES_API_KEY) {
     return process.env.JULES_API_KEY;
   }
-  const config = loadConfig();
+  const config = await loadConfig();
   return config.apiKey;
 }

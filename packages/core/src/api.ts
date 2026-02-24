@@ -23,6 +23,7 @@ import {
   JulesRateLimitError,
   MissingApiKeyError,
 } from './errors.js';
+import { sanitizeUrl } from './utils.js';
 
 export type RateLimitRetryConfig = {
   maxRetryTimeMs: number;
@@ -159,9 +160,10 @@ export class ApiClient {
           const errorBody = await response
             .text()
             .catch(() => 'Could not read error body');
-          const message = `[${
-            response.status
-          } ${response.statusText}] ${method} ${url.toString()} - ${errorBody}`;
+          const sanitizedUrl = sanitizeUrl(url);
+          const message = `[${response.status} ${
+            response.statusText
+          }] ${method} ${sanitizedUrl} - ${errorBody}`;
           throw new JulesApiError(
             url.toString(),
             response.status,

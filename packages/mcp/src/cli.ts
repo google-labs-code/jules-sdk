@@ -15,7 +15,7 @@ program
   .version(packageJson.version);
 
 program.action(async () => {
-  const apiKey = resolveApiKey();
+  const apiKey = await resolveApiKey();
   const client = apiKey ? jules.with({ apiKey }) : jules;
 
   const server = new JulesMCPServer(client);
