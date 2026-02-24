@@ -318,11 +318,6 @@ export type SessionState =
   | 'completed';
 
 /**
- * The automation mode for the session.
- */
-export type AutomationMode = 'AUTOMATION_MODE_UNSPECIFIED' | 'AUTO_CREATE_PR';
-
-/**
  * The entity that an activity originates from.
  */
 export type Origin = 'user' | 'agent' | 'system';
@@ -397,9 +392,6 @@ export interface SessionResource {
   sourceContext: SourceContext;
   source?: Source;
   title: string;
-  requirePlanApproval?: boolean;
-  automationMode?: AutomationMode;
-  archived?: boolean;
   /**
    * The time the session was created (RFC 3339 timestamp).
    */
@@ -430,6 +422,7 @@ export interface SessionResource {
    * The generated files of the session if it reaches a stable state.
    */
   generatedFiles?: GeneratedFile[];
+  archived: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -676,17 +669,8 @@ export interface BashArtifact {
  */
 export type Artifact = ChangeSetArtifact | MediaArtifact | BashArtifact;
 
-// Raw REST API type definitions, used by mappers.
+// Raw REST API type definitions for artifacts, used by mappers.
 // These represent the JSON structure before being mapped to rich SDK objects.
-
-/**
- * Represents the raw session resource returned by the API.
- * The `state` field is a string that may be in SCREAMING_SNAKE_CASE.
- */
-export interface RestSessionResource extends Omit<SessionResource, 'state' | 'outcome' | 'generatedFiles'> {
-  state: string;
-  // outcome and generatedFiles are SDK-derived fields, not present in raw API response
-}
 
 export interface RestChangeSetArtifact {
   changeSet: ChangeSet;
@@ -696,7 +680,6 @@ export interface RestMediaArtifact {
   media: {
     data: string;
     format: string;
-    mimeType?: string;
   };
 }
 
@@ -706,7 +689,6 @@ export interface RestBashOutputArtifact {
     stdout: string;
     stderr: string;
     exitCode: number | null;
-    output?: string;
   };
 }
 
@@ -1185,22 +1167,6 @@ export interface SessionClient {
    * console.log(`Current state: ${sessionInfo.state}`);
    */
   info(): Promise<SessionResource>;
-
-  /**
-   * Archives the session, hiding it from default lists and marking it as inactive.
-   *
-   * @example
-   * await session.archive();
-   */
-  archive(): Promise<void>;
-
-  /**
-   * Unarchives the session, restoring it to the active list.
-   *
-   * @example
-   * await session.unarchive();
-   */
-  unarchive(): Promise<void>;
 
   /**
    * Creates a point-in-time snapshot of the session with all activities loaded and derived analytics computed.

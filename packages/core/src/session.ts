@@ -309,11 +309,7 @@ export class SessionClientImpl implements SessionClient {
     await pollSession(
       this.id,
       this.apiClient,
-      (rawSession) => {
-        // Safe cast as we know polling returns the raw resource
-        const session = mapRestSessionToSdkSession(
-          rawSession as unknown as RestSessionResource,
-        );
+      (session) => {
         const state = session.state;
         return (
           state === targetState || state === 'completed' || state === 'failed'
@@ -354,46 +350,6 @@ export class SessionClientImpl implements SessionClient {
     // Single place for outcome mapping - always runs regardless of cache/network path
     resource.outcome = mapSessionResourceToOutcome(resource);
     return resource;
-  }
-
-  /**
-   * Archives the session, hiding it from default lists and marking it as inactive.
-   *
-   * **Side Effects:**
-   * - Sends a POST request to `sessions/{id}:archive`.
-   * - Updates the local cache to reflect the archived status.
-   */
-  async archive(): Promise<void> {
-    await this.request(`sessions/${this.id}:archive`, {
-      method: 'POST',
-      body: {},
-    });
-    // Write-Through: Update local cache if present
-    const cached = await this.sessionStorage.get(this.id);
-    if (cached) {
-      cached.resource.archived = true;
-      await this.sessionStorage.upsert(cached.resource);
-    }
-  }
-
-  /**
-   * Unarchives the session, restoring it to the active list.
-   *
-   * **Side Effects:**
-   * - Sends a POST request to `sessions/{id}:unarchive`.
-   * - Updates the local cache to reflect the unarchived status.
-   */
-  async unarchive(): Promise<void> {
-    await this.request(`sessions/${this.id}:unarchive`, {
-      method: 'POST',
-      body: {},
-    });
-    // Write-Through: Update local cache if present
-    const cached = await this.sessionStorage.get(this.id);
-    if (cached) {
-      cached.resource.archived = false;
-      await this.sessionStorage.upsert(cached.resource);
-    }
   }
 
   /**
