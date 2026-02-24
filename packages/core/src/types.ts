@@ -261,6 +261,11 @@ export type SessionState =
   | 'completed';
 
 /**
+ * The automation mode for the session.
+ */
+export type AutomationMode = 'AUTOMATION_MODE_UNSPECIFIED' | 'AUTO_CREATE_PR';
+
+/**
  * The entity that an activity originates from.
  */
 export type Origin = 'user' | 'agent' | 'system';
@@ -335,6 +340,9 @@ export interface SessionResource {
   sourceContext: SourceContext;
   source?: Source;
   title: string;
+  requirePlanApproval?: boolean;
+  automationMode?: AutomationMode;
+  archived?: boolean;
   /**
    * The time the session was created (RFC 3339 timestamp).
    */
@@ -365,7 +373,6 @@ export interface SessionResource {
    * The generated files of the session if it reaches a stable state.
    */
   generatedFiles?: GeneratedFile[];
-  archived: boolean;
 }
 
 // -----------------------------------------------------------------------------
