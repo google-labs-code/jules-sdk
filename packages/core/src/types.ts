@@ -278,6 +278,8 @@ export interface PullRequest {
   url: string;
   title: string;
   description: string;
+  baseRef?: string;
+  headRef?: string;
 }
 
 /**
