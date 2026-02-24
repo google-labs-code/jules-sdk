@@ -306,7 +306,10 @@ export class SessionClientImpl implements SessionClient {
       this.id,
       this.apiClient,
       (rawSession) => {
-        const session = mapRestSessionToSdkSession(rawSession);
+        // Safe cast as we know polling returns the raw resource
+        const session = mapRestSessionToSdkSession(
+          rawSession as unknown as RestSessionResource,
+        );
         const state = session.state;
         return (
           state === targetState || state === 'completed' || state === 'failed'
@@ -330,7 +333,9 @@ export class SessionClientImpl implements SessionClient {
     } else {
       // TIER 1: HOT (Network Fetch)
       try {
-        const rawResource = await this.request<any>(`sessions/${this.id}`);
+        const rawResource = await this.request<RestSessionResource>(
+          `sessions/${this.id}`,
+        );
         resource = mapRestSessionToSdkSession(rawResource);
         await this.sessionStorage.upsert(resource);
       } catch (e: any) {

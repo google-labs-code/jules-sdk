@@ -30,6 +30,7 @@ import {
   SessionOutcome,
   PullRequest,
   RestArtifact,
+  RestSessionResource,
   SessionResource,
   SessionState,
 } from './types.js';
@@ -54,7 +55,7 @@ export function mapRestArtifactToSdkArtifact(
     );
   }
   if ('media' in restArtifact) {
-    const media = restArtifact.media as any;
+    const media = restArtifact.media;
     // Map mimeType to format
     if (media.mimeType && !media.format) {
       media.format = media.mimeType;
@@ -62,7 +63,7 @@ export function mapRestArtifactToSdkArtifact(
     return new MediaArtifact(media, platform, activityId);
   }
   if ('bashOutput' in restArtifact) {
-    const bash = restArtifact.bashOutput as any;
+    const bash = restArtifact.bashOutput;
     // Map output to stdout (and ensure stderr is present)
     if (bash.output !== undefined && bash.stdout === undefined) {
       bash.stdout = bash.output;
@@ -176,7 +177,9 @@ export function mapRestActivityToSdkActivity(
  * @returns A normalized SessionResource object.
  * @internal
  */
-export function mapRestSessionToSdkSession(session: any): SessionResource {
+export function mapRestSessionToSdkSession(
+  session: RestSessionResource,
+): SessionResource {
   const stateMapping: Record<string, SessionState> = {
     UNSPECIFIED: 'unspecified',
     QUEUED: 'queued',
@@ -202,6 +205,9 @@ export function mapRestSessionToSdkSession(session: any): SessionResource {
   return {
     ...session,
     state,
+    // Initialize required SDK-only fields that are missing from raw API response
+    outcome: {} as any, // This will be populated later by mapSessionResourceToOutcome if needed, or ignored for partial updates
+    generatedFiles: undefined,
   };
 }
 

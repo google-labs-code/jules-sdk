@@ -607,8 +607,17 @@ export interface BashArtifact {
  */
 export type Artifact = ChangeSetArtifact | MediaArtifact | BashArtifact;
 
-// Raw REST API type definitions for artifacts, used by mappers.
+// Raw REST API type definitions, used by mappers.
 // These represent the JSON structure before being mapped to rich SDK objects.
+
+/**
+ * Represents the raw session resource returned by the API.
+ * The `state` field is a string that may be in SCREAMING_SNAKE_CASE.
+ */
+export interface RestSessionResource extends Omit<SessionResource, 'state' | 'outcome' | 'generatedFiles'> {
+  state: string;
+  // outcome and generatedFiles are SDK-derived fields, not present in raw API response
+}
 
 export interface RestChangeSetArtifact {
   changeSet: ChangeSet;
