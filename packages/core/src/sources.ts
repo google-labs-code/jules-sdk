@@ -38,11 +38,17 @@ type ListSourcesResponse = {
  */
 function mapRawSourceToSdkSource(rawSource: RawSource): Source {
   if (rawSource.githubRepo) {
+    const { defaultBranch, branches, ...rest } = rawSource.githubRepo as any;
+
     return {
       name: rawSource.name,
       id: rawSource.id,
       type: 'githubRepo',
-      githubRepo: rawSource.githubRepo,
+      githubRepo: {
+        ...rest,
+        defaultBranch: defaultBranch?.displayName,
+        branches: branches?.map((b: any) => b.displayName),
+      },
     };
   }
   // This is a safeguard; based on current API, we only have githubRepo.
