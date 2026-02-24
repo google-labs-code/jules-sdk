@@ -83,6 +83,55 @@ describe('SourceManager', () => {
 
       vi.useRealTimers();
     });
+
+    it('should correctly map nested defaultBranch and branches from API', async () => {
+      server.use(
+        http.get(`${BASE_URL}/sources/github/owner/repo`, () => {
+          return HttpResponse.json({
+            name: 'sources/github/owner/repo',
+            id: 'owner/repo',
+            githubRepo: {
+              owner: 'owner',
+              repo: 'repo',
+              defaultBranch: { displayName: 'main' },
+              branches: [{ displayName: 'dev' }, { displayName: 'feature' }],
+            },
+          });
+        }),
+      );
+
+      const source = await jules.sources.get({ github: 'owner/repo' });
+
+      expect(source).toBeDefined();
+      if (source?.type === 'githubRepo') {
+        expect(source.githubRepo.defaultBranch).toBe('main');
+        expect(source.githubRepo.branches).toEqual(['dev', 'feature']);
+      }
+    });
+
+    it('should correctly map GitHub Repo without branches', async () => {
+      server.use(
+        http.get(`${BASE_URL}/sources/github/owner/nobranches`, () => {
+          return HttpResponse.json({
+            name: 'sources/github/owner/nobranches',
+            id: 'owner/nobranches',
+            githubRepo: {
+              owner: 'owner',
+              repo: 'nobranches',
+              // No defaultBranch or branches
+            },
+          });
+        }),
+      );
+
+      const source = await jules.sources.get({ github: 'owner/nobranches' });
+
+      expect(source).toBeDefined();
+      if (source?.type === 'githubRepo') {
+        expect(source.githubRepo.defaultBranch).toBeUndefined();
+        expect(source.githubRepo.branches).toBeUndefined();
+      }
+    });
   });
 
   describe('list() / async iterator', () => {
