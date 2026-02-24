@@ -20,7 +20,10 @@ import { ActivityClient, SelectOptions } from './activities/types.js';
 import { ApiClient, ApiRequestOptions } from './api.js';
 import { InternalConfig } from './client.js';
 import { InvalidStateError, JulesError } from './errors.js';
-import { mapSessionResourceToOutcome } from './mappers.js';
+import {
+  mapRestSessionToSdkSession,
+  mapSessionResourceToOutcome,
+} from './mappers.js';
 import { NetworkAdapter } from './network/adapter.js';
 import { pollSession, pollUntilCompletion } from './polling.js';
 import { ActivityStorage, SessionStorage } from './storage/types.js';
@@ -302,12 +305,11 @@ export class SessionClientImpl implements SessionClient {
     await pollSession(
       this.id,
       this.apiClient,
-      (session) => {
-        const state = session.state.toLowerCase();
+      (rawSession) => {
+        const session = mapRestSessionToSdkSession(rawSession);
+        const state = session.state;
         return (
-          state === targetState.toLowerCase() ||
-          state === 'completed' ||
-          state === 'failed'
+          state === targetState || state === 'completed' || state === 'failed'
         );
       },
       this.config.pollingIntervalMs,
@@ -328,7 +330,8 @@ export class SessionClientImpl implements SessionClient {
     } else {
       // TIER 1: HOT (Network Fetch)
       try {
-        resource = await this.request<SessionResource>(`sessions/${this.id}`);
+        const rawResource = await this.request<any>(`sessions/${this.id}`);
+        resource = mapRestSessionToSdkSession(rawResource);
         await this.sessionStorage.upsert(resource);
       } catch (e: any) {
         if (e.status === 404 && cached) {
