@@ -63,8 +63,7 @@ describe('mapRestArtifactToSdkArtifact', () => {
     const restArtifact = {
       bashOutput: {
         command: 'ls -l',
-        stdout: 'total 0',
-        stderr: '',
+        output: 'total 0',
         exitCode: 0,
       },
     };
@@ -183,7 +182,15 @@ describe('mapRestActivityToSdkActivity', () => {
     const restActivity = {
       ...BASE_REST_ACTIVITY,
       progressUpdated: { title: 'Executing command' },
-      artifacts: [{ bashOutput: { command: 'npm install' } }],
+      artifacts: [
+        {
+          bashOutput: {
+            command: 'npm install',
+            output: 'installing...',
+            exitCode: 0,
+          },
+        },
+      ],
     };
     const sdkActivity = mapRestActivityToSdkActivity(
       restActivity,
