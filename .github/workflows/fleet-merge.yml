@@ -56,17 +56,26 @@ jobs:
           MAX_RETRIES=2     # Max re-dispatch attempts per PR
           PR_POLL_TIMEOUT=900  # 15 minutes to wait for re-dispatched PR
 
-          echo "🔍 Finding open Jules-authored PRs targeting ${BASE_BRANCH}..."
+          echo "🔍 Finding open Jules co-authored PRs targeting ${BASE_BRANCH}..."
 
-          # Get all open PRs authored by Jules, sorted by creation date (oldest first)
-          PRS=$(gh pr list \
+          # Get all open PRs, then filter to those with google-labs-jules[bot] as a commit co-author
+          ALL_PRS=$(gh pr list \
             --state open \
             --base "$BASE_BRANCH" \
-            --json number,headRefName,author \
-            --jq '[.[] | select(.author.login == "google-labs-jules" or (.author.login | endswith("[bot]")))] | sort_by(.number) | .[].number')
+            --json number \
+            --jq '.[].number')
+
+          PRS=""
+          for PR in $ALL_PRS; do
+            IS_JULES=$(gh pr view "$PR" --json commits \
+              --jq '[.commits[].authors[].login] | any(. == "google-labs-jules[bot]")')
+            if [ "$IS_JULES" = "true" ]; then
+              PRS="${PRS:+$PRS }$PR"
+            fi
+          done
 
           if [ -z "$PRS" ]; then
-            echo "ℹ️  No Jules-authored PRs found. Nothing to merge."
+            echo "ℹ️  No Jules co-authored PRs found. Nothing to merge."
             exit 0
           fi
 
