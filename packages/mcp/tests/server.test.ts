@@ -37,10 +37,9 @@ describe('JulesMCPServer', () => {
     server = new JulesMCPServer(mockJulesClient);
 
     // Extract Handlers
-    const listPromptsCalls =
-      mockServerInstance.setRequestHandler.mock.calls.find(
-        (call: any) => call[0] === ListPromptsRequestSchema,
-      );
+    const listPromptsCalls = mockServerInstance.setRequestHandler.mock.calls.find(
+      (call: any) => call[0] === ListPromptsRequestSchema,
+    );
     const listToolsCalls = mockServerInstance.setRequestHandler.mock.calls.find(
       (call: any) => call[0] === ListToolsRequestSchema,
     );

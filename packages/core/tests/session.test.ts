@@ -304,40 +304,6 @@ describe('SessionClient', () => {
     });
   });
 
-  describe('archive()', () => {
-    it('should call the archive API endpoint', async () => {
-      let localArchiveCalled = false;
-      server.use(
-        http.post(
-          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123:archive',
-          () => {
-            localArchiveCalled = true;
-            return HttpResponse.json({});
-          },
-        ),
-      );
-      await session.archive();
-      expect(localArchiveCalled).toBe(true);
-    });
-  });
-
-  describe('unarchive()', () => {
-    it('should call the unarchive API endpoint', async () => {
-      let localUnarchiveCalled = false;
-      server.use(
-        http.post(
-          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123:unarchive',
-          () => {
-            localUnarchiveCalled = true;
-            return HttpResponse.json({});
-          },
-        ),
-      );
-      await session.unarchive();
-      expect(localUnarchiveCalled).toBe(true);
-    });
-  });
-
   describe('ask()', () => {
     it('should send a message and return the corresponding reply', async () => {
       const startTime = new Date();

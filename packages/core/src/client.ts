@@ -539,8 +539,9 @@ export class JulesClientImpl implements JulesClient {
    */
   async run(config: SessionConfig): Promise<AutomatedSession> {
     const body = await this._prepareSessionCreation(config);
-    const restSessionResource =
-      await this.apiClient.request<RestSessionResource>('sessions', {
+    const restSessionResource = await this.apiClient.request<RestSessionResource>(
+      'sessions',
+      {
         method: 'POST',
         body: {
           ...body,
@@ -550,7 +551,8 @@ export class JulesClientImpl implements JulesClient {
               : 'AUTO_CREATE_PR',
           requirePlanApproval: config.requireApproval ?? false,
         },
-      });
+      },
+    );
     const sessionResource = mapRestSessionToSdkSession(
       restSessionResource,
       this.platform,

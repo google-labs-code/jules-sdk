@@ -201,9 +201,9 @@ try {
     console.error(error);
     process.exit(1);
   } finally {
-    if (tarballPath) await fs.unlink(tarballPath).catch(() => {});
+    if (tarballPath) await fs.unlink(tarballPath).catch(() => { });
     if (tmpDir)
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { });
   }
 }
 

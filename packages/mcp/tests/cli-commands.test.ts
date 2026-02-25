@@ -30,11 +30,11 @@ describe('CLI Commands', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     processExitSpy = vi
       .spyOn(process, 'exit')
-      .mockImplementation((() => {}) as any);
+      .mockImplementation((() => { }) as any);
     processStdoutWriteSpy = vi
       .spyOn(process.stdout, 'write')
       .mockImplementation(() => true);
@@ -94,4 +94,5 @@ describe('CLI Commands', () => {
       expect(dns.default.lookup).toHaveBeenCalled();
     });
   });
+
 });

@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { getIssuesAsMarkdown } from './github/markdown.js';
+import { getIssuesAsMarkdown } from "./github/markdown.js";
 
 async function main() {
   try {
     const markdown = await getIssuesAsMarkdown();
     console.log(markdown);
   } catch (error) {
-    console.error('Error fetching issues:', error);
+    console.error("Error fetching issues:", error);
     process.exit(1);
   }
 }

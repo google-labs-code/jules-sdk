@@ -20,26 +20,12 @@ import * as fs from 'fs';
 import * as yaml from 'yaml';
 import { SessionClientImpl } from '../../src/session.js';
 import { SessionSnapshotImpl } from '../../src/snapshot.js';
-import {
-  Activity,
-  SessionResource,
-  SessionSnapshot,
-  SessionOutcome,
-  SessionOutput,
-  PullRequest,
-} from '../../src/types.js';
+import { Activity, SessionResource, SessionSnapshot, SessionOutcome, SessionOutput, PullRequest } from '../../src/types.js';
 
-const createMockOutcome = (
-  sessionId: string,
-  title: string,
-  outputs: SessionOutput[] = [],
-): SessionOutcome => {
+const createMockOutcome = (sessionId: string, title: string, outputs: SessionOutput[] = []): SessionOutcome => {
   // Extract PR from outputs, matching the real mapSessionResourceToOutcome behavior
   const prOutput = outputs.find((o) => o.type === 'pullRequest');
-  const pullRequest = prOutput
-    ? (prOutput as { type: 'pullRequest'; pullRequest: PullRequest })
-        .pullRequest
-    : undefined;
+  const pullRequest = prOutput ? (prOutput as { type: 'pullRequest'; pullRequest: PullRequest }).pullRequest : undefined;
 
   return {
     sessionId,
@@ -47,11 +33,7 @@ const createMockOutcome = (
     state: 'completed',
     outputs,
     pullRequest,
-    generatedFiles: () => ({
-      all: () => [],
-      get: () => undefined,
-      filter: () => [],
-    }),
+    generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
     changeSet: () => undefined,
   };
 };
@@ -100,11 +82,7 @@ describe('SessionSnapshot Implementation', () => {
           githubRepo: { owner: 'test', repo: 'repo', isPrivate: false },
         },
         outputs: sessionData.outputs ?? [],
-        outcome: createMockOutcome(
-          sessionData.id,
-          sessionData.title || 'test title',
-          sessionData.outputs ?? [],
-        ),
+        outcome: createMockOutcome(sessionData.id, sessionData.title || 'test title', sessionData.outputs ?? []),
       };
 
       const activities: Activity[] = (testCase.given.activities ?? []).map(

@@ -33,12 +33,6 @@ export type ListSessionsOptions = {
    * Set to `false` to disable side effects.
    */
   persist?: boolean;
-  /**
-   * Filter expression to restrict the sessions returned.
-   * The syntax follows the AIP-160 standard (e.g., `archived = true`).
-   * By default, archived sessions are excluded.
-   */
-  filter?: string;
 };
 
 export type ListSessionsResponse = {
@@ -138,7 +132,6 @@ export class SessionCursor
     if (this.options.pageSize)
       params.pageSize = this.options.pageSize.toString();
     if (pageToken) params.pageToken = pageToken;
-    if (this.options.filter) params.filter = this.options.filter;
 
     // Use the existing ApiClient from your SDK
     const response = await this.apiClient.request<{

@@ -322,51 +322,6 @@ export class SessionClientImpl implements SessionClient {
   }
 
   /**
-   * Archives the session.
-   * This removes the session from the default list view and marks it as archived.
-   * Archived sessions can still be accessed by ID or by filtering for `archived = true`.
-   *
-   * **Side Effects:**
-   * - Sends a POST request to `sessions/{id}:archive`.
-   * - Updates the local cache to mark the session as archived.
-   */
-  async archive(): Promise<void> {
-    await this.request(`sessions/${this.id}:archive`, {
-      method: 'POST',
-      body: {},
-    });
-
-    // Write-Through: Update local cache
-    const cached = await this.sessionStorage.get(this.id);
-    if (cached) {
-      const resource = { ...cached.resource, archived: true };
-      await this.sessionStorage.upsert(resource);
-    }
-  }
-
-  /**
-   * Unarchives the session.
-   * This restores the session to the default list view.
-   *
-   * **Side Effects:**
-   * - Sends a POST request to `sessions/{id}:unarchive`.
-   * - Updates the local cache to mark the session as not archived.
-   */
-  async unarchive(): Promise<void> {
-    await this.request(`sessions/${this.id}:unarchive`, {
-      method: 'POST',
-      body: {},
-    });
-
-    // Write-Through: Update local cache
-    const cached = await this.sessionStorage.get(this.id);
-    if (cached) {
-      const resource = { ...cached.resource, archived: false };
-      await this.sessionStorage.upsert(resource);
-    }
-  }
-
-  /**
    * Retrieves the latest state of the underlying session resource.
    * Implements "Iceberg" Read-Through caching.
    */

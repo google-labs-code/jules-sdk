@@ -47,12 +47,7 @@
       "title": "Add Timeout Mechanism to Session Polling",
       "root_cause": "rc-infinite-polling",
       "issues": [23],
-      "files": [
-        "packages/core/src/polling.ts",
-        "packages/core/src/session.ts",
-        "packages/core/src/types.ts",
-        "packages/core/src/errors.ts"
-      ],
+      "files": ["packages/core/src/polling.ts", "packages/core/src/session.ts", "packages/core/src/types.ts", "packages/core/src/errors.ts"],
       "new_files": [],
       "test_files": ["packages/core/tests/polling.test.ts"],
       "risk": "medium",

@@ -1,9 +1,4 @@
-import type {
-  JulesClient,
-  JulesQuery,
-  JulesDomain,
-  Activity,
-} from '@google/jules-sdk';
+import type { JulesClient, JulesQuery, JulesDomain, Activity } from '@google/jules-sdk';
 import type { SelectResult, SelectOptions } from './types.js';
 import { truncateToTokenBudget } from '../tokenizer.js';
 import { toLightweight } from '../lightweight.js';

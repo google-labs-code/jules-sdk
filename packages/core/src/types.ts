@@ -1177,25 +1177,6 @@ export interface SessionClient {
   info(): Promise<SessionResource>;
 
   /**
-   * Archives the session.
-   * This removes the session from the default list view and marks it as archived.
-   * Archived sessions can still be accessed by ID or by filtering for `archived = true`.
-   *
-   * @example
-   * await session.archive();
-   */
-  archive(): Promise<void>;
-
-  /**
-   * Unarchives the session.
-   * This restores the session to the default list view.
-   *
-   * @example
-   * await session.unarchive();
-   */
-  unarchive(): Promise<void>;
-
-  /**
    * Creates a point-in-time snapshot of the session with all activities loaded and derived analytics computed.
    * This is a network operation with cache heuristics.
    *

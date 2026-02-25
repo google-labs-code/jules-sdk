@@ -24,7 +24,7 @@ export interface IssueAnalysis {
 export interface RootCause {
   id: string;
   title: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: "critical" | "high" | "medium" | "low";
   issues: number[];
   files: string[];
   description: string;
@@ -39,7 +39,7 @@ export interface Task {
   files: string[];
   new_files: string[];
   test_files: string[];
-  risk: 'low' | 'medium' | 'high';
+  risk: "low" | "medium" | "high";
   prompt: string;
 }
 

@@ -16,11 +16,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { SessionSnapshotImpl } from '../../src/snapshot.js';
-import {
-  SessionResource,
-  SessionOutcome,
-  PullRequest,
-} from '../../src/types.js';
+import { SessionResource, SessionOutcome, PullRequest } from '../../src/types.js';
 
 /**
  * Tests for the changeSet null-safety fix in SessionSnapshotImpl.
@@ -35,49 +31,38 @@ describe('SessionSnapshotImpl changeSet null-safety', () => {
     state: 'completed',
     outputs: [],
     pullRequest: undefined,
-    generatedFiles: () => ({
-      all: () => [],
-      get: () => undefined,
-      filter: () => [],
-    }),
+    generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
     changeSet,
   });
 
-  const createBaseSessionResource = (
-    overrides: Partial<SessionResource> = {},
-  ): SessionResource =>
-    ({
-      name: 'sessions/test-session',
-      id: 'test-session',
-      state: 'completed',
-      createTime: '2026-01-01T00:00:00Z',
-      updateTime: '2026-01-01T00:01:00Z',
-      prompt: 'test prompt',
-      title: 'Test Session',
-      url: 'http://test.url',
-      sourceContext: {} as any,
-      source: {
-        name: 'sources/github/test/repo',
-        id: 'github/test/repo',
-        type: 'githubRepo',
-        githubRepo: { owner: 'test', repo: 'repo', isPrivate: false },
-      },
-      outputs: [],
-      outcome: createMockOutcome(() => undefined),
-      ...overrides,
-    }) as SessionResource;
+  const createBaseSessionResource = (overrides: Partial<SessionResource> = {}): SessionResource => ({
+    name: 'sessions/test-session',
+    id: 'test-session',
+    state: 'completed',
+    createTime: '2026-01-01T00:00:00Z',
+    updateTime: '2026-01-01T00:01:00Z',
+    prompt: 'test prompt',
+    title: 'Test Session',
+    url: 'http://test.url',
+    sourceContext: {} as any,
+    source: {
+      name: 'sources/github/test/repo',
+      id: 'github/test/repo',
+      type: 'githubRepo',
+      githubRepo: { owner: 'test', repo: 'repo', isPrivate: false },
+    },
+    outputs: [],
+    outcome: createMockOutcome(() => undefined),
+    ...overrides,
+  } as SessionResource);
 
   it('should handle outcome with valid changeSet function', () => {
-    const mockChangeSet = {
-      gitPatch: { unidiffPatch: 'diff --git a/file.ts' },
-    };
+    const mockChangeSet = { gitPatch: { unidiffPatch: 'diff --git a/file.ts' } };
     const session = createBaseSessionResource({
       outcome: createMockOutcome(() => mockChangeSet),
     });
 
-    const snapshot = new SessionSnapshotImpl({
-      data: { session, activities: [] },
-    });
+    const snapshot = new SessionSnapshotImpl({ data: { session, activities: [] } });
 
     expect(typeof snapshot.changeSet).toBe('function');
     expect(snapshot.changeSet()).toEqual(mockChangeSet);
@@ -88,9 +73,7 @@ describe('SessionSnapshotImpl changeSet null-safety', () => {
       outcome: createMockOutcome(undefined),
     });
 
-    const snapshot = new SessionSnapshotImpl({
-      data: { session, activities: [] },
-    });
+    const snapshot = new SessionSnapshotImpl({ data: { session, activities: [] } });
 
     expect(typeof snapshot.changeSet).toBe('function');
     expect(snapshot.changeSet()).toBeUndefined();
@@ -103,9 +86,7 @@ describe('SessionSnapshotImpl changeSet null-safety', () => {
       outcome: createMockOutcome(rawChangeSet as any), // Intentionally wrong type
     });
 
-    const snapshot = new SessionSnapshotImpl({
-      data: { session, activities: [] },
-    });
+    const snapshot = new SessionSnapshotImpl({ data: { session, activities: [] } });
 
     // Should still be a function, not throw
     expect(typeof snapshot.changeSet).toBe('function');
@@ -117,9 +98,7 @@ describe('SessionSnapshotImpl changeSet null-safety', () => {
       outcome: createMockOutcome(null as any),
     });
 
-    const snapshot = new SessionSnapshotImpl({
-      data: { session, activities: [] },
-    });
+    const snapshot = new SessionSnapshotImpl({ data: { session, activities: [] } });
 
     expect(typeof snapshot.changeSet).toBe('function');
     expect(snapshot.changeSet()).toBeUndefined();
@@ -130,9 +109,7 @@ describe('SessionSnapshotImpl changeSet null-safety', () => {
       outcome: undefined,
     });
 
-    const snapshot = new SessionSnapshotImpl({
-      data: { session, activities: [] },
-    });
+    const snapshot = new SessionSnapshotImpl({ data: { session, activities: [] } });
 
     expect(typeof snapshot.changeSet).toBe('function');
     expect(snapshot.changeSet()).toBeUndefined();

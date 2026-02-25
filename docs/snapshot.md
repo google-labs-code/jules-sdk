@@ -28,15 +28,15 @@ By default, `toJSON()` excludes the heaviest fields (`activities` and `generated
 const output = snapshot.toJSON();
 
 // Included by default:
-console.log(output.id); // "abc123"
-console.log(output.state); // "completed"
-console.log(output.title); // "Fix login bug"
-console.log(output.timeline); // [{ time: "...", type: "planGenerated", ... }]
+console.log(output.id);             // "abc123"
+console.log(output.state);          // "completed"
+console.log(output.title);          // "Fix login bug"
+console.log(output.timeline);       // [{ time: "...", type: "planGenerated", ... }]
 console.log(output.activityCounts); // { planGenerated: 1, progressUpdated: 5, ... }
-console.log(output.insights); // { completionAttempts: 1, ... }
+console.log(output.insights);       // { completionAttempts: 1, ... }
 
 // Excluded by default:
-console.log(output.activities); // undefined
+console.log(output.activities);     // undefined
 console.log(output.generatedFiles); // undefined
 ```
 
@@ -46,18 +46,18 @@ Use `include` to specify exactly which fields you want. This is ideal for token-
 
 ```typescript
 const minimal = snapshot.toJSON({
-  include: ['id', 'state', 'title', 'durationMs'],
+  include: ['id', 'state', 'title', 'durationMs']
 });
 
 // Only these fields are present:
-console.log(minimal.id); // "abc123"
-console.log(minimal.state); // "completed"
-console.log(minimal.title); // "Fix login bug"
+console.log(minimal.id);        // "abc123"
+console.log(minimal.state);     // "completed"
+console.log(minimal.title);     // "Fix login bug"
 console.log(minimal.durationMs); // 45000
 
 // Everything else is undefined:
-console.log(minimal.activities); // undefined
-console.log(minimal.prompt); // undefined
+console.log(minimal.activities);  // undefined
+console.log(minimal.prompt);      // undefined
 
 // Output:
 // {
@@ -74,19 +74,19 @@ Use `exclude` to remove specific fields while keeping everything else:
 
 ```typescript
 const lightweight = snapshot.toJSON({
-  exclude: ['activities', 'generatedFiles', 'timeline'],
+  exclude: ['activities', 'generatedFiles', 'timeline']
 });
 
 // All other fields are present:
-console.log(lightweight.id); // "abc123"
-console.log(lightweight.state); // "completed"
-console.log(lightweight.prompt); // "Please fix the login button..."
+console.log(lightweight.id);             // "abc123"
+console.log(lightweight.state);          // "completed"
+console.log(lightweight.prompt);         // "Please fix the login button..."
 console.log(lightweight.activityCounts); // { planGenerated: 1, ... }
 
 // These fields were excluded:
-console.log(lightweight.activities); // undefined
+console.log(lightweight.activities);     // undefined
 console.log(lightweight.generatedFiles); // undefined
-console.log(lightweight.timeline); // undefined
+console.log(lightweight.timeline);       // undefined
 ```
 
 ### Getting the Full Snapshot
@@ -96,8 +96,8 @@ To get all fields without any masking, pass an empty options object:
 ```typescript
 const full = snapshot.toJSON({});
 
-console.log(full.activities?.length); // 15 (all activities)
-console.log(full.generatedFiles?.length); // 3 (all generated files)
+console.log(full.activities?.length);      // 15 (all activities)
+console.log(full.generatedFiles?.length);  // 3 (all generated files)
 ```
 
 ## Type Safety
@@ -116,22 +116,22 @@ snapshot.toJSON({ include: ['invalidField'] });
 
 The following fields are available in `SerializedSnapshot`:
 
-| Field            | Type                     | Description                  |
-| ---------------- | ------------------------ | ---------------------------- |
-| `id`             | `string`                 | Session ID                   |
-| `state`          | `string`                 | Current session state        |
-| `url`            | `string`                 | URL to view the session      |
-| `createdAt`      | `string`                 | ISO timestamp of creation    |
-| `updatedAt`      | `string`                 | ISO timestamp of last update |
-| `durationMs`     | `number`                 | Duration in milliseconds     |
-| `prompt`         | `string`                 | The initial prompt           |
-| `title`          | `string`                 | Session title                |
-| `activities`     | `Activity[]`             | All session activities       |
-| `activityCounts` | `Record<string, number>` | Count by activity type       |
-| `timeline`       | `TimelineEntry[]`        | Summarized activity timeline |
-| `generatedFiles` | `GeneratedFile[]`        | Files created/modified       |
-| `insights`       | `object`                 | Computed analytics           |
-| `pr`             | `object \| undefined`    | Pull request info if created |
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Session ID |
+| `state` | `string` | Current session state |
+| `url` | `string` | URL to view the session |
+| `createdAt` | `string` | ISO timestamp of creation |
+| `updatedAt` | `string` | ISO timestamp of last update |
+| `durationMs` | `number` | Duration in milliseconds |
+| `prompt` | `string` | The initial prompt |
+| `title` | `string` | Session title |
+| `activities` | `Activity[]` | All session activities |
+| `activityCounts` | `Record<string, number>` | Count by activity type |
+| `timeline` | `TimelineEntry[]` | Summarized activity timeline |
+| `generatedFiles` | `GeneratedFile[]` | Files created/modified |
+| `insights` | `object` | Computed analytics |
+| `pr` | `object \| undefined` | Pull request info if created |
 
 ## Precedence Rules
 
@@ -141,7 +141,7 @@ If you specify both `include` and `exclude`, **`include` takes precedence**:
 // Only 'id' and 'state' are returned; 'exclude' is ignored
 snapshot.toJSON({
   include: ['id', 'state'],
-  exclude: ['prompt'], // ← ignored!
+  exclude: ['prompt']  // ← ignored!
 });
 ```
 
