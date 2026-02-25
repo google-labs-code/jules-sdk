@@ -293,7 +293,6 @@ export interface RestSessionResource {
   id: string;
   prompt: string;
   sourceContext: SourceContext;
-  source?: RestSource;
   title: string;
   createTime: string;
   updateTime: string;
@@ -302,9 +301,9 @@ export interface RestSessionResource {
   automationMode?: string;
   url: string;
   outputs?: RestSessionOutput[];
-  activities?: any[];
-  generatedFiles?: GeneratedFile[];
   archived?: boolean;
+  // Index signature to allow for forward compatibility and legacy test support
+  [key: string]: unknown;
 }
 
 /**

@@ -236,17 +236,11 @@ export function mapRestSessionToSdkSession(
     requirePlanApproval: rest.requirePlanApproval,
     automationMode: rest.automationMode as AutomationMode,
     outputs: (rest.outputs || []).map(mapRestOutputToSdkOutput),
-    source: rest.source ? mapRestSourceToSdkSource(rest.source) : undefined,
-    generatedFiles: rest.generatedFiles,
+    source: undefined,
+    generatedFiles: undefined,
     activities: undefined,
     outcome: undefined as any,
   };
-
-  if (rest.activities && platform) {
-    session.activities = rest.activities.map((a) =>
-      mapRestActivityToSdkActivity(a, platform),
-    );
-  }
 
   try {
     session.outcome = mapSessionResourceToOutcome(session);

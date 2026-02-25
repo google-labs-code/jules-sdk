@@ -341,4 +341,31 @@ describe('mapRestSessionToSdkSession', () => {
     expect(sdk.requirePlanApproval).toBe(true);
     expect(sdk.automationMode).toBe('AUTO_CREATE_PR');
   });
+
+  it('should initialize source, activities, and generatedFiles to undefined', () => {
+    const rest: RestSessionResource = {
+      name: 'sessions/123',
+      id: '123',
+      prompt: 'prompt',
+      title: 'title',
+      createTime: '2023-01-01',
+      updateTime: '2023-01-01',
+      state: 'IN_PROGRESS',
+      url: 'url',
+      outputs: [],
+      sourceContext: { source: 's' },
+      // Even if we provide these (via index signature), they should be ignored/undefined in SDK object
+      source: {
+        name: 'sources/github/test/repo',
+        id: 'github/test/repo',
+        githubRepo: { owner: 'test', repo: 'repo', isPrivate: false },
+      },
+      activities: [],
+      generatedFiles: [],
+    };
+    const sdk = mapRestSessionToSdkSession(rest, mockPlatform);
+    expect(sdk.source).toBeUndefined();
+    expect(sdk.activities).toBeUndefined();
+    expect(sdk.generatedFiles).toBeUndefined();
+  });
 });
