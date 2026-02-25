@@ -271,6 +271,8 @@ export interface RestPullRequest {
   url: string;
   title: string;
   description: string;
+  baseRef?: string;
+  headRef?: string;
 }
 
 /**
