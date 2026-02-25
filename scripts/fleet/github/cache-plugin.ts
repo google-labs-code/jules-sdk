@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Octokit } from "@octokit/core";
+import type { Octokit } from '@octokit/core';
 
 /**
  * Octokit plugin that caches responses using GitHub's ETag mechanism.
@@ -21,14 +21,14 @@ import type { Octokit } from "@octokit/core";
 export function cachePlugin(octokit: Octokit) {
   const cache = new Map<string, { etag: string; data: unknown }>();
 
-  octokit.hook.wrap("request", async (request, options) => {
+  octokit.hook.wrap('request', async (request, options) => {
     const key = `${options.method} ${options.url}`;
     const cached = cache.get(key);
 
     if (cached) {
       (options as any).headers = {
         ...(options as any).headers,
-        "if-none-match": cached.etag,
+        'if-none-match': cached.etag,
       };
     }
 

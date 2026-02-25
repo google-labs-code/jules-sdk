@@ -40,7 +40,7 @@ export interface SessionSnapshotOptions {
   data: {
     session: SessionResource;
     activities?: Activity[];
-  }
+  };
 }
 
 export class SessionSnapshotImpl implements SessionSnapshot {
@@ -76,14 +76,19 @@ export class SessionSnapshotImpl implements SessionSnapshot {
       this.pr = session.outcome.pullRequest;
       this.generatedFiles = session.outcome.generatedFiles();
       // Ensure changeSet is always a function, even if outcome.changeSet is undefined
-      this.changeSet = typeof session.outcome.changeSet === 'function'
-        ? session.outcome.changeSet
-        : () => undefined;
+      this.changeSet =
+        typeof session.outcome.changeSet === 'function'
+          ? session.outcome.changeSet
+          : () => undefined;
     } else {
       // Fallback: extract PR from outputs if outcome is not populated
       const prOutput = session.outputs?.find((o) => o.type === 'pullRequest');
       this.pr = prOutput?.pullRequest;
-      this.generatedFiles = { all: () => [], get: () => undefined, filter: () => [] };
+      this.generatedFiles = {
+        all: () => [],
+        get: () => undefined,
+        filter: () => [],
+      };
       this.changeSet = () => undefined;
     }
     this.activities = Object.freeze(activities);
@@ -160,7 +165,9 @@ export class SessionSnapshotImpl implements SessionSnapshot {
     };
   }
 
-  toJSON(options: ToJSONOptions = { exclude: ['activities', 'generatedFiles'] }): Partial<SerializedSnapshot> {
+  toJSON(
+    options: ToJSONOptions = { exclude: ['activities', 'generatedFiles'] },
+  ): Partial<SerializedSnapshot> {
     const full: SerializedSnapshot = {
       id: this.id,
       state: this.state,

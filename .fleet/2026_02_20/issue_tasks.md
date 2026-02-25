@@ -48,6 +48,7 @@ Update `jules.session(config)` to use the same logic as `jules.run(config)` for 
 ```
 
 #### Test Plan
+
 1.  Verify `jules.session({ autoPr: true })` sends `AUTO_CREATE_PR`.
 2.  Verify `jules.session({ autoPr: false })` sends `AUTOMATION_MODE_UNSPECIFIED`.
 3.  Verify `jules.session({})` (default) behavior.
@@ -83,6 +84,7 @@ export async function pollSession(...) {
 4.  Throw a `TimeoutError` if the timeout is exceeded.
 
 #### Test Plan
+
 1.  Mock a session that stays `IN_PROGRESS`.
 2.  Call `result({ timeoutMs: 100 })`.
 3.  Verify it throws `TimeoutError` after ~100ms.
@@ -101,10 +103,10 @@ The `ApiClient` currently only retries on `429 Too Many Requests`. It does not r
 
 ```typescript
 // packages/core/src/api.ts:114
-      if (response.status === 429) {
-        // ... retries ...
-      }
-      // ... throws immediately for other errors ...
+if (response.status === 429) {
+  // ... retries ...
+}
+// ... throws immediately for other errors ...
 ```
 
 Additionally, there is no client-side concurrency limiting. When a user spawns 10+ parallel sessions, the client floods the backend, leading to failure (likely 503s or 404s due to overload).
@@ -115,33 +117,34 @@ Additionally, there is no client-side concurrency limiting. When a user spawns 1
 2.  **Concurrency Control**: Implement a semaphore (e.g., using `p-limit` logic internally) in `ApiClient` to limit the number of concurrent `fetch` requests (e.g., max 50).
 
 #### Test Plan
+
 1.  **Retries**: Mock a 503 response followed by a 200. Verify the client retries and succeeds.
 2.  **Concurrency**: Mock a slow endpoint. Fire 100 requests. Verify that only N requests are in flight simultaneously.
 
 ## Task Plan
 
-| # | Task | Root Cause | Issues | Files | Risk |
-|---|------|-----------|--------|-------|------|
-| 1 | `fix-config-consistency` | RC-1 | #24, #18 | `packages/core/src/client.ts`, `packages/core/tests/session.test.ts` | Low |
-| 2 | `add-polling-timeout` | RC-2 | #23 | `packages/core/src/polling.ts`, `packages/core/src/session.ts`, `packages/core/src/types.ts`, `packages/core/src/errors.ts`, `packages/core/tests/polling.test.ts` | Medium |
-| 3 | `improve-api-resilience` | RC-3 | #20 | `packages/core/src/api.ts`, `packages/core/tests/api.test.ts` | Medium |
+| #   | Task                     | Root Cause | Issues   | Files                                                                                                                                                              | Risk   |
+| --- | ------------------------ | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| 1   | `fix-config-consistency` | RC-1       | #24, #18 | `packages/core/src/client.ts`, `packages/core/tests/session.test.ts`                                                                                               | Low    |
+| 2   | `add-polling-timeout`    | RC-2       | #23      | `packages/core/src/polling.ts`, `packages/core/src/session.ts`, `packages/core/src/types.ts`, `packages/core/src/errors.ts`, `packages/core/tests/polling.test.ts` | Medium |
+| 3   | `improve-api-resilience` | RC-3       | #20      | `packages/core/src/api.ts`, `packages/core/tests/api.test.ts`                                                                                                      | Medium |
 
 ## File Ownership Matrix
 
-| File | Task | Change Type |
-|------|------|-------------|
-| `packages/core/src/client.ts` | 1 | Modify |
-| `packages/core/tests/session.test.ts` | 1 | Modify |
-| `packages/core/src/polling.ts` | 2 | Modify |
-| `packages/core/src/session.ts` | 2 | Modify |
-| `packages/core/src/types.ts` | 2 | Modify |
-| `packages/core/src/errors.ts` | 2 | Modify |
-| `packages/core/tests/polling.test.ts` | 2 | Modify |
-| `packages/core/src/api.ts` | 3 | Modify |
-| `packages/core/tests/api.test.ts` | 3 | Modify |
+| File                                  | Task | Change Type |
+| ------------------------------------- | ---- | ----------- |
+| `packages/core/src/client.ts`         | 1    | Modify      |
+| `packages/core/tests/session.test.ts` | 1    | Modify      |
+| `packages/core/src/polling.ts`        | 2    | Modify      |
+| `packages/core/src/session.ts`        | 2    | Modify      |
+| `packages/core/src/types.ts`          | 2    | Modify      |
+| `packages/core/src/errors.ts`         | 2    | Modify      |
+| `packages/core/tests/polling.test.ts` | 2    | Modify      |
+| `packages/core/src/api.ts`            | 3    | Modify      |
+| `packages/core/tests/api.test.ts`     | 3    | Modify      |
 
 ## Unaddressable Issues
 
-| Issue | Reason | Suggested Owner |
-|-------|--------|-----------------|
-| #18 | The combination `requireApproval: false` + `AUTOMATION_MODE_UNSPECIFIED` is rejected by the backend with `FAILED_PRECONDITION`. This is a server-side constraint. However, fixing #24 allows users to switch to `AUTO_CREATE_PR` mode (by setting `autoPr: true`), which may bypass this constraint if automation mode is less strict about approvals. | Backend Team |
+| Issue | Reason                                                                                                                                                                                                                                                                                                                                                 | Suggested Owner |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| #18   | The combination `requireApproval: false` + `AUTOMATION_MODE_UNSPECIFIED` is rejected by the backend with `FAILED_PRECONDITION`. This is a server-side constraint. However, fixing #24 allows users to switch to `AUTO_CREATE_PR` mode (by setting `autoPr: true`), which may bypass this constraint if automation mode is less strict about approvals. | Backend Team    |

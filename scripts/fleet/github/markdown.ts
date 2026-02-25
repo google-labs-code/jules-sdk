@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { getIssues } from "./issues.js";
-import { getGitRepoInfo } from "./git.js";
+import { getIssues } from './issues.js';
+import { getGitRepoInfo } from './git.js';
 
 type Issue = Awaited<ReturnType<typeof getIssues>>[number];
 
 function toIssueMarkdown(issue: Issue): string {
   const labels = issue.labels
-    .map((l) => (typeof l === "string" ? l : l.name))
+    .map((l) => (typeof l === 'string' ? l : l.name))
     .filter(Boolean);
   const assignees = (issue.assignees ?? []).map((a) => a.login);
   const reactions = issue.reactions;
@@ -31,10 +31,10 @@ function toIssueMarkdown(issue: Issue): string {
     ``,
     `| Field | Value |`,
     `|-------|-------|`,
-    `| **Author** | ${issue.user?.login ?? "unknown"} |`,
+    `| **Author** | ${issue.user?.login ?? 'unknown'} |`,
     `| **Association** | ${issue.author_association} |`,
-    `| **State** | ${issue.state}${issue.state_reason ? ` (${issue.state_reason})` : ""} |`,
-    `| **Locked** | ${issue.locked}${issue.active_lock_reason ? ` — ${issue.active_lock_reason}` : ""} |`,
+    `| **State** | ${issue.state}${issue.state_reason ? ` (${issue.state_reason})` : ''} |`,
+    `| **Locked** | ${issue.locked}${issue.active_lock_reason ? ` — ${issue.active_lock_reason}` : ''} |`,
     `| **Comments** | ${issue.comments} |`,
     `| **Created** | ${issue.created_at} |`,
     `| **Updated** | ${issue.updated_at} |`,
@@ -47,10 +47,10 @@ function toIssueMarkdown(issue: Issue): string {
     lines.push(`| **Closed by** | ${issue.closed_by.login} |`);
   }
   if (labels.length) {
-    lines.push(`| **Labels** | ${labels.map((l) => `\`${l}\``).join(", ")} |`);
+    lines.push(`| **Labels** | ${labels.map((l) => `\`${l}\``).join(', ')} |`);
   }
   if (assignees.length) {
-    lines.push(`| **Assignees** | ${assignees.join(", ")} |`);
+    lines.push(`| **Assignees** | ${assignees.join(', ')} |`);
   }
   if (issue.milestone) {
     lines.push(`| **Milestone** | ${issue.milestone.title} |`);
@@ -63,8 +63,8 @@ function toIssueMarkdown(issue: Issue): string {
   }
   if (reactions) {
     const rxn = [
-      reactions["+1"] && `👍 ${reactions["+1"]}`,
-      reactions["-1"] && `👎 ${reactions["-1"]}`,
+      reactions['+1'] && `👍 ${reactions['+1']}`,
+      reactions['-1'] && `👎 ${reactions['-1']}`,
       reactions.laugh && `😄 ${reactions.laugh}`,
       reactions.hooray && `🎉 ${reactions.hooray}`,
       reactions.confused && `😕 ${reactions.confused}`,
@@ -73,7 +73,7 @@ function toIssueMarkdown(issue: Issue): string {
       reactions.eyes && `👀 ${reactions.eyes}`,
     ].filter(Boolean);
     if (rxn.length) {
-      lines.push(`| **Reactions** | ${rxn.join("  ")} |`);
+      lines.push(`| **Reactions** | ${rxn.join('  ')} |`);
     }
   }
 
@@ -84,7 +84,7 @@ function toIssueMarkdown(issue: Issue): string {
   }
 
   lines.push(`---`, ``);
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 async function toIssueDocMarkdown(issues: Issue[]) {
@@ -98,7 +98,7 @@ async function toIssueDocMarkdown(issues: Issue[]) {
     ``,
     ...issues.map(toIssueMarkdown),
   ];
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 export async function getIssuesAsMarkdown() {

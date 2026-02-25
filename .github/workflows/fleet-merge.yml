@@ -23,9 +23,9 @@ on:
   workflow_dispatch:
     inputs:
       base_branch:
-        description: "Base branch for merge"
+        description: 'Base branch for merge'
         type: string
-        default: "main"
+        default: 'main'
 
 concurrency:
   group: fleet-merge

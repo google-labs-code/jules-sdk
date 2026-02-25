@@ -31,7 +31,11 @@ const createMockOutcome = (sessionId: string): SessionOutcome => ({
   title: 'test',
   state: 'completed',
   outputs: [],
-  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  generatedFiles: () => ({
+    all: () => [],
+    get: () => undefined,
+    filter: () => [],
+  }),
   changeSet: () => undefined,
 });
 
@@ -237,5 +241,17 @@ describe('jules.sessions()', () => {
 
     expect(mockStorageFactory.session).toHaveBeenCalled();
     expect(mockSessionStorage.upsertMany).toHaveBeenCalled();
+  });
+
+  // NEW: Test for filter option
+  it('should pass filter parameter to API', async () => {
+    const mockSessions = [createRestSession('1')];
+    (apiClient.request as any).mockResolvedValue({ sessions: mockSessions });
+
+    await client.sessions({ filter: 'archived = true' });
+
+    expect(apiClient.request).toHaveBeenCalledWith('sessions', {
+      query: { filter: 'archived = true' },
+    });
   });
 });

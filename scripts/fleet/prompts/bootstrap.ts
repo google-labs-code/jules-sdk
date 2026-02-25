@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { AnalyzeIssuesPromptOptions } from "../types.js";
-import { analyzeIssuesPrompt } from "./analyze-issues.js";
-import { getGitRepoInfo } from "../github/git.js";
+import type { AnalyzeIssuesPromptOptions } from '../types.js';
+import { analyzeIssuesPrompt } from './analyze-issues.js';
+import { getGitRepoInfo } from '../github/git.js';
 
 /**
  * Static bootstrap prompt for scheduled Jules sessions.
@@ -34,7 +34,7 @@ export async function bootstrapPrompt(): Promise<string> {
   // We generate the analysis prompt template with a placeholder.
   // Jules will replace it with the actual issues at runtime.
   const analysisPrompt = analyzeIssuesPrompt({
-    issuesMarkdown: "{{ISSUES_MARKDOWN}}",
+    issuesMarkdown: '{{ISSUES_MARKDOWN}}',
     repoFullName: repoInfo.fullName,
   });
 
