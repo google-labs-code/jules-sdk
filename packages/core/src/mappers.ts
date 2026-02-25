@@ -191,11 +191,16 @@ export function mapRestStateToSdkState(state: string): SessionState {
 
 export function mapRestSourceToSdkSource(rest: RestSource): Source {
   if (rest.githubRepo) {
+    const { defaultBranch, branches, ...other } = rest.githubRepo;
     return {
       type: 'githubRepo',
       name: rest.name,
       id: rest.id,
-      githubRepo: rest.githubRepo,
+      githubRepo: {
+        ...other,
+        defaultBranch: defaultBranch?.displayName,
+        branches: branches?.map((b) => b.displayName),
+      },
     };
   }
   throw new Error(`Unknown source type: ${JSON.stringify(rest)}`);

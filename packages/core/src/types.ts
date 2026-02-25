@@ -209,8 +209,8 @@ export interface RestGitHubRepo {
   owner: string;
   repo: string;
   isPrivate: boolean;
-  defaultBranch?: string;
-  branches?: string[];
+  defaultBranch?: { displayName: string };
+  branches?: { displayName: string }[];
 }
 
 /**

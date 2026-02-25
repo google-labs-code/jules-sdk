@@ -219,7 +219,7 @@ describe('mapRestSourceToSdkSource', () => {
         owner: 'owner',
         repo: 'repo',
         isPrivate: false,
-        defaultBranch: 'main',
+        defaultBranch: { displayName: 'main' },
       },
     };
     const sdk = mapRestSourceToSdkSource(rest);
@@ -227,6 +227,26 @@ describe('mapRestSourceToSdkSource', () => {
     if (sdk.type === 'githubRepo') {
       expect(sdk.githubRepo.owner).toBe('owner');
       expect(sdk.githubRepo.defaultBranch).toBe('main');
+    }
+  });
+
+  it('should map nested defaultBranch correctly', () => {
+    const rest: RestSource = {
+      name: 'sources/github/owner/repo',
+      id: 'github/owner/repo',
+      githubRepo: {
+        owner: 'owner',
+        repo: 'repo',
+        isPrivate: false,
+        defaultBranch: { displayName: 'main' },
+        branches: [{ displayName: 'main' }, { displayName: 'dev' }],
+      },
+    };
+    const sdk = mapRestSourceToSdkSource(rest);
+    expect(sdk.type).toBe('githubRepo');
+    if (sdk.type === 'githubRepo') {
+      expect(sdk.githubRepo.defaultBranch).toBe('main');
+      expect(sdk.githubRepo.branches).toEqual(['main', 'dev']);
     }
   });
 });
