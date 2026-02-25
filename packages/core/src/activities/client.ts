@@ -182,11 +182,18 @@ export class DefaultActivityClient implements ActivityClient {
         pageToken: nextPageToken,
       });
 
-      for (const activity of response.activities) {
-        // The API filter should prevent us from receiving activities we already
-        // have. This is a defensive check to prevent duplicates in case of
-        // API or clock-skew issues.
-        const existing = await this.storage.get(activity.id);
+      // Batch check for existing activities to reduce I/O overhead.
+      // The API filter should prevent us from receiving activities we already
+      // have. This is a defensive check to prevent duplicates in case of
+      // API or clock-skew issues.
+      const existingChecks = await Promise.all(
+        response.activities.map((activity) => this.storage.get(activity.id)),
+      );
+
+      for (let i = 0; i < response.activities.length; i++) {
+        const activity = response.activities[i];
+        const existing = existingChecks[i];
+
         if (existing) {
           continue;
         }
