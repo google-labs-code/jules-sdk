@@ -17,7 +17,12 @@
 // src/sources.ts
 import { ApiClient } from './api.js';
 import { JulesApiError } from './errors.js';
-import { Source, SourceManager, GitHubRepo } from './types.js';
+import {
+  Source,
+  SourceManager,
+  GitHubRepo,
+  ListSourcesOptions,
+} from './types.js';
 
 // Internal type representing the raw source from the REST API
 interface RestGitHubRepo {
@@ -82,11 +87,16 @@ class SourceManagerImpl {
    * - Automatically handles API pagination by following `nextPageToken`.
    * - Yields sources one by one as they are retrieved.
    */
-  async *list(): AsyncIterable<Source> {
+  async *list(options: ListSourcesOptions = {}): AsyncIterable<Source> {
     let pageToken: string | undefined = undefined;
 
     while (true) {
-      const params: Record<string, string> = { pageSize: '100' };
+      const params: Record<string, string> = {
+        pageSize: (options.pageSize || 100).toString(),
+      };
+      if (options.filter) {
+        params.filter = options.filter;
+      }
       if (pageToken) {
         params.pageToken = pageToken;
       }

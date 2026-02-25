@@ -1307,6 +1307,22 @@ export interface SerializedSnapshot {
 // -----------------------------------------------------------------------------
 
 /**
+ * Options for listing sources.
+ */
+export interface ListSourcesOptions {
+  /**
+   * A filter expression to filter sources by name or other fields.
+   * Format: "field=value"
+   */
+  filter?: string;
+  /**
+   * The maximum number of sources to return per page.
+   * @default 100
+   */
+  pageSize?: number;
+}
+
+/**
  * Interface for managing and locating connected sources.
  * Accessed via `jules.sources`.
  */
@@ -1315,14 +1331,15 @@ export interface SourceManager {
    * Iterates over all connected sources.
    * Uses an Async Iterator to abstract API pagination.
    *
+   * @param options Optional configuration for listing sources.
    * @example
-   * for await (const source of jules.sources()) {
+   * for await (const source of jules.sources({ filter: 'name=sources/github/my-org/my-repo' })) {
    *   if (source.type === 'githubRepo') {
    *     console.log(`Found repo: ${source.githubRepo.owner}/${source.githubRepo.repo}`);
    *   }
    * }
    */
-  (): AsyncIterable<Source>;
+  (options?: ListSourcesOptions): AsyncIterable<Source>;
 
   /**
    * Locates a specific source based on ergonomic filters.

@@ -216,5 +216,26 @@ describe('SourceManager', () => {
 
       vi.useRealTimers();
     });
+
+    it('should pass filter options to the API', async () => {
+      const filter = 'name=sources/github/my-org/my-repo';
+      let capturedQuery: URLSearchParams | null = null;
+
+      server.use(
+        http.get(`${BASE_URL}/sources`, ({ request }) => {
+          const url = new URL(request.url);
+          capturedQuery = url.searchParams;
+          return HttpResponse.json({ sources: [] });
+        }),
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _ of jules.sources({ filter })) {
+        // no-op
+      }
+
+      expect(capturedQuery).toBeDefined();
+      expect(capturedQuery?.get('filter')).toBe(filter);
+    });
   });
 });
