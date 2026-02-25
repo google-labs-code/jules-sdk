@@ -186,7 +186,7 @@ jobs:
               else
                 # Squash merge
                 echo "  ✅ CI passed. Merging PR #${PR_NUM}..."
-                if gh pr merge "$PR_NUM" --squash; then
+                if gh pr merge "$PR_NUM" --squash --admin; then
                   echo "  🎉 PR #${PR_NUM} merged successfully."
                 else
                   echo "  ❌ Failed to merge PR #${PR_NUM}. Stopping sequential merge."
