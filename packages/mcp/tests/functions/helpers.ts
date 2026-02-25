@@ -117,8 +117,7 @@ export function createTestActivity(input: {
     if (a.type === 'bashOutput') {
       return new BashArtifact({
         command: a.command ?? '',
-        stdout: a.stdout ?? '',
-        stderr: a.stderr ?? '',
+        output: (a.stdout ?? '') + (a.stderr ?? ''),
         exitCode: a.exitCode ?? 0,
       });
     }
