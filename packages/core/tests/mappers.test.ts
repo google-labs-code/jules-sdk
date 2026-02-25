@@ -321,4 +321,24 @@ describe('mapRestSessionToSdkSession', () => {
     expect(sdk.outputs).toHaveLength(1);
     expect(sdk.outputs[0].type).toBe('pullRequest');
   });
+
+  it('should map session configuration fields', () => {
+    const rest: RestSessionResource = {
+      name: 'sessions/123',
+      id: '123',
+      prompt: 'prompt',
+      title: 'title',
+      createTime: '2023-01-01',
+      updateTime: '2023-01-01',
+      state: 'IN_PROGRESS',
+      url: 'url',
+      outputs: [],
+      sourceContext: { source: 's' },
+      requirePlanApproval: true,
+      automationMode: 'AUTO_CREATE_PR',
+    };
+    const sdk = mapRestSessionToSdkSession(rest, mockPlatform);
+    expect(sdk.requirePlanApproval).toBe(true);
+    expect(sdk.automationMode).toBe('AUTO_CREATE_PR');
+  });
 });
