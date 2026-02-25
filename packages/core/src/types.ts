@@ -683,15 +683,14 @@ export interface RestChangeSetArtifact {
 export interface RestMediaArtifact {
   media: {
     data: string;
-    format: string;
+    mimeType: string;
   };
 }
 
 export interface RestBashOutputArtifact {
   bashOutput: {
     command: string;
-    stdout: string;
-    stderr: string;
+    output: string;
     exitCode: number | null;
   };
 }

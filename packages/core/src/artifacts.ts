@@ -218,7 +218,7 @@ export class MediaArtifact {
     activityId?: string,
   ) {
     this.data = artifact.data;
-    this.format = artifact.format;
+    this.format = artifact.mimeType;
     this.platform = platform;
     this.activityId = activityId;
   }
@@ -267,8 +267,8 @@ export class BashArtifact {
 
   constructor(artifact: RestBashOutputArtifact['bashOutput']) {
     this.command = artifact.command;
-    this.stdout = artifact.stdout;
-    this.stderr = artifact.stderr;
+    this.stdout = artifact.output;
+    this.stderr = '';
     this.exitCode = artifact.exitCode;
   }
 

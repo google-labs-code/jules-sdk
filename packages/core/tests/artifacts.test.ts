@@ -58,7 +58,7 @@ describe('Artifacts', () => {
         const artifact = new MediaArtifact(
           {
             data: base64Data,
-            format: 'text/plain',
+            mimeType: 'text/plain',
           },
           mockPlatform,
         );
@@ -81,7 +81,7 @@ describe('Artifacts', () => {
         const artifact = new MediaArtifact(
           {
             data: base64Data,
-            format: 'text/plain',
+            mimeType: 'text/plain',
           },
           mockPlatform,
           activityId,
@@ -104,7 +104,7 @@ describe('Artifacts', () => {
         const artifact = new MediaArtifact(
           {
             data: base64Data,
-            format: mimeType,
+            mimeType: mimeType,
           },
           mockPlatform,
         );
@@ -127,8 +127,7 @@ describe('Artifacts', () => {
       it('should format toString() correctly with stdout', () => {
         const artifact = new BashArtifact({
           command: 'ls -l',
-          stdout: 'total 0',
-          stderr: '',
+          output: 'total 0',
           exitCode: 0,
         });
         const expected = `$ ls -l\ntotal 0\n[exit code: 0]`;
@@ -138,8 +137,7 @@ describe('Artifacts', () => {
       it('should format toString() correctly with stderr', () => {
         const artifact = new BashArtifact({
           command: 'grep foo nonexistent.txt',
-          stdout: '',
-          stderr: 'File not found',
+          output: 'File not found',
           exitCode: 2,
         });
         const expected = `$ grep foo nonexistent.txt\nFile not found\n[exit code: 2]`;
@@ -149,8 +147,7 @@ describe('Artifacts', () => {
       it('should format toString() correctly with no output and a null exit code', () => {
         const artifact = new BashArtifact({
           command: 'sleep 10',
-          stdout: '',
-          stderr: '',
+          output: '',
           exitCode: null,
         });
         const expected = `$ sleep 10\n[exit code: N/A]`;
@@ -341,7 +338,7 @@ deleted file mode 100644
     describe('Mapper Integration', () => {
       it('should map REST media artifact to a MediaArtifact instance', () => {
         const restArtifact: RestMediaArtifact = {
-          media: { data: 'data', format: 'image/png' },
+          media: { data: 'data', mimeType: 'image/png' },
         };
         const sdkArtifact = mapRestArtifactToSdkArtifact(
           restArtifact,
@@ -356,8 +353,7 @@ deleted file mode 100644
         const restArtifact: RestBashOutputArtifact = {
           bashOutput: {
             command: 'echo "hi"',
-            stdout: 'hi',
-            stderr: '',
+            output: 'hi',
             exitCode: 0,
           },
         };
@@ -405,7 +401,7 @@ deleted file mode 100644
       const artifact = new BrowserMediaArtifact(
         {
           data: 'SGVsbG8sIFdvcmxkIQ==',
-          format: 'text/plain',
+          mimeType: 'text/plain',
         },
         mockPlatform,
       );
