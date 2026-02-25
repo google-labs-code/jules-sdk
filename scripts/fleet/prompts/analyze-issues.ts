@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { AnalyzeIssuesPromptOptions } from "../types.js";
+import type { AnalyzeIssuesPromptOptions } from '../types.js';
 
 export function analyzeIssuesPrompt({
   issuesMarkdown,
   repoFullName,
 }: AnalyzeIssuesPromptOptions): string {
   const now = new Date();
-  const YYYY_MM_DD = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, "0")}_${String(now.getDate()).padStart(2, "0")}`;
+  const YYYY_MM_DD = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}`;
 
   return `Analyze ${repoFullName} open issues and produce implementation tasks.
 

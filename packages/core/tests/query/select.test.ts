@@ -25,12 +25,19 @@ import {
   SessionOutcome,
 } from '../../src/types.js';
 
-const createMockOutcome = (sessionId: string, title: string): SessionOutcome => ({
+const createMockOutcome = (
+  sessionId: string,
+  title: string,
+): SessionOutcome => ({
   sessionId,
   title,
   state: 'completed',
   outputs: [],
-  generatedFiles: () => ({ all: () => [], get: () => undefined, filter: () => [] }),
+  generatedFiles: () => ({
+    all: () => [],
+    get: () => undefined,
+    filter: () => [],
+  }),
   changeSet: () => undefined,
 });
 

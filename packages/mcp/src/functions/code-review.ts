@@ -1,4 +1,8 @@
-import type { JulesClient, ChangeSetArtifact, Activity } from '@google/jules-sdk';
+import type {
+  JulesClient,
+  ChangeSetArtifact,
+  Activity,
+} from '@google/jules-sdk';
 import type {
   ReviewChangesResult,
   ReviewChangesOptions,
@@ -16,9 +20,13 @@ import type {
  */
 function getSemanticStatus(state: string): SessionStatus {
   const busyStates = new Set([
-    'queued', 'QUEUED',
-    'planning', 'PLANNING',
-    'inProgress', 'IN_PROGRESS', 'in_progress',
+    'queued',
+    'QUEUED',
+    'planning',
+    'PLANNING',
+    'inProgress',
+    'IN_PROGRESS',
+    'in_progress',
   ]);
   const failedStates = new Set(['failed', 'FAILED']);
 
@@ -39,9 +47,8 @@ function isBusyState(state: string): boolean {
  * This is detected by looking for sessionCompleted or planApproved activities.
  */
 function hasStableHistory(activities: readonly Activity[]): boolean {
-  return activities.some(a =>
-    a.type === 'sessionCompleted' ||
-    a.type === 'planApproved'
+  return activities.some(
+    (a) => a.type === 'sessionCompleted' || a.type === 'planApproved',
   );
 }
 
@@ -64,7 +71,9 @@ function computeNetChangeType(
  * Aggregate file changes from activity artifacts.
  * Tracks which activities touched each file and computes net change type.
  */
-function aggregateFromActivities(activities: readonly Activity[]): FileChange[] {
+function aggregateFromActivities(
+  activities: readonly Activity[],
+): FileChange[] {
   const fileMap = new Map<
     string,
     {
@@ -127,11 +136,13 @@ function aggregateFromActivities(activities: readonly Activity[]): FileChange[] 
 /**
  * Get files from session outcome changeSet.
  */
-function getFilesFromOutcome(changeSet: ChangeSetArtifact | undefined): FileChange[] {
+function getFilesFromOutcome(
+  changeSet: ChangeSetArtifact | undefined,
+): FileChange[] {
   if (!changeSet) return [];
 
   const parsed = changeSet.parsed();
-  return parsed.files.map(f => ({
+  return parsed.files.map((f) => ({
     path: f.path,
     changeType: f.changeType,
     activityIds: ['outcome'],
@@ -202,9 +213,13 @@ function formatAsTree(files: FileChange[]): string {
           : `(+${file.additions}${file.deletions > 0 ? ` / -${file.deletions}` : ''})`;
 
       // Include activity IDs (truncated)
-      const activityInfo = file.activityIds.length > 0 && file.activityIds[0] !== 'outcome'
-        ? ` [${file.activityIds.slice(0, 2).map(id => id.slice(0, 8)).join(', ')}${file.activityIds.length > 2 ? '...' : ''}]`
-        : '';
+      const activityInfo =
+        file.activityIds.length > 0 && file.activityIds[0] !== 'outcome'
+          ? ` [${file.activityIds
+              .slice(0, 2)
+              .map((id) => id.slice(0, 8))
+              .join(', ')}${file.activityIds.length > 2 ? '...' : ''}]`
+          : '';
 
       lines.push(`  ${icon} ${basename} ${stats}${activityInfo}`);
     }
@@ -230,7 +245,12 @@ function formatAsDetailed(files: FileChange[]): string {
     lines.push(`   Type: ${file.changeType}`);
     lines.push(`   Lines: +${file.additions} / -${file.deletions}`);
     if (file.activityIds.length > 0 && file.activityIds[0] !== 'outcome') {
-      lines.push(`   Activities: ${file.activityIds.slice(0, 3).map(id => id.slice(0, 8)).join(', ')}${file.activityIds.length > 3 ? '...' : ''}`);
+      lines.push(
+        `   Activities: ${file.activityIds
+          .slice(0, 3)
+          .map((id) => id.slice(0, 8))
+          .join(', ')}${file.activityIds.length > 3 ? '...' : ''}`,
+      );
     }
   }
 
@@ -261,7 +281,9 @@ function formatAsSummary(
 
   // Warning for busy sessions with stable history
   if (status === 'busy' && hasStableHistory) {
-    lines.push('⚠️ Session was previously stable. Current changes may modify earlier work.');
+    lines.push(
+      '⚠️ Session was previously stable. Current changes may modify earlier work.',
+    );
     lines.push('');
   }
 
@@ -310,7 +332,12 @@ export async function codeReview(
     throw new Error('sessionId is required');
   }
 
-  const { format = 'summary', filter = 'all', detail = 'standard', activityId } = options;
+  const {
+    format = 'summary',
+    filter = 'all',
+    detail = 'standard',
+    activityId,
+  } = options;
 
   // Get session and hydrate activities
   const session = client.session(sessionId);
@@ -327,9 +354,11 @@ export async function codeReview(
   // Find specific activity if activityId provided
   let targetActivity: Activity | undefined;
   if (activityId) {
-    targetActivity = activities.find(a => a.id === activityId);
+    targetActivity = activities.find((a) => a.id === activityId);
     if (!targetActivity) {
-      throw new Error(`Activity ${activityId} not found in session ${sessionId}`);
+      throw new Error(
+        `Activity ${activityId} not found in session ${sessionId}`,
+      );
     }
   }
 
@@ -345,16 +374,19 @@ export async function codeReview(
     // Stable mode: use session outcome changeSet, but also get activity IDs if available
 
     // FIX: Defensive check for changeSet being a function
-    const changeSet = typeof snapshot.changeSet === 'function'
-      ? snapshot.changeSet() as ChangeSetArtifact | undefined
-      : undefined;
+    const changeSet =
+      typeof snapshot.changeSet === 'function'
+        ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
+        : undefined;
 
     // Try to get activity IDs by also aggregating from activities
     const activityFiles = aggregateFromActivities(activities);
-    const activityFileMap = new Map(activityFiles.map(f => [f.path, f.activityIds]));
+    const activityFileMap = new Map(
+      activityFiles.map((f) => [f.path, f.activityIds]),
+    );
 
     // Use outcome changeSet for accurate final state, but enrich with activity IDs
-    files = getFilesFromOutcome(changeSet).map(f => ({
+    files = getFilesFromOutcome(changeSet).map((f) => ({
       ...f,
       activityIds: activityFileMap.get(f.path) || f.activityIds,
     }));
@@ -362,15 +394,15 @@ export async function codeReview(
 
   // Apply filter
   if (filter !== 'all') {
-    files = files.filter(f => f.changeType === filter);
+    files = files.filter((f) => f.changeType === filter);
   }
 
   // Compute summary
   const summary: FilesSummary = {
     totalFiles: files.length,
-    created: files.filter(f => f.changeType === 'created').length,
-    modified: files.filter(f => f.changeType === 'modified').length,
-    deleted: files.filter(f => f.changeType === 'deleted').length,
+    created: files.filter((f) => f.changeType === 'created').length,
+    modified: files.filter((f) => f.changeType === 'modified').length,
+    deleted: files.filter((f) => f.changeType === 'deleted').length,
   };
 
   // Extract PR info
@@ -413,9 +445,10 @@ export async function codeReview(
     status,
     url: snapshot.url,
     hasStableHistory: stableHistory,
-    warning: isBusy && stableHistory
-      ? 'Session was previously stable. Current changes may modify earlier work.'
-      : undefined,
+    warning:
+      isBusy && stableHistory
+        ? 'Session was previously stable. Current changes may modify earlier work.'
+        : undefined,
     files,
     summary,
     formatted,

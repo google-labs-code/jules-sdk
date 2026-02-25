@@ -8,9 +8,13 @@ import type {
 } from './types.js';
 
 const BUSY_STATES = new Set([
-  'queued', 'QUEUED',
-  'planning', 'PLANNING',
-  'inProgress', 'IN_PROGRESS', 'in_progress',
+  'queued',
+  'QUEUED',
+  'planning',
+  'PLANNING',
+  'inProgress',
+  'IN_PROGRESS',
+  'in_progress',
 ]);
 const FAILED_STATES = new Set(['failed', 'FAILED']);
 
@@ -30,12 +34,16 @@ function deriveStatus(state: string): SessionStatus {
 /**
  * Find the last activity from the activities list.
  */
-function findLastActivity(activities: readonly Activity[]): LastActivity | undefined {
+function findLastActivity(
+  activities: readonly Activity[],
+): LastActivity | undefined {
   if (activities.length === 0) return undefined;
 
   // Sort by createTime descending to find the most recent
-  const sorted = [...activities]
-    .sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
+  const sorted = [...activities].sort(
+    (a, b) =>
+      new Date(b.createTime).getTime() - new Date(a.createTime).getTime(),
+  );
 
   const last = sorted[0];
   if (!last) return undefined;
@@ -51,11 +59,16 @@ function findLastActivity(activities: readonly Activity[]): LastActivity | undef
  * Find the last agent message from activities.
  * Looks for 'agentMessaged' activities and extracts the message content.
  */
-function findLastAgentMessage(activities: readonly Activity[]): LastAgentMessage | undefined {
+function findLastAgentMessage(
+  activities: readonly Activity[],
+): LastAgentMessage | undefined {
   // Sort by createTime descending to find the most recent
   const sorted = [...activities]
-    .filter(a => a.type === 'agentMessaged')
-    .sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
+    .filter((a) => a.type === 'agentMessaged')
+    .sort(
+      (a, b) =>
+        new Date(b.createTime).getTime() - new Date(a.createTime).getTime(),
+    );
 
   const lastMessage = sorted[0];
   if (!lastMessage || lastMessage.type !== 'agentMessaged') return undefined;
@@ -75,19 +88,25 @@ function findLastAgentMessage(activities: readonly Activity[]): LastAgentMessage
  * Find a pending plan from activities.
  * Returns the most recent planGenerated activity's plan if it hasn't been approved.
  */
-function findPendingPlan(activities: readonly Activity[]): PendingPlan | undefined {
+function findPendingPlan(
+  activities: readonly Activity[],
+): PendingPlan | undefined {
   // Sort by createTime descending
-  const sorted = [...activities]
-    .sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
+  const sorted = [...activities].sort(
+    (a, b) =>
+      new Date(b.createTime).getTime() - new Date(a.createTime).getTime(),
+  );
 
   // Find the most recent planGenerated
-  const planActivity = sorted.find(a => a.type === 'planGenerated');
+  const planActivity = sorted.find((a) => a.type === 'planGenerated');
   if (!planActivity || planActivity.type !== 'planGenerated') return undefined;
 
   // Check if there's a planApproved after this planGenerated
-  const planApproved = sorted.find(a =>
-    a.type === 'planApproved' &&
-    new Date(a.createTime).getTime() > new Date(planActivity.createTime).getTime()
+  const planApproved = sorted.find(
+    (a) =>
+      a.type === 'planApproved' &&
+      new Date(a.createTime).getTime() >
+        new Date(planActivity.createTime).getTime(),
   );
 
   // If plan was approved, it's not pending
@@ -99,13 +118,12 @@ function findPendingPlan(activities: readonly Activity[]): PendingPlan | undefin
   return {
     activityId: planActivity.id,
     planId: plan.id,
-    steps: plan.steps.map(step => ({
+    steps: plan.steps.map((step) => ({
       title: step.title,
       description: step.description,
     })),
   };
 }
-
 
 /**
  * Get the current state of a Jules session.
