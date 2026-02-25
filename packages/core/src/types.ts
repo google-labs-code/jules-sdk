@@ -283,6 +283,8 @@ export interface RestSessionOutput {
   changeSet?: ChangeSet;
 }
 
+export type AutomationMode = 'AUTOMATION_MODE_UNSPECIFIED' | 'AUTO_CREATE_PR';
+
 /**
  * Raw REST API representation of a Session Resource.
  */
@@ -296,6 +298,8 @@ export interface RestSessionResource {
   createTime: string;
   updateTime: string;
   state: string; // SCREAMING_SNAKE_CASE
+  requirePlanApproval?: boolean;
+  automationMode?: string;
   url: string;
   outputs?: RestSessionOutput[];
   activities?: any[];
@@ -396,6 +400,8 @@ export interface SessionResource {
   sourceContext: SourceContext;
   source?: Source;
   title: string;
+  requirePlanApproval?: boolean;
+  automationMode?: AutomationMode;
   /**
    * The time the session was created (RFC 3339 timestamp).
    */

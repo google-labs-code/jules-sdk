@@ -26,6 +26,7 @@ import { AutomatedSessionFailedError } from './errors.js';
 import {
   Activity,
   Artifact,
+  AutomationMode,
   ChangeSet,
   SessionOutcome,
   PullRequest,
@@ -232,6 +233,8 @@ export function mapRestSessionToSdkSession(
     ...rest,
     archived: rest.archived ?? false,
     state: mapRestStateToSdkState(rest.state),
+    requirePlanApproval: rest.requirePlanApproval,
+    automationMode: rest.automationMode as AutomationMode,
     outputs: (rest.outputs || []).map(mapRestOutputToSdkOutput),
     source: rest.source ? mapRestSourceToSdkSource(rest.source) : undefined,
     generatedFiles: rest.generatedFiles,
