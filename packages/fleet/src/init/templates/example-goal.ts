@@ -23,16 +23,22 @@ milestone: "1"
 
 # Example Fleet Goal
 
-Analyze the codebase for potential improvements and create issues for the engineering team.
+Analyze the codebase for potential improvements and create
+issues for the engineering team.
 
-## Focus Areas
-- Code quality improvements
-- Missing test coverage
-- Documentation gaps
-- Performance optimizations
+## Tools
+- Test Coverage: \`npx vitest --coverage --json\`
 
-## Rules
+## Assessment Hints
+- Focus on missing error handling in API routes
+- Look for hardcoded configuration values
+
+## Insight Hints
+- Report on overall test coverage metrics
+- Note any unusually complex functions (cyclomatic complexity)
+
+## Constraints
 - Do NOT propose changes already covered by open issues
 - Do NOT propose changes rejected in recently closed issues
-- Each insight should be actionable and specific
+- Keep tasks small and isolated — one logical change per issue
 `;

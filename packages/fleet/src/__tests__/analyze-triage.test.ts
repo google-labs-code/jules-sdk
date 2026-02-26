@@ -49,6 +49,7 @@ describe('Triage Goal Auto-Injection', () => {
     expect(prompt).toContain('acme/widgets');
     expect(prompt).toContain('not assigned to a milestone');
     expect(prompt).toContain('fleet');
+    expect(prompt).toContain('## Insight Hints');
   });
 
   it('auto-injects triage goal when no triage.md exists in empty dir', async () => {
