@@ -1,0 +1,52 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * Octokit plugin that caches responses using GitHub's ETag mechanism.
+ * 304 Not Modified responses don't count against your rate limit.
+ *
+ * Uses `any` for the octokit param because Octokit.plugin() expects
+ * the @octokit/core Octokit type, which is a transitive dep we don't
+ * want to declare directly.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function cachePlugin(octokit: any) {
+  const cache = new Map<string, { etag: string; data: unknown }>();
+
+  octokit.hook.wrap('request', async (request: any, options: any) => {
+    const key = `${options.method} ${options.url}`;
+    const cached = cache.get(key);
+
+    if (cached) {
+      (options as any).headers = {
+        ...(options as any).headers,
+        'if-none-match': cached.etag,
+      };
+    }
+
+    try {
+      const response = await request(options);
+      const etag = response.headers.etag;
+      if (etag) {
+        cache.set(key, { etag, data: response.data });
+      }
+      return response;
+    } catch (error: any) {
+      if (error.status === 304 && cached) {
+        return { ...error.response, data: cached.data, status: 200 };
+      }
+      throw error;
+    }
+  });
+}
