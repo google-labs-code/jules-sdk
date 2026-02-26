@@ -12,13 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type {
-  InitInput,
-  InitResult,
-  InitSuccess,
-  InitFailure,
-  InitSpec,
-} from './spec.js';
-export { InitInputSchema, InitErrorCode } from './spec.js';
-export { InitHandler } from './handler.js';
-export type { LabelConfigurator } from './types.js';
+export interface WorkflowTemplate {
+  /** Path in the target repo (relative) */
+  repoPath: string;
+  /** File content */
+  content: string;
+}

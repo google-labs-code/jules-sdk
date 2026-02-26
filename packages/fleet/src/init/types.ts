@@ -12,13 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type {
-  InitInput,
-  InitResult,
-  InitSuccess,
-  InitFailure,
-  InitSpec,
-} from './spec.js';
-export { InitInputSchema, InitErrorCode } from './spec.js';
-export { InitHandler } from './handler.js';
-export type { LabelConfigurator } from './types.js';
+import type { ConfigureResult } from '../configure/spec.js';
+
+/** Interface for label configuration — decouples init from configure slice */
+export interface LabelConfigurator {
+  execute(input: {
+    resource: 'labels';
+    action: 'create';
+    owner: string;
+    repo: string;
+  }): Promise<ConfigureResult>;
+}
+
+/** Shared context threaded through init operations */
+export interface InitContext {
+  octokit: import('octokit').Octokit;
+  owner: string;
+  repo: string;
+  branchName: string;
+  log: (msg: string) => void;
+}
