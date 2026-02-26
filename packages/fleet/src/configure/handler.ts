@@ -18,25 +18,44 @@ import type {
   ConfigureResult,
   ConfigureSpec,
 } from './spec.js';
+import type { FleetEmitter } from '../shared/events.js';
 import { ok, fail } from '../shared/result/index.js';
 import { FLEET_LABELS } from './labels.js';
+
+export interface ConfigureHandlerDeps {
+  octokit: Octokit;
+  emit?: FleetEmitter;
+}
 
 /**
  * ConfigureHandler manages repo resources (labels, etc.).
  * Never throws — all errors returned as Result.
  */
 export class ConfigureHandler implements ConfigureSpec {
-  constructor(
-    private octokit: Octokit,
-    private log: (msg: string) => void = console.log,
-  ) { }
+  private octokit: Octokit;
+  private emit: FleetEmitter;
+
+  constructor(deps: ConfigureHandlerDeps) {
+    this.octokit = deps.octokit;
+    this.emit = deps.emit ?? (() => { });
+  }
 
   async execute(input: ConfigureInput): Promise<ConfigureResult> {
     try {
+      this.emit({
+        type: 'configure:start',
+        resource: input.resource,
+        owner: input.owner,
+        repo: input.repo,
+      });
+
       if (input.resource === 'labels') {
-        return input.action === 'create'
-          ? this.createLabels(input.owner, input.repo)
-          : this.deleteLabels(input.owner, input.repo);
+        const result = input.action === 'create'
+          ? await this.createLabels(input.owner, input.repo)
+          : await this.deleteLabels(input.owner, input.repo);
+
+        this.emit({ type: 'configure:done' });
+        return result;
       }
 
       return fail(
@@ -70,7 +89,7 @@ export class ConfigureHandler implements ConfigureSpec {
           description: label.description,
         });
         created.push(label.name);
-        this.log(`  ✅ Created label: ${label.name}`);
+        this.emit({ type: 'configure:label:created', name: label.name });
       } catch (error: unknown) {
         const status =
           error && typeof error === 'object' && 'status' in error
@@ -79,7 +98,7 @@ export class ConfigureHandler implements ConfigureSpec {
         if (status === 422) {
           // Already exists
           skipped.push(label.name);
-          this.log(`  ⏭️  Label already exists: ${label.name}`);
+          this.emit({ type: 'configure:label:exists', name: label.name });
         } else {
           return fail(
             'GITHUB_API_ERROR',
@@ -108,7 +127,7 @@ export class ConfigureHandler implements ConfigureSpec {
           name: label.name,
         });
         deleted.push(label.name);
-        this.log(`  🗑️  Deleted label: ${label.name}`);
+        this.emit({ type: 'configure:label:created', name: label.name });
       } catch (error: unknown) {
         const status =
           error && typeof error === 'object' && 'status' in error
@@ -116,7 +135,7 @@ export class ConfigureHandler implements ConfigureSpec {
             : 0;
         if (status === 404) {
           skipped.push(label.name);
-          this.log(`  ⏭️  Label not found: ${label.name}`);
+          this.emit({ type: 'configure:label:exists', name: label.name });
         } else {
           return fail(
             'GITHUB_API_ERROR',

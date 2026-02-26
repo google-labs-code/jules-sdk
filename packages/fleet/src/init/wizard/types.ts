@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { ConfigureResult } from '../configure/spec.js';
-import type { FleetEmitter } from '../shared/events.js';
-
-/** Interface for label configuration — decouples init from configure slice */
-export interface LabelConfigurator {
-  execute(input: {
-    resource: 'labels';
-    action: 'create';
-    owner: string;
-    repo: string;
-  }): Promise<ConfigureResult>;
-}
-
-/** Shared context threaded through init operations */
-export interface InitContext {
-  octokit: import('octokit').Octokit;
+/** Resolved inputs from the wizard or flags+env validation */
+export interface InitWizardResult {
   owner: string;
   repo: string;
-  branchName: string;
-  emit: FleetEmitter;
+  baseBranch: string;
+  authMethod: 'token' | 'app';
+  /** Secrets to upload (name → value). Empty if user declines or non-interactive. */
+  secretsToUpload: Record<string, string>;
+  /** Whether to perform a dry run (list files but don't create PR) */
+  dryRun: boolean;
+}
+
+/** Parsed args from citty */
+export interface InitArgs {
+  repo?: string;
+  base?: string;
+  'non-interactive'?: boolean;
+  'dry-run'?: boolean;
+  auth?: string;
+  'app-id'?: string;
+  'installation-id'?: string;
+  'upload-secrets'?: boolean;
 }

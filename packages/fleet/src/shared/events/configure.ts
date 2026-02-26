@@ -12,23 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export { ok, fail, createResultSchemas } from './result/index.js';
-export {
-  RepoInfoSchema,
-  PRSchema,
-  CheckRunSchema,
-  LabelSchema,
-  type RepoInfo,
-  type PR,
-  type CheckRun,
-  type Label,
-} from './schemas/index.js';
-export * from './auth/index.js';
-export type { SessionDispatcher } from './session-dispatcher.js';
-export type { FleetEvent, FleetEmitter } from './events/index.js';
-export {
-  createRenderer,
-  createEmitter,
-  isInteractive,
-  type FleetRenderer,
-} from './ui/index.js';
+/** Configure domain events */
+export type ConfigureEvent =
+  | { type: 'configure:start'; resource: string; owner: string; repo: string }
+  | { type: 'configure:label:created'; name: string }
+  | { type: 'configure:label:exists'; name: string }
+  | { type: 'configure:secret:uploading'; name: string }
+  | { type: 'configure:secret:uploaded'; name: string }
+  | { type: 'configure:done' };

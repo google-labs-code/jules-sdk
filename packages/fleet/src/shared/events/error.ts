@@ -12,23 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export { ok, fail, createResultSchemas } from './result/index.js';
-export {
-  RepoInfoSchema,
-  PRSchema,
-  CheckRunSchema,
-  LabelSchema,
-  type RepoInfo,
-  type PR,
-  type CheckRun,
-  type Label,
-} from './schemas/index.js';
-export * from './auth/index.js';
-export type { SessionDispatcher } from './session-dispatcher.js';
-export type { FleetEvent, FleetEmitter } from './events/index.js';
-export {
-  createRenderer,
-  createEmitter,
-  isInteractive,
-  type FleetRenderer,
-} from './ui/index.js';
+/** Shared error event — not domain-specific */
+export type ErrorEvent = {
+  type: 'error';
+  code: string;
+  message: string;
+  suggestion?: string;
+};

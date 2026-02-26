@@ -26,7 +26,7 @@ export async function createInitPR(
   baseBranch: string,
   filesCreated: string[],
 ): Promise<{ prUrl: string; prNumber: number } | InitResult> {
-  ctx.log(`  🔗 Creating pull request...`);
+  ctx.emit({ type: 'init:pr:creating' });
 
   try {
     const { data: pr } = await ctx.octokit.rest.pulls.create({
@@ -37,7 +37,7 @@ export async function createInitPR(
       head: ctx.branchName,
       base: baseBranch,
     });
-    ctx.log(`  ✅ PR created: ${pr.html_url}`);
+    ctx.emit({ type: 'init:pr:created', url: pr.html_url, number: pr.number });
     return { prUrl: pr.html_url, prNumber: pr.number };
   } catch (error) {
     return fail(

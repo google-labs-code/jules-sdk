@@ -40,14 +40,14 @@ export async function commitFiles(
         branch: ctx.branchName,
       });
       filesCreated.push(tmpl.repoPath);
-      ctx.log(`  📄 Added: ${tmpl.repoPath}`);
+      ctx.emit({ type: 'init:file:committed', path: tmpl.repoPath });
     } catch (error: unknown) {
       const status =
         error && typeof error === 'object' && 'status' in error
           ? (error as { status: number }).status
           : 0;
       if (status === 422) {
-        ctx.log(`  ⏭️  Already exists: ${tmpl.repoPath}`);
+        ctx.emit({ type: 'init:file:skipped', path: tmpl.repoPath, reason: 'already exists' });
       } else {
         return fail(
           'FILE_COMMIT_FAILED',
@@ -69,16 +69,18 @@ export async function commitFiles(
       branch: ctx.branchName,
     });
     filesCreated.push('.fleet/goals/example.md');
-    ctx.log(`  📄 Added: .fleet/goals/example.md`);
+    ctx.emit({ type: 'init:file:committed', path: '.fleet/goals/example.md' });
   } catch (error: unknown) {
     const status =
       error && typeof error === 'object' && 'status' in error
         ? (error as { status: number }).status
         : 0;
     if (status !== 422) {
-      ctx.log(
-        `  ⚠️ Failed to create example goal: ${error instanceof Error ? error.message : error}`,
-      );
+      ctx.emit({
+        type: 'init:file:skipped',
+        path: '.fleet/goals/example.md',
+        reason: `${error instanceof Error ? error.message : error}`,
+      });
     }
   }
 

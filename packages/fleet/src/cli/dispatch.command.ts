@@ -17,6 +17,7 @@ import { DispatchInputSchema } from '../dispatch/spec.js';
 import { DispatchHandler } from '../dispatch/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
+import { createRenderer, createEmitter } from '../shared/ui/index.js';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
 
 export default defineCommand({
@@ -41,6 +42,8 @@ export default defineCommand({
     },
   },
   async run({ args }) {
+    const renderer = createRenderer();
+
     // Auto-detect owner/repo from git remote if not provided
     let owner = args.owner;
     let repo = args.repo;
@@ -49,6 +52,8 @@ export default defineCommand({
       owner = owner || repoInfo.owner;
       repo = repo || repoInfo.repo;
     }
+
+    renderer.start(`Fleet Dispatch — Milestone ${args.milestone}`);
 
     const input = DispatchInputSchema.parse({
       milestone: args.milestone,
@@ -71,20 +76,16 @@ export default defineCommand({
     };
 
     const octokit = createFleetOctokit();
-    const handler = new DispatchHandler(octokit, dispatcher);
+    const emit = createEmitter(renderer);
+    const handler = new DispatchHandler({ octokit, dispatcher, emit });
     const result = await handler.execute(input);
 
     if (!result.success) {
-      console.error(`❌ ${result.error.message}`);
-      if (result.error.suggestion) {
-        console.error(`   💡 ${result.error.suggestion}`);
-      }
+      renderer.error(result.error.message);
       process.exit(1);
     }
 
     const { dispatched, skipped } = result.data;
-    console.log(
-      `\nDispatched: ${dispatched.length}, Skipped: ${skipped}`,
-    );
+    renderer.end(`${dispatched.length} dispatched, ${skipped} skipped.`);
   },
 });

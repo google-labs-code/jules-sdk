@@ -17,6 +17,7 @@ import { ConfigureInputSchema } from '../configure/spec.js';
 import { ConfigureHandler } from '../configure/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
+import { createRenderer, createEmitter } from '../shared/ui/index.js';
 
 export default defineCommand({
   meta: {
@@ -44,6 +45,8 @@ export default defineCommand({
     },
   },
   async run({ args }) {
+    const renderer = createRenderer();
+
     // Auto-detect owner/repo from git remote if not provided
     let owner = args.owner;
     let repo = args.repo;
@@ -53,25 +56,26 @@ export default defineCommand({
       repo = repo || repoInfo.repo;
     }
 
+    const action = args.delete ? 'delete' : 'create';
+    renderer.start(`Fleet Configure — ${args.resource} (${action})`);
+
     const input = ConfigureInputSchema.parse({
       resource: args.resource,
-      action: args.delete ? 'delete' : 'create',
+      action,
       owner,
       repo,
     });
 
     const octokit = createFleetOctokit();
-    const handler = new ConfigureHandler(octokit);
+    const emit = createEmitter(renderer);
+    const handler = new ConfigureHandler({ octokit, emit });
     const result = await handler.execute(input);
 
     if (!result.success) {
-      console.error(`❌ ${result.error.message}`);
+      renderer.error(result.error.message);
       process.exit(1);
     }
 
-    const { created, deleted, skipped } = result.data;
-    if (created.length) console.log(`Created: ${created.join(', ')}`);
-    if (deleted.length) console.log(`Deleted: ${deleted.join(', ')}`);
-    if (skipped.length) console.log(`Skipped: ${skipped.join(', ')}`);
+    renderer.end(`${args.resource} configured.`);
   },
 });

@@ -49,7 +49,7 @@ describe('AnalyzeHandler', () => {
   });
 
   it('auto-injects triage goal when no goal files exist', async () => {
-    const handler = new AnalyzeHandler(octokit, dispatcher, noop);
+    const handler = new AnalyzeHandler({ octokit, dispatcher });
     const result = await handler.execute({
       goalsDir: '/nonexistent/dir',
       owner: 'o',
@@ -65,7 +65,7 @@ describe('AnalyzeHandler', () => {
   });
 
   it('returns NO_GOALS_FOUND when goal file does not exist', async () => {
-    const handler = new AnalyzeHandler(octokit, dispatcher, noop);
+    const handler = new AnalyzeHandler({ octokit, dispatcher });
     const result = await handler.execute({
       goal: '/nonexistent/goal.md',
       goalsDir: '.fleet/goals',
@@ -90,7 +90,7 @@ describe('AnalyzeHandler', () => {
     const goalPath = join(dir, 'test-goal.md');
     writeFileSync(goalPath, `---\nmilestone: "1"\n---\n\n# Test Goal\n\nDo something.`);
 
-    const handler = new AnalyzeHandler(octokit, dispatcher, noop);
+    const handler = new AnalyzeHandler({ octokit, dispatcher });
     const result = await handler.execute({
       goal: goalPath,
       goalsDir: '.fleet/goals',
@@ -124,7 +124,7 @@ describe('AnalyzeHandler', () => {
     const goalPath = join(dir, 'test-goal.md');
     writeFileSync(goalPath, '# Test\n\nBody.');
 
-    const handler = new AnalyzeHandler(octokit, failingDispatcher, noop);
+    const handler = new AnalyzeHandler({ octokit, dispatcher: failingDispatcher });
     const result = await handler.execute({
       goal: goalPath,
       goalsDir: '.fleet/goals',
