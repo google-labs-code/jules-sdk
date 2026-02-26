@@ -144,11 +144,22 @@ export function buildAnalyzerPrompt(options: AnalyzerPromptOptions): string {
     : '';
 
   const cliFormat = `\
-**Required signal creation format:**
+**Signal creation formats:**
+
+**Assessment** (actionable — requires code changes):
 \`\`\`bash
 jules-fleet signal create \\
   --kind assessment \\
   --title "[Fleet Execution] <Highly Specific Domain Task Title>" \\
+  --tag fleet \\
+  --body-file <path_to_markdown_file>${milestoneFlag}
+\`\`\`
+
+**Insight** (informational — no action required):
+\`\`\`bash
+jules-fleet signal create \\
+  --kind insight \\
+  --title "<Descriptive Finding>" \\
   --tag fleet \\
   --body-file <path_to_markdown_file>${milestoneFlag}
 \`\`\``;
