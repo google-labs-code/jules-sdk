@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Octokit } from '@octokit/core';
-
 /**
  * Octokit plugin that caches responses using GitHub's ETag mechanism.
  * 304 Not Modified responses don't count against your rate limit.
+ *
+ * Uses `any` for the octokit param because Octokit.plugin() expects
+ * the @octokit/core Octokit type, which is a transitive dep we don't
+ * want to declare directly.
  */
-export function cachePlugin(octokit: Octokit) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function cachePlugin(octokit: any) {
   const cache = new Map<string, { etag: string; data: unknown }>();
 
-  octokit.hook.wrap('request', async (request, options) => {
+  octokit.hook.wrap('request', async (request: any, options: any) => {
     const key = `${options.method} ${options.url}`;
     const cached = cache.get(key);
 

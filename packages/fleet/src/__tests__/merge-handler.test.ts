@@ -46,6 +46,7 @@ const baseInput: MergeInput = {
   mode: 'label',
   baseBranch: 'main',
   admin: false,
+  reDispatch: false,
   maxCIWaitSeconds: 1,
   maxRetries: 2,
   pollTimeoutSeconds: 1,
