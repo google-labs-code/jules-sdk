@@ -18,14 +18,19 @@
     },
     "./package.json": "./package.json"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "files": [
     "dist/",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build:js": "bun run build.ts",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:types": "tsc",
     "build": "bun run build:js && bun run build:types",
+    "prepublishOnly": "bun run build && bun run test",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
   },
