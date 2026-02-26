@@ -15,6 +15,7 @@
 import type { Octokit } from 'octokit';
 import { fail } from '../../shared/result/index.js';
 import type { InitResult } from '../spec.js';
+import type { FleetEmitter } from '../../shared/events.js';
 
 /**
  * Create the fleet-init branch from the base branch SHA.
@@ -25,7 +26,7 @@ export async function createBranch(
   owner: string,
   repo: string,
   baseBranch: string,
-  log: (msg: string) => void,
+  emit: FleetEmitter,
 ): Promise<{ branchName: string; baseSha: string } | InitResult> {
   const { data: refData } = await octokit.rest.git.getRef({
     owner,
@@ -35,7 +36,7 @@ export async function createBranch(
   const baseSha = refData.object.sha;
 
   const branchName = `fleet-init-${Date.now()}`;
-  log(`  🌿 Creating branch: ${branchName}`);
+  emit({ type: 'init:branch:creating', name: branchName, base: baseBranch });
 
   try {
     await octokit.rest.git.createRef({
@@ -44,6 +45,7 @@ export async function createBranch(
       ref: `refs/heads/${branchName}`,
       sha: baseSha,
     });
+    emit({ type: 'init:branch:created', name: branchName });
   } catch (error) {
     return fail(
       'BRANCH_CREATE_FAILED',

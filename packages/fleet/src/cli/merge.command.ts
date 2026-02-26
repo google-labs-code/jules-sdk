@@ -17,6 +17,7 @@ import { MergeInputSchema } from '../merge/spec.js';
 import { MergeHandler } from '../merge/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
+import { createRenderer, createEmitter } from '../shared/ui/index.js';
 
 export default defineCommand({
   meta: {
@@ -59,6 +60,8 @@ export default defineCommand({
     },
   },
   async run({ args }) {
+    const renderer = createRenderer();
+
     // Auto-detect owner/repo from git remote if not provided
     let owner = args.owner;
     let repo = args.repo;
@@ -67,6 +70,8 @@ export default defineCommand({
       owner = owner || repoInfo.owner;
       repo = repo || repoInfo.repo;
     }
+
+    renderer.start(`Fleet Merge — ${owner}/${repo} (${args.mode} mode)`);
 
     const input = MergeInputSchema.parse({
       mode: args.mode,
@@ -79,18 +84,15 @@ export default defineCommand({
     });
 
     const octokit = createFleetOctokit();
-    const handler = new MergeHandler(octokit);
+    const emit = createEmitter(renderer);
+    const handler = new MergeHandler({ octokit, emit });
     const result = await handler.execute(input);
 
     if (!result.success) {
-      console.error(`❌ ${result.error.message}`);
-      if (result.error.suggestion) {
-        console.error(`   💡 ${result.error.suggestion}`);
-      }
+      renderer.error(result.error.message);
       process.exit(1);
     }
 
-    const { merged, skipped, redispatched } = result.data;
-    console.log(`\nMerged: ${merged.length}, Skipped: ${skipped.length}, Re-dispatched: ${redispatched.length}`);
+    renderer.end('Sequential merge complete.');
   },
 });

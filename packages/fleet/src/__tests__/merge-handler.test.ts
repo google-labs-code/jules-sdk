@@ -66,7 +66,7 @@ function makePR(number: number, labels: string[] = []) {
 describe('MergeHandler (Logic Tests)', () => {
   it('returns empty result when no PRs found', async () => {
     const octokit = createMockOctokit();
-    const handler = new MergeHandler(octokit, () => { }, noopSleep);
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
     expect(result.success).toBe(true);
@@ -95,7 +95,7 @@ describe('MergeHandler (Logic Tests)', () => {
       },
     });
 
-    const handler = new MergeHandler(octokit, () => { }, noopSleep);
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
     expect(result.success).toBe(true);
@@ -128,7 +128,7 @@ describe('MergeHandler (Logic Tests)', () => {
       },
     });
 
-    const handler = new MergeHandler(octokit, () => { }, noopSleep);
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
     expect(result.success).toBe(true);
@@ -160,7 +160,7 @@ describe('MergeHandler (Logic Tests)', () => {
       },
     });
 
-    const handler = new MergeHandler(octokit, () => { }, noopSleep);
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
     expect(result.success).toBe(true);
@@ -191,7 +191,7 @@ describe('MergeHandler (Logic Tests)', () => {
       },
     });
 
-    const handler = new MergeHandler(octokit, () => { }, noopSleep);
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
     expect(result.success).toBe(false);
@@ -226,7 +226,7 @@ describe('MergeHandler (Logic Tests)', () => {
       },
     });
 
-    const handler = new MergeHandler(octokit, () => { }, noopSleep);
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
     expect(result.success).toBe(true);

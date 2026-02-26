@@ -31,7 +31,7 @@ describe('ConfigureHandler (Logic Tests)', () => {
   describe('create labels', () => {
     it('creates both fleet labels', async () => {
       const octokit = createMockOctokit();
-      const handler = new ConfigureHandler(octokit, () => {});
+      const handler = new ConfigureHandler({ octokit });
       const result = await handler.execute({
         resource: 'labels',
         action: 'create',
@@ -57,7 +57,7 @@ describe('ConfigureHandler (Logic Tests)', () => {
         },
       });
 
-      const handler = new ConfigureHandler(octokit, () => {});
+      const handler = new ConfigureHandler({ octokit });
       const result = await handler.execute({
         resource: 'labels',
         action: 'create',
@@ -83,7 +83,7 @@ describe('ConfigureHandler (Logic Tests)', () => {
         },
       });
 
-      const handler = new ConfigureHandler(octokit, () => {});
+      const handler = new ConfigureHandler({ octokit });
       const result = await handler.execute({
         resource: 'labels',
         action: 'create',
@@ -101,7 +101,7 @@ describe('ConfigureHandler (Logic Tests)', () => {
   describe('delete labels', () => {
     it('deletes both fleet labels', async () => {
       const octokit = createMockOctokit();
-      const handler = new ConfigureHandler(octokit, () => {});
+      const handler = new ConfigureHandler({ octokit });
       const result = await handler.execute({
         resource: 'labels',
         action: 'delete',
@@ -126,7 +126,7 @@ describe('ConfigureHandler (Logic Tests)', () => {
         },
       });
 
-      const handler = new ConfigureHandler(octokit, () => {});
+      const handler = new ConfigureHandler({ octokit });
       const result = await handler.execute({
         resource: 'labels',
         action: 'delete',

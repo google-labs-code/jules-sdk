@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type { ConfigureResult } from '../configure/spec.js';
+import type { FleetEmitter } from '../shared/events.js';
 
 /** Interface for label configuration — decouples init from configure slice */
 export interface LabelConfigurator {
@@ -30,5 +31,5 @@ export interface InitContext {
   owner: string;
   repo: string;
   branchName: string;
-  log: (msg: string) => void;
+  emit: FleetEmitter;
 }

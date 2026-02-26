@@ -60,7 +60,7 @@ describe('Triage Goal Auto-Injection', () => {
 
     const octokit = createMockOctokit();
     const dispatcher = createMockDispatcher();
-    const handler = new AnalyzeHandler(octokit, dispatcher, () => {});
+    const handler = new AnalyzeHandler({ octokit, dispatcher });
 
     const result = await handler.execute({
       goalsDir: dir,
@@ -92,8 +92,8 @@ describe('Triage Goal Auto-Injection', () => {
 
     const octokit = createMockOctokit();
     const dispatcher = createMockDispatcher();
-    const logs: string[] = [];
-    const handler = new AnalyzeHandler(octokit, dispatcher, (m) => logs.push(m));
+    const events: Array<{ type: string }> = [];
+    const handler = new AnalyzeHandler({ octokit, dispatcher, emit: (e) => events.push(e) });
 
     const result = await handler.execute({
       goalsDir: dir,
@@ -103,9 +103,9 @@ describe('Triage Goal Auto-Injection', () => {
     });
 
     expect(result.success).toBe(true);
-    // Should NOT log the "Using built-in triage goal" message
-    const usedBuiltIn = logs.some((l) => l.includes('built-in triage'));
-    expect(usedBuiltIn).toBe(false);
+    // Should NOT be using built-in triage goal when user has their own
+    const goalStartEvents = events.filter((e) => e.type === 'analyze:goal:start');
+    expect(goalStartEvents.length).toBe(1);
 
     const { rmSync } = await import('fs');
     rmSync(dir, { recursive: true, force: true });

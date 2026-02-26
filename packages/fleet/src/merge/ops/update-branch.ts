@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type { Octokit } from 'octokit';
+import type { FleetEmitter } from '../../shared/events.js';
 
 /**
  * Updates a PR branch from its base branch.
@@ -23,15 +24,16 @@ export async function updateBranch(
   owner: string,
   repo: string,
   prNumber: number,
-  log: (msg: string) => void,
+  emit: FleetEmitter,
 ): Promise<{ ok: boolean; conflict: boolean; error?: string }> {
   try {
-    log(`  🔄 Updating branch from base...`);
+    emit({ type: 'merge:branch:updating', prNumber });
     await octokit.rest.pulls.updateBranch({
       owner,
       repo,
       pull_number: prNumber,
     });
+    emit({ type: 'merge:branch:updated', prNumber });
     return { ok: true, conflict: false };
   } catch (error: unknown) {
     const status =
@@ -39,6 +41,7 @@ export async function updateBranch(
         ? (error as { status: number }).status
         : 0;
     if (status === 422) {
+      emit({ type: 'merge:conflict:detected', prNumber });
       return { ok: false, conflict: true };
     }
     const message =

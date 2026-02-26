@@ -64,7 +64,7 @@ describe('DispatchHandler', () => {
   it('returns empty result when no fleet issues', async () => {
     const octokit = createMockOctokit({ openIssues: [] });
     const dispatcher = createMockDispatcher();
-    const handler = new DispatchHandler(octokit, dispatcher, noop);
+    const handler = new DispatchHandler({ octokit, dispatcher });
 
     const result = await handler.execute({
       milestone: '1',
@@ -95,7 +95,7 @@ describe('DispatchHandler', () => {
       ],
     });
     const dispatcher = createMockDispatcher();
-    const handler = new DispatchHandler(octokit, dispatcher, noop);
+    const handler = new DispatchHandler({ octokit, dispatcher });
 
     const result = await handler.execute({
       milestone: '1',
@@ -134,7 +134,7 @@ describe('DispatchHandler', () => {
       ],
     });
     const dispatcher = createMockDispatcher();
-    const handler = new DispatchHandler(octokit, dispatcher, noop);
+    const handler = new DispatchHandler({ octokit, dispatcher });
 
     const result = await handler.execute({
       milestone: '1',
@@ -179,7 +179,7 @@ describe('DispatchHandler', () => {
         .mockResolvedValueOnce({ id: 'session-ok' }),
     };
 
-    const handler = new DispatchHandler(octokit, dispatcher, noop);
+    const handler = new DispatchHandler({ octokit, dispatcher });
     const result = await handler.execute({
       milestone: '1',
       owner: 'o',

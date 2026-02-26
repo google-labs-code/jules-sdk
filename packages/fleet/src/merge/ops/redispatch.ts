@@ -14,6 +14,7 @@
 
 import type { Octokit } from 'octokit';
 import type { PR } from '../../shared/schemas/pr.js';
+import type { FleetEmitter } from '../../shared/events.js';
 
 /**
  * Closes a conflicting PR and re-dispatches via Jules SDK.
@@ -26,11 +27,12 @@ export async function redispatch(
   oldPr: PR,
   baseBranch: string,
   pollTimeoutSeconds: number,
-  log: (msg: string) => void,
+  emit: FleetEmitter,
   sleep: (ms: number) => Promise<void>,
 ): Promise<PR | null> {
+  emit({ type: 'merge:redispatch:start', oldPr: oldPr.number });
+
   // Close the conflicting PR
-  log(`  🔒 Closing conflicting PR #${oldPr.number}...`);
   try {
     await octokit.rest.pulls.update({
       owner,
@@ -40,13 +42,10 @@ export async function redispatch(
       body: `${oldPr.body ?? ''}\n\n---\n⚠️ Closed by fleet-merge: merge conflict detected. Task re-dispatched.`,
     });
   } catch {
-    log(
-      `  ⚠️ Failed to close PR #${oldPr.number}, continuing...`,
-    );
+    // Non-fatal — continue with re-dispatch
   }
 
   // Re-dispatch via Jules SDK
-  log(`  🚀 Re-dispatching against current ${baseBranch}...`);
   try {
     const { jules } = await import('@google/jules-sdk');
     const session = await jules.session({
@@ -56,10 +55,9 @@ export async function redispatch(
         baseBranch,
       },
     });
-    log(`  📝 New session: ${session.id}`);
 
     // Poll for new PR
-    log(`  ⏳ Waiting for new PR from session ${session.id}...`);
+    emit({ type: 'merge:redispatch:waiting', oldPr: oldPr.number });
     const start = Date.now();
     const timeoutMs = pollTimeoutSeconds * 1000;
     const pollIntervalMs = 30_000;
@@ -81,23 +79,26 @@ export async function redispatch(
       );
 
       if (newPr) {
-        log(
-          `  ✅ New PR #${newPr.number} found (${newPr.head.ref})`,
-        );
-        return {
+        const result: PR = {
           number: newPr.number,
           headRef: newPr.head.ref,
           headSha: newPr.head.sha,
           body: newPr.body,
         };
+        emit({
+          type: 'merge:redispatch:done',
+          oldPr: oldPr.number,
+          newPr: newPr.number,
+        });
+        return result;
       }
-
-      log(`  ⏳ No PR yet... polling again in 30s`);
     }
   } catch (error) {
-    log(
-      `  ❌ Re-dispatch failed: ${error instanceof Error ? error.message : error}`,
-    );
+    emit({
+      type: 'error',
+      code: 'REDISPATCH_FAILED',
+      message: `Re-dispatch failed: ${error instanceof Error ? error.message : error}`,
+    });
   }
 
   return null;

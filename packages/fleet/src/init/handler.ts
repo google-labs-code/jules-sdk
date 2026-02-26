@@ -18,9 +18,16 @@ import { ok, fail } from '../shared/result/index.js';
 import { WORKFLOW_TEMPLATES } from './templates.js';
 import { EXAMPLE_GOAL } from './templates/example-goal.js';
 import type { LabelConfigurator } from './types.js';
+import type { FleetEmitter } from '../shared/events.js';
 import { createBranch, isBranchResult } from './ops/create-branch.js';
 import { commitFiles, isCommitResult } from './ops/commit-files.js';
 import { createInitPR, isPRResult } from './ops/create-pr.js';
+
+export interface InitHandlerDeps {
+  octokit: Octokit;
+  emit?: FleetEmitter;
+  labelConfigurator?: LabelConfigurator;
+}
 
 /**
  * InitHandler scaffolds fleet workflow files by creating a PR via GitHub REST API.
@@ -29,20 +36,24 @@ import { createInitPR, isPRResult } from './ops/create-pr.js';
  * Pipeline: createBranch → commitFiles → createInitPR → configureLabels
  */
 export class InitHandler implements InitSpec {
-  constructor(
-    private octokit: Octokit,
-    private log: (msg: string) => void = console.log,
-    private labelConfigurator?: LabelConfigurator,
-  ) { }
+  private octokit: Octokit;
+  private emit: FleetEmitter;
+  private labelConfigurator?: LabelConfigurator;
+
+  constructor(deps: InitHandlerDeps) {
+    this.octokit = deps.octokit;
+    this.emit = deps.emit ?? (() => { });
+    this.labelConfigurator = deps.labelConfigurator;
+  }
 
   async execute(input: InitInput): Promise<InitResult> {
     try {
       const { owner, repoName: repo, baseBranch } = input;
-      this.log(`📦 Initializing fleet for ${owner}/${repo}...`);
+      this.emit({ type: 'init:start', owner, repo });
 
       // 1. Create branch
       const branchResult = await createBranch(
-        this.octokit, owner, repo, baseBranch, this.log,
+        this.octokit, owner, repo, baseBranch, this.emit,
       );
       if (isBranchResult(branchResult)) return branchResult;
       const { branchName } = branchResult;
@@ -52,7 +63,7 @@ export class InitHandler implements InitSpec {
         owner,
         repo,
         branchName,
-        log: this.log,
+        emit: this.emit,
       };
 
       // 2. Commit workflow templates + example goal
@@ -68,7 +79,6 @@ export class InitHandler implements InitSpec {
       // 4. Configure labels
       let labelsCreated: string[] = [];
       if (this.labelConfigurator) {
-        this.log(`  🏷️  Configuring labels...`);
         const labelResult = await this.labelConfigurator.execute({
           resource: 'labels',
           action: 'create',
@@ -77,6 +87,13 @@ export class InitHandler implements InitSpec {
         });
         labelsCreated = labelResult.success ? labelResult.data.created : [];
       }
+
+      this.emit({
+        type: 'init:done',
+        prUrl,
+        files: filesCreated,
+        labels: labelsCreated,
+      });
 
       return ok({ prUrl, prNumber, filesCreated, labelsCreated });
     } catch (error) {
@@ -88,3 +105,4 @@ export class InitHandler implements InitSpec {
     }
   }
 }
+

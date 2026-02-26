@@ -18,6 +18,7 @@ import { InitHandler } from '../init/handler.js';
 import { ConfigureHandler } from '../configure/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
+import { createRenderer, createEmitter } from '../shared/ui/index.js';
 
 export default defineCommand({
   meta: {
@@ -36,6 +37,8 @@ export default defineCommand({
     },
   },
   async run({ args }) {
+    const renderer = createRenderer();
+
     // Auto-detect from git remote if --repo not provided
     let repoSlug = args.repo;
     if (!repoSlug) {
@@ -43,6 +46,8 @@ export default defineCommand({
       repoSlug = `${repoInfo.owner}/${repoInfo.repo}`;
     }
     const [owner, repoName] = repoSlug.split('/');
+
+    renderer.start(`Fleet Init — ${owner}/${repoName}`);
 
     const input = InitInputSchema.parse({
       repo: repoSlug,
@@ -52,23 +57,16 @@ export default defineCommand({
     });
 
     const octokit = createFleetOctokit();
-    const labelConfigurator = new ConfigureHandler(octokit);
-    const handler = new InitHandler(octokit, console.log, labelConfigurator);
+    const emit = createEmitter(renderer);
+    const labelConfigurator = new ConfigureHandler({ octokit });
+    const handler = new InitHandler({ octokit, emit, labelConfigurator });
     const result = await handler.execute(input);
 
     if (!result.success) {
-      console.error(`❌ ${result.error.message}`);
-      if (result.error.suggestion) {
-        console.error(`   💡 ${result.error.suggestion}`);
-      }
+      renderer.error(result.error.message);
       process.exit(1);
     }
 
-    console.log(`\n✅ Fleet initialized!`);
-    console.log(`   PR: ${result.data.prUrl}`);
-    console.log(`   Files: ${result.data.filesCreated.join(', ')}`);
-    if (result.data.labelsCreated.length > 0) {
-      console.log(`   Labels: ${result.data.labelsCreated.join(', ')}`);
-    }
+    renderer.end('Fleet initialized!');
   },
 });
