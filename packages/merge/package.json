@@ -1,0 +1,54 @@
+{
+  "name": "@google/jules-merge",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Predictive conflict detection for parallel AI agents",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "jules-merge": "./dist/cli/index.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build:js": "bun run build.ts",
+    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build": "bun run build:js && bun run build:types",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "registry": "https://wombat-dressing-room.appspot.com",
+    "access": "public"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "@octokit/auth-app": "^8.2.0",
+    "@octokit/rest": "^21.0.0",
+    "citty": "^0.1.6",
+    "zod": "^3.25.0"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@types/bun": "^1.3.9",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

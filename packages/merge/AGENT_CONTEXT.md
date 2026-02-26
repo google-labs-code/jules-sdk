@@ -1,6 +1,6 @@
 # jules-merge — Agent Implementation Context
 
-> **Purpose**: This document is a self-contained briefing for an AI coding agent to implement the `@google/jules-merge` package from scratch. It contains the full specification, codebase conventions, worktree setup instructions, and a file-by-file implementation plan.
+> **Purpose**: This document is a self-contained briefing for an AI coding agent to implement the `@google/jules-merge` package from scratch. It contains the full specification, codebase conventions, worktree setup instructions, and a file-by-file implementation plan structured as a Red-Green-Refactor workflow.
 
 ---
 
@@ -39,8 +39,8 @@ git worktree remove ../jules-sdk-merge
 ### Two Core Workflows
 
 **1. Pre-Push Validation Gate** — executed before creating a PR:
-1. Agent invokes validation with repo context and branch targets.
-2. Service runs local `git diff` to identify modified files.
+1. Agent invokes validation with session ID, repo context, and branch targets.
+2. Service queries the Jules session (via `@google/jules-sdk`) to identify modified files.
 3. Service queries GitHub API for remote divergence on those files.
 4. Service fetches raw remote file content on divergence.
 5. Tool injects remote code as a "Shadow File" into agent context.
@@ -59,10 +59,15 @@ git worktree remove ../jules-sdk-merge
 
 Strict **Typed Service Contract** pattern (Spec & Handler). Business logic is fully isolated from transport layers. CLI and MCP server consume the same logic through typed boundaries.
 
-### Pattern Rules
-- **Spec** (`spec.ts`): Zod input schemas, error code enums, Result types (success/failure discriminated union), and the capability interface.
-- **Handler** (`handler.ts`): Implements the spec interface. Handles all side effects. **NEVER throws** — catches errors and returns structured `Result` objects.
+### Pattern Rules (from [TSC Skill](https://raw.githubusercontent.com/davideast/stitch-mcp/refs/heads/main/.gemini/skills/typed-service-contract/skill.md))
+- **Spec** (`spec.ts`): Zod input schema ("Parse, don't validate"), Zod error code enum (exhaustive), Result discriminated union (Success | Failure), and capability Interface.
+- **Handler** (`handler.ts`): Implements the spec interface. An "impure" class handling all side effects. **NEVER throws** — catches errors and returns structured `Result` objects.
 - **Transport layers** (CLI, MCP): Stateless wrappers that parse input, call the handler, and format output.
+
+### Testing Rules
+Tests are split into two categories. Do NOT write monolithic tests.
+- **Contract Tests** (spec): Test the bouncer — validate schema edge cases, Zod refinements, defaults. Table-driven style.
+- **Logic Tests** (handler): Test the chef — mock external dependencies, assert Result objects. Mocked unit test style.
 
 ---
 
@@ -100,6 +105,31 @@ These conventions MUST be followed exactly:
   "publishConfig": {
     "registry": "https://wombat-dressing-room.appspot.com",
     "access": "public"
+  }
+}
+```
+
+### Dependencies
+```json
+{
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "@octokit/rest": "^21.0.0",
+    "citty": "^0.1.6",
+    "zod": "^3.25.0"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": { "optional": true }
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@types/bun": "^1.3.9",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }
 ```
@@ -207,9 +237,9 @@ export interface FileCollisionDetail {
 }
 
 export interface PrePushValidationRequest {
+  sessionId: string;
   repository: RepositoryReference;
   baseBranch: string;
-  headBranch: string;
 }
 
 export interface PrePushValidationResponse {
@@ -233,9 +263,8 @@ export interface CiFailureContextResponse {
 
 ---
 
-## 6. File-by-File Implementation Plan
+## 6. File Tree
 
-### File Tree
 ```
 packages/merge/
 ├── package.json
@@ -247,7 +276,8 @@ packages/merge/
     ├── index.ts
     ├── shared/
     │   ├── result.ts
-    │   ├── git.ts
+    │   ├── session.ts        ← Jules SDK session file detection
+    │   ├── git.ts            ← CI failure path only
     │   └── github.ts
     ├── pre-push/
     │   ├── spec.ts
@@ -265,6 +295,10 @@ packages/merge/
     │   ├── server.ts
     │   └── index.ts
     └── __tests__/
+        ├── shared/
+        │   ├── session.test.ts
+        │   ├── github.test.ts
+        │   └── git.test.ts
         ├── pre-push/
         │   ├── spec.test.ts
         │   └── handler.test.ts
@@ -275,47 +309,177 @@ packages/merge/
 
 ---
 
-### 6.1 `package.json`
+## 7. Development Workflow: Red-Green-Refactor
 
-Dependencies:
-```json
-{
-  "dependencies": {
-    "@octokit/rest": "^21.0.0",
-    "citty": "^0.1.6",
-    "zod": "^3.25.0"
-  },
-  "peerDependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.1"
-  },
-  "peerDependenciesMeta": {
-    "@modelcontextprotocol/sdk": { "optional": true }
-  },
-  "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.1",
-    "@types/bun": "^1.3.9",
-    "@types/node": "^22.15.0",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
-  }
-}
+Implementation follows a strict **traffic light** TDD cycle. Before each feature slice, start `bunx vitest --watch` and keep it running.
+
+| Phase | Color | What Happens |
+|-------|-------|--------------|
+| 🔴 **RED** | Write failing tests first | Define expected behavior via test cases. `bun run test` → all new tests fail. |
+| 🟢 **GREEN** | Write minimum code to pass | Implement the spec/handler/utility. `bun run test` → all tests pass. |
+| 🟡 **REFACTOR** | Clean up | Remove duplication, improve naming, verify `bun run typecheck`. No new behavior. |
+
+### Execution Sequence
+
+```
+Phase 1: Foundation (no tests needed)
+  → package.json, tsconfig.json, vitest.config.ts, build.ts
+  → src/shared/result.ts (ok/fail helpers)
+
+Phase 2: Shared Utilities
+  Slice 2a: src/shared/session.ts (Jules SDK wrapper)
+    🔴 Write src/__tests__/shared/session.test.ts
+    🟢 Implement src/shared/session.ts
+    🟡 Refactor
+  Slice 2b: src/shared/github.ts (Octokit wrapper)
+    🔴 Write src/__tests__/shared/github.test.ts
+    🟢 Implement src/shared/github.ts
+    🟡 Refactor
+  Slice 2c: src/shared/git.ts (CI-only git helpers)
+    🔴 Write src/__tests__/shared/git.test.ts
+    🟢 Implement src/shared/git.ts
+    🟡 Refactor
+
+Phase 3: Pre-Push Feature
+  Slice 3a: Contract
+    🔴 Write src/__tests__/pre-push/spec.test.ts
+    🟢 Implement src/pre-push/spec.ts
+    🟡 Refactor
+  Slice 3b: Logic
+    🔴 Write src/__tests__/pre-push/handler.test.ts
+    🟢 Implement src/pre-push/handler.ts + src/pre-push/index.ts
+    🟡 Refactor
+
+Phase 4: CI-Failure Feature
+  Slice 4a: Contract
+    🔴 Write src/__tests__/ci-failure/spec.test.ts
+    🟢 Implement src/ci-failure/spec.ts
+    🟡 Refactor
+  Slice 4b: Logic
+    🔴 Write src/__tests__/ci-failure/handler.test.ts
+    🟢 Implement src/ci-failure/handler.ts + src/ci-failure/index.ts
+    🟡 Refactor
+
+Phase 5: Transport + Barrel (thin wrappers, no business logic)
+  → src/cli/index.ts, pre-push.command.ts, format-ci.command.ts
+  → src/mcp/server.ts, src/mcp/index.ts
+  → src/index.ts (barrel)
+
+Phase 6: Final Verification
+  → bun run build
+  → bun run typecheck
+  → bun run test (all green)
 ```
 
-### 6.2 `build.ts`
+---
+
+## 8. File-by-File Implementation Plan
+
+### 8.1 `build.ts`
 
 Bun build script. Two build passes:
 1. Library entry: `./src/index.ts`
 2. CLI entries: `./src/cli/index.ts` + auto-discovered `./src/cli/*.command.ts`
 
-Externals: `@octokit/rest`, `citty`, `zod`, `@modelcontextprotocol/sdk`
+Externals: `@google/jules-sdk`, `@octokit/rest`, `citty`, `zod`, `@modelcontextprotocol/sdk`
 
-### 6.3 `src/shared/result.ts`
+### 8.2 `src/shared/result.ts`
 
 Contains `ok()` and `fail()` helpers (see Section 4). This package is standalone — do NOT import from `@google/jules-fleet`.
 
-### 6.4 `src/shared/git.ts`
+### 8.3 `src/shared/session.ts`
 
-Thin wrapper around Node.js `child_process.execFile`. All functions return `Promise<{ ok: true; data: T } | { ok: false; error: string }>`.
+Jules SDK wrapper for dual-mode session file detection. Modeled after `packages/mcp/src/functions/code-review.ts`.
+
+```typescript
+import { type JulesClient, type ChangeSetArtifact, type Activity } from '@google/jules-sdk';
+
+export interface SessionFileInfo {
+  path: string;
+  changeType: 'created' | 'modified' | 'deleted';
+}
+
+/**
+ * Get the list of files changed in a Jules session.
+ *
+ * Dual-mode:
+ * - If session is busy (in-progress): aggregates changeSet artifacts from activities
+ * - If session is stable (completed): uses the session outcome's changeSet
+ */
+export async function getSessionChangedFiles(
+  client: JulesClient,
+  sessionId: string,
+): Promise<SessionFileInfo[]> {
+  const session = client.session(sessionId);
+  await session.activities.hydrate();
+  const snapshot = await session.snapshot();
+
+  const isBusy = isBusyState(snapshot.state);
+
+  if (isBusy) {
+    return aggregateFromActivities(snapshot.activities ?? []);
+  }
+
+  // Stable: use outcome changeSet
+  const changeSet = typeof snapshot.changeSet === 'function'
+    ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
+    : undefined;
+
+  if (!changeSet) return [];
+  const parsed = changeSet.parsed();
+  return parsed.files.map(f => ({ path: f.path, changeType: f.changeType }));
+}
+
+function isBusyState(state: string): boolean {
+  const busy = new Set(['queued', 'planning', 'inProgress', 'in_progress']);
+  return busy.has(state);
+}
+
+function aggregateFromActivities(activities: readonly Activity[]): SessionFileInfo[] {
+  const fileMap = new Map<string, {
+    firstChangeType: 'created' | 'modified' | 'deleted';
+    latestChangeType: 'created' | 'modified' | 'deleted';
+  }>();
+
+  for (const activity of activities) {
+    for (const artifact of activity.artifacts) {
+      if (artifact.type === 'changeSet') {
+        const parsed = (artifact as ChangeSetArtifact).parsed();
+        for (const file of parsed.files) {
+          const existing = fileMap.get(file.path);
+          if (existing) {
+            existing.latestChangeType = file.changeType;
+          } else {
+            fileMap.set(file.path, {
+              firstChangeType: file.changeType,
+              latestChangeType: file.changeType,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const result: SessionFileInfo[] = [];
+  for (const [path, info] of fileMap) {
+    // created → deleted = net no change, skip
+    if (info.firstChangeType === 'created' && info.latestChangeType === 'deleted') continue;
+    const netType = info.firstChangeType === 'created' ? 'created' : info.latestChangeType;
+    result.push({ path, changeType: netType });
+  }
+  return result;
+}
+
+/**
+ * Create a JulesClient from environment.
+ * Expects JULES_API_KEY to be set.
+ */
+export { jules as createJulesClient } from '@google/jules-sdk';
+```
+
+### 8.4 `src/shared/git.ts`
+
+Thin wrapper around Node.js `child_process.execFile`. Used **only** by the CI failure handler.
 
 ```typescript
 import { execFile } from 'node:child_process';
@@ -324,9 +488,6 @@ const execFileAsync = promisify(execFile);
 ```
 
 Functions:
-- `gitDiffNameOnly(base: string, head: string, cwd?: string): Promise<GitResult<string[]>>`
-  - Runs: `git diff ${base}...${head} --name-only`
-  - Splits stdout by newline, filters empty
 - `gitStatusUnmerged(cwd?: string): Promise<GitResult<string[]>>`
   - Runs: `git status --porcelain`
   - Filters lines starting with `UU `, extracts file paths
@@ -334,7 +495,9 @@ Functions:
   - Runs: `git merge-base ${head} ${base}`
   - Returns trimmed SHA
 
-### 6.5 `src/shared/github.ts`
+All functions return `Promise<{ ok: true; data: T } | { ok: false; error: string }>`.
+
+### 8.5 `src/shared/github.ts`
 
 GitHub API wrapper using `@octokit/rest`.
 
@@ -358,25 +521,25 @@ Functions:
   - Decodes base64 content → UTF-8 string
   - Catches 404 gracefully
 
-### 6.6 `src/pre-push/spec.ts`
+### 8.6 `src/pre-push/spec.ts`
 
 ```typescript
 import { z } from 'zod';
 
 // INPUT
 export const PrePushInputSchema = z.object({
+  sessionId: z.string().min(1, 'Session ID is required'),
   repo: z.string().min(1).refine(
     s => s.includes('/'),
     'Must be in owner/repo format'
   ),
   base: z.string().default('main'),
-  head: z.string().min(1),
 });
 export type PrePushInput = z.infer<typeof PrePushInputSchema>;
 
 // ERROR CODES
 export const PrePushErrorCode = z.enum([
-  'GIT_DIFF_FAILED',
+  'SESSION_QUERY_FAILED',
   'GITHUB_API_ERROR',
   'RATE_LIMIT_EXCEEDED',
   'UNKNOWN_ERROR',
@@ -413,26 +576,26 @@ export interface PrePushSpec {
 }
 ```
 
-### 6.7 `src/pre-push/handler.ts`
+### 8.7 `src/pre-push/handler.ts`
 
 `PrePushHandler implements PrePushSpec`:
 
 ```
-constructor(octokit: Octokit)
+constructor(octokit: Octokit, julesClient: JulesClient)
 ```
 
 `execute()` flow:
 1. Split `input.repo` into `{ owner, repo }`.
-2. `gitDiffNameOnly(input.base, input.head)` → local changed files.
-3. `compareCommits(octokit, owner, repo, input.base, input.head)` → remote changed files.
-4. Intersect both sets → `overlappingFiles`.
+2. `getSessionChangedFiles(julesClient, input.sessionId)` → session changed files.
+3. `compareCommits(octokit, owner, repo, input.base, 'HEAD')` → remote changed files.
+4. Intersect session file paths with remote set → `overlappingFiles`.
 5. If empty → `ok({ status: 'clean', message: 'No conflicts detected.', conflicts: [] })`.
 6. For each overlapping file: `getFileContent(octokit, owner, repo, file, input.base)` → `remoteShadowContent`.
 7. Build `FileConflictDetail` objects with `conflictReason: 'Remote commit modified this file since branch creation.'`.
 8. Return `ok({ status: 'conflict', message: '...', conflicts })`.
 9. Wrap all in try/catch → `fail('UNKNOWN_ERROR', ...)`.
 
-### 6.8 `src/ci-failure/spec.ts`
+### 8.8 `src/ci-failure/spec.ts`
 
 ```typescript
 import { z } from 'zod';
@@ -479,7 +642,7 @@ export interface CiFailureSpec {
 }
 ```
 
-### 6.9 `src/ci-failure/handler.ts`
+### 8.9 `src/ci-failure/handler.ts`
 
 `CiFailureHandler implements CiFailureSpec`:
 
@@ -499,7 +662,7 @@ export interface CiFailureSpec {
    ```
 8. Return `ok({ taskDirective, priority: 'critical', affectedFiles })`.
 
-### 6.10 `src/cli/index.ts`
+### 8.10 `src/cli/index.ts`
 
 ```typescript
 #!/usr/bin/env node
@@ -537,24 +700,29 @@ const main = defineCommand({
 runMain(main);
 ```
 
-### 6.11 `src/cli/pre-push.command.ts`
+### 8.11 `src/cli/pre-push.command.ts`
 
 ```typescript
 import { defineCommand } from 'citty';
 import { PrePushInputSchema } from '../pre-push/spec.js';
 import { PrePushHandler } from '../pre-push/handler.js';
 import { createOctokit } from '../shared/github.js';
+import { createJulesClient } from '../shared/session.js';
 
 export default defineCommand({
-  meta: { name: 'pre-push', description: 'Validate branch for conflicts before PR creation' },
+  meta: { name: 'pre-push', description: 'Validate session for conflicts before PR creation' },
   args: {
+    session: { type: 'string', description: 'Jules session ID', required: true },
     repo:  { type: 'string', description: 'Repository in owner/repo format', required: true },
     base:  { type: 'string', description: 'Base branch', default: 'main' },
-    head:  { type: 'string', description: 'Head branch', required: true },
   },
   async run({ args }) {
-    const input = PrePushInputSchema.parse(args);
-    const handler = new PrePushHandler(createOctokit());
+    const input = PrePushInputSchema.parse({
+      sessionId: args.session,
+      repo: args.repo,
+      base: args.base,
+    });
+    const handler = new PrePushHandler(createOctokit(), createJulesClient);
     const result = await handler.execute(input);
     process.stdout.write(JSON.stringify(result.success ? result.data : result, null, 2) + '\n');
     process.exit(result.success && result.data.status === 'clean' ? 0 : 1);
@@ -562,7 +730,7 @@ export default defineCommand({
 });
 ```
 
-### 6.12 `src/cli/format-ci.command.ts`
+### 8.12 `src/cli/format-ci.command.ts`
 
 ```typescript
 import { defineCommand } from 'citty';
@@ -590,7 +758,7 @@ export default defineCommand({
 });
 ```
 
-### 6.13 `src/mcp/server.ts`
+### 8.13 `src/mcp/server.ts`
 
 Uses `@modelcontextprotocol/sdk/server`:
 
@@ -602,7 +770,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 Register two tools:
 
 **`validate_branch_for_conflicts`**
-- Input: `{ repo: string, base: string, head: string }`
+- Input: `{ sessionId: string, repo: string, base: string }`
 - Parses with `PrePushInputSchema`
 - Calls `PrePushHandler.execute()`
 - Returns `JSON.stringify(result)` as text content
@@ -613,54 +781,83 @@ Register two tools:
 - Calls `CiFailureHandler.execute()`
 - Returns `JSON.stringify(result)` as text content
 
-### 6.14 `src/index.ts`
+### 8.14 `src/index.ts`
 
 Barrel:
 ```typescript
 export * from './pre-push/index.js';
 export * from './ci-failure/index.js';
 export * from './shared/result.js';
+export * from './shared/session.js';
 ```
 
 ---
 
-## 7. Testing Plan
+## 9. Testing Plan (RGR Test Cases)
 
-All tests go in `src/__tests__/`. Run with `bun run test`.
+All tests go in `src/__tests__/`. Run with `bun run test` or `bunx vitest --watch`.
 
-### Contract Tests (spec validation) — table-driven
+### Phase 2a: `src/__tests__/shared/session.test.ts`
 
-**`src/__tests__/pre-push/spec.test.ts`**:
+**Logic Tests** — mock `@google/jules-sdk`:
+- Busy session: aggregates files from activity changeSet artifacts
+- Stable session: uses outcome changeSet
+- `created → deleted` net change is omitted
+- `created → modified` stays as `created`
+- Empty session (no activities, no changeSet) returns `[]`
+
+### Phase 2b: `src/__tests__/shared/github.test.ts`
+
+**Logic Tests** — mock `@octokit/rest`:
+- `compareCommits` returns file paths from diff
+- `compareCommits` handles 403 (rate limit)
+- `compareCommits` handles 404 (not found)
+- `getFileContent` decodes base64 content
+- `getFileContent` handles 404 gracefully
+
+### Phase 2c: `src/__tests__/shared/git.test.ts`
+
+**Logic Tests** — mock `child_process.execFile`:
+- `gitStatusUnmerged` parses `UU` lines from porcelain output
+- `gitStatusUnmerged` returns empty array when no conflicts
+- `gitMergeBase` returns trimmed SHA
+
+### Phase 3a: `src/__tests__/pre-push/spec.test.ts`
+
+**Contract Tests** — table-driven:
+- Rejects empty `sessionId`
 - Rejects empty `repo`
 - Rejects `repo` without `/`
-- Rejects empty `head`
 - Defaults `base` to `'main'`
 - Accepts valid input
 
-**`src/__tests__/ci-failure/spec.test.ts`**:
+### Phase 3b: `src/__tests__/pre-push/handler.test.ts`
+
+**Logic Tests** — mock `shared/session.ts` and `shared/github.ts`:
+- Clean status when no file overlap between session and remote
+- Conflict status with shadow content when files overlap
+- Session query failure returns `SESSION_QUERY_FAILED` error
+- GitHub 403 returns `RATE_LIMIT_EXCEEDED` error
+- Busy session (in-progress) returns files from activity aggregation
+
+### Phase 4a: `src/__tests__/ci-failure/spec.test.ts`
+
+**Contract Tests** — table-driven:
 - Rejects `pullRequestNumber <= 0`
 - Rejects empty `failingCommitSha`
 - Rejects `repo` without `/`
 - Accepts valid input
 
-### Handler Logic Tests — mocked side effects
+### Phase 4b: `src/__tests__/ci-failure/handler.test.ts`
 
-**`src/__tests__/pre-push/handler.test.ts`**:
-- Mock `shared/git.ts` and `shared/github.ts`
-- Test: clean status when no file overlap
-- Test: conflict status with shadow content when files overlap
-- Test: Git diff failure returns `GIT_DIFF_FAILED` error
-- Test: GitHub 403 returns `RATE_LIMIT_EXCEEDED` error
-
-**`src/__tests__/ci-failure/handler.test.ts`**:
-- Mock `shared/git.ts` and `node:fs/promises`
-- Test: correctly parses conflict markers
-- Test: no unmerged files returns `NO_UNMERGED_FILES` error
-- Test: file read failure returns `FILE_READ_FAILED` error
+**Logic Tests** — mock `shared/git.ts` and `node:fs/promises`:
+- Correctly parses conflict markers
+- No unmerged files returns `NO_UNMERGED_FILES` error
+- File read failure returns `FILE_READ_FAILED` error
 
 ---
 
-## 8. Build & Verify Commands
+## 10. Build & Verify Commands
 
 ```bash
 cd packages/merge
@@ -668,23 +865,26 @@ cd packages/merge
 # Install dependencies
 bun install
 
+# Start test watcher (keep running during development)
+bunx vitest --watch
+
 # Build library + types
 bun run build
 
 # Type check
 bun run typecheck
 
-# Run tests
+# Run tests (one-shot)
 bun run test
 ```
 
 ---
 
-## 9. CLI Usage Examples
+## 11. CLI Usage Examples
 
 ```bash
 # Pre-push validation
-jules-merge pre-push --repo google-labs-code/jules-sdk --base main --head task/auth-update
+jules-merge pre-push --session abc123 --repo google-labs-code/jules-sdk --base main
 
 # CI failure formatting
 jules-merge format-ci --repo google-labs-code/jules-sdk --pr 42 --sha abc123def
@@ -707,7 +907,7 @@ jules-merge format-ci --repo google-labs-code/jules-sdk --pr 42 --sha abc123def
 
 ---
 
-## 10. Critical Constraints
+## 12. Critical Constraints
 
 1. **Never throw exceptions** in handlers. Return `fail(...)` results.
 2. **Never use `Bun.*` APIs** in library/runtime code. Bun is for build and dev scripts only.
@@ -715,3 +915,6 @@ jules-merge format-ci --repo google-labs-code/jules-sdk --pr 42 --sha abc123def
 4. **Include the Apache 2.0 license header** in every `.ts` file.
 5. **Do not modify files outside `packages/merge`** without permission.
 6. **Do not import from `@google/jules-fleet`** — this package is standalone.
+7. **Require `JULES_API_KEY`** environment variable for pre-push validation.
+8. **Follow Red-Green-Refactor**: write tests BEFORE implementation for every slice.
+9. **Split tests** into Contract Tests (spec) and Logic Tests (handler). Never monolithic.
