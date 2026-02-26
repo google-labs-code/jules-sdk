@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Each slice owns its own barrel — adding exports to a slice
-// only touches that slice's index.ts, never this file.
-export * from './shared/index.js';
-export * from './merge/index.js';
-export * from './init/index.js';
-export * from './configure/index.js';
-export * from './analyze/index.js';
-export * from './dispatch/index.js';
+/**
+ * Abstraction over Jules SDK session creation.
+ * Handlers accept this interface via constructor instead of importing
+ * @google/jules-sdk directly, enabling testing and decoupling.
+ */
+export interface SessionDispatcher {
+  dispatch(options: {
+    prompt: string;
+    source?: { github: string; baseBranch: string };
+    requireApproval?: boolean;
+    autoPr?: boolean;
+  }): Promise<{ id: string }>;
+}

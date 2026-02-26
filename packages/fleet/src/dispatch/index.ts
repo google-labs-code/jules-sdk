@@ -12,11 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Each slice owns its own barrel — adding exports to a slice
-// only touches that slice's index.ts, never this file.
-export * from './shared/index.js';
-export * from './merge/index.js';
-export * from './init/index.js';
-export * from './configure/index.js';
-export * from './analyze/index.js';
-export * from './dispatch/index.js';
+export type {
+  DispatchInput,
+  DispatchResult,
+  DispatchSuccess,
+  DispatchFailure,
+  DispatchSpec,
+} from './spec.js';
+export { DispatchInputSchema, DispatchErrorCode } from './spec.js';
+export { DispatchHandler } from './handler.js';
+export {
+  recordDispatch,
+  type DispatchRecord,
+} from './events.js';
+export {
+  getDispatchStatus,
+  type DispatchEvent,
+  type IssueDispatchStatus,
+} from './status.js';

@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Each slice owns its own barrel — adding exports to a slice
-// only touches that slice's index.ts, never this file.
-export * from './shared/index.js';
-export * from './merge/index.js';
-export * from './init/index.js';
-export * from './configure/index.js';
-export * from './analyze/index.js';
-export * from './dispatch/index.js';
+export { createFleetOctokit, getAuthOptions } from './octokit.js';
+export {
+  getGitRepoInfo,
+  getCurrentBranch,
+  parseGitRemoteUrl,
+  type GitRepoInfo,
+} from './git.js';
+export { resolvePrivateKey } from './resolve-key.js';
+export { cachePlugin } from './cache-plugin.js';

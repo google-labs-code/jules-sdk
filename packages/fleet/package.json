@@ -2,12 +2,15 @@
   "name": "@google/jules-fleet",
   "version": "0.0.1",
   "type": "module",
-  "description": "Fleet orchestration for Jules: merge, init, configure",
+  "description": "Fleet orchestration tools for Jules — analyze, dispatch, merge, init, configure",
   "repository": {
     "type": "git",
     "url": "https://github.com/google-labs-code/jules-sdk.git"
   },
   "types": "./dist/index.d.ts",
+  "bin": {
+    "jules-fleet": "./dist/cli/index.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -15,37 +18,51 @@
     },
     "./package.json": "./package.json"
   },
-  "bin": {
-    "jules-fleet": "./dist/cli/index.mjs"
-  },
   "files": [
     "dist/",
     "README.md"
   ],
   "scripts": {
-    "build": "vite build",
+    "build:js": "bun run build.ts",
+    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build": "bun run build:js && bun run build:types",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "jules",
     "fleet",
-    "merge",
-    "orchestration"
+    "orchestration",
+    "github",
+    "automation"
   ],
   "author": "Google LLC",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "registry": "https://wombat-dressing-room.appspot.com",
+    "access": "public"
+  },
   "dependencies": {
-    "@google/jules-sdk": "^0.0.6",
+    "@octokit/auth-app": "^8.2.0",
     "citty": "^0.1.6",
+    "glob": "^13.0.6",
     "octokit": "^4.1.3",
-    "zod": "^3.25.76"
+    "yaml": "^2.8.2",
+    "zod": "^3.25.0"
+  },
+  "peerDependencies": {
+    "@google/jules-sdk": "*"
+  },
+  "peerDependenciesMeta": {
+    "@google/jules-sdk": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@google/jules-sdk": "^0.0.6",
+    "@types/bun": "^1.3.9",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
-    "vite": "^7.3.0",
-    "vite-plugin-dts": "^4.5.4",
     "vitest": "^3.2.4"
   }
 }

@@ -46,7 +46,7 @@ const main = defineCommand({
   meta: {
     name: 'jules-fleet',
     version: '0.0.1',
-    description: 'Fleet orchestration for Jules: merge, init, configure',
+    description: 'Fleet orchestration for Jules: analyze, dispatch, merge, init, configure',
   },
   subCommands,
 });

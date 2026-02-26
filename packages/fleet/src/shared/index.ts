@@ -23,3 +23,5 @@ export {
   type CheckRun,
   type Label,
 } from './schemas/index.js';
+export * from './auth/index.js';
+export type { SessionDispatcher } from './session-dispatcher.js';
