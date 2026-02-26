@@ -85,7 +85,7 @@ For EACH validated task that requires execution, perform a **Deduplication Check
 2. If an existing open issue's **Objective** already covers the same gap (even partially or under a different name), **do NOT create a new issue**. Instead, note the overlap in your report and skip creation.
 3. Only create an issue for gaps that are genuinely novel — not covered by any existing open issue.
 
-For each non-duplicate task, execute a separate \`gh issue create\` command.`;
+For each non-duplicate task, create a signal using the \`jules-fleet signal create\` command.`;
 
 const ISSUE_BODY_TEMPLATE = `\
 \`\`\`markdown
@@ -134,21 +134,23 @@ export function buildAnalyzerPrompt(options: AnalyzerPromptOptions): string {
     milestoneTitle,
   } = options;
 
-  const milestoneCliFlag = milestoneTitle
-    ? ` \\\n  --milestone "${milestoneTitle}"`
-    : '';
-
   const prSection = prContext
     ? `\n**Recent Pull Requests (shows what code changes are in flight or merged):**\n${prContext}\n`
     : '';
 
+  const milestoneFlag = milestoneTitle
+    ? ` \\
+  --scope "${milestoneTitle}"`
+    : '';
+
   const cliFormat = `\
-**Required CLI format:**
+**Required signal creation format:**
 \`\`\`bash
-gh issue create \\
+jules-fleet signal create \\
+  --kind assessment \\
   --title "[Fleet Execution] <Highly Specific Domain Task Title>" \\
-  --label "fleet" \\
-  --body-file <path_to_markdown_file>${milestoneCliFlag}
+  --tag fleet \\
+  --body-file <path_to_markdown_file>${milestoneFlag}
 \`\`\``;
 
   return [
@@ -186,7 +188,7 @@ gh issue create \\
     PHASE_3_PLAN,
     '',
     `### Phase 4: Dispatch (Issue Creation or Goal Validation)`,
-    `Translate your analysis into independent GitHub issues using the \`gh\` CLI, or provide a clean bill of health.`,
+    `Translate your analysis into independent signals using \`jules-fleet signal create\`, or provide a clean bill of health.`,
     '',
     PHASE_4_DISPATCH_HEALTHY,
     '',
@@ -194,8 +196,8 @@ gh issue create \\
     '',
     cliFormat,
     '',
-    `**Required Markdown Body Format (\`--body-file\`):**`,
-    `The generated markdown file MUST follow this exact structure to ensure the worker agent and the Orchestrator function correctly:`,
+    `**Required Issue Body Format:**`,
+    `The issue body MUST follow this exact markdown structure to ensure the worker agent and the Orchestrator function correctly:`,
     '',
     ISSUE_BODY_TEMPLATE,
   ].join('\n');
