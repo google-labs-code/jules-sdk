@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import { defineCommand } from 'citty';
-import { Octokit } from 'octokit';
 import { ConfigureInputSchema } from '../configure/spec.js';
 import { ConfigureHandler } from '../configure/handler.js';
+import { createFleetOctokit } from '../shared/auth/octokit.js';
 
 export default defineCommand({
   meta: {
@@ -52,7 +52,7 @@ export default defineCommand({
       repo: args.repo,
     });
 
-    const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+    const octokit = createFleetOctokit();
     const handler = new ConfigureHandler(octokit);
     const result = await handler.execute(input);
 

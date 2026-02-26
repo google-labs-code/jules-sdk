@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import { defineCommand } from 'citty';
-import { Octokit } from 'octokit';
 import { MergeInputSchema } from '../merge/spec.js';
 import { MergeHandler } from '../merge/handler.js';
+import { createFleetOctokit } from '../shared/auth/octokit.js';
 
 export default defineCommand({
   meta: {
@@ -70,7 +70,7 @@ export default defineCommand({
       repo: args.repo,
     });
 
-    const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+    const octokit = createFleetOctokit();
     const handler = new MergeHandler(octokit);
     const result = await handler.execute(input);
 
