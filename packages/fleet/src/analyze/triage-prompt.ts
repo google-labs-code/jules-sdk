@@ -51,12 +51,13 @@ Scan every open issue without a milestone. For each, determine:
 
 ## Output
 
-For each actionable insight, create a GitHub issue using:
+For each actionable insight, create a signal using the \`jules-fleet signal create\` command:
 
 \`\`\`bash
-gh issue create \\
+jules-fleet signal create \\
+  --kind assessment \\
   --title "[Fleet Execution] <Specific Task Title>" \\
-  --label "fleet" \\
+  --tag fleet \\
   --body-file <path_to_markdown_file>
 \`\`\`
 
