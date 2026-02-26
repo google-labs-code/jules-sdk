@@ -21,4 +21,11 @@ export type InitEvent =
   | { type: 'init:file:skipped'; path: string; reason: string }
   | { type: 'init:pr:creating' }
   | { type: 'init:pr:created'; url: string; number: number }
-  | { type: 'init:done'; prUrl: string; files: string[]; labels: string[] };
+  | { type: 'init:done'; prUrl: string; files: string[]; labels: string[] }
+  // Wizard events
+  | { type: 'init:auth:detected'; method: 'token' | 'app' }
+  | { type: 'init:secret:uploading'; name: string }
+  | { type: 'init:secret:uploaded'; name: string }
+  | { type: 'init:secret:skipped'; name: string; reason: string }
+  | { type: 'init:dry-run'; files: string[] }
+  | { type: 'init:already-initialized' };

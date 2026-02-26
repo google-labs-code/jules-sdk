@@ -31,3 +31,19 @@ export interface FleetRenderer {
   /** End the UI with an error */
   error(message: string): void;
 }
+
+/**
+ * RenderContext abstracts the difference between interactive (clack) and plain
+ * (console) rendering. Domain-specific render functions depend on this
+ * interface instead of coupling to @clack/prompts or console directly.
+ */
+export interface RenderContext {
+  info(msg: string): void;
+  success(msg: string): void;
+  warn(msg: string): void;
+  error(msg: string): void;
+  message(msg: string): void;
+  step(msg: string): void;
+  startSpinner(msg: string): void;
+  stopSpinner(msg?: string): void;
+}
