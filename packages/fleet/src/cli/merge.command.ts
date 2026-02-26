@@ -43,6 +43,11 @@ export default defineCommand({
       description: 'Use admin privileges to bypass branch protection',
       default: false,
     },
+    're-dispatch': {
+      type: 'boolean',
+      description: 'Automatically re-dispatch tasks on merge conflict (requires JULES_API_KEY)',
+      default: false,
+    },
     owner: {
       type: 'string',
       description: 'Repository owner',
@@ -60,6 +65,7 @@ export default defineCommand({
       runId: args['run-id'] || undefined,
       baseBranch: args.base,
       admin: args.admin,
+      reDispatch: args['re-dispatch'],
       owner: args.owner,
       repo: args.repo,
     });

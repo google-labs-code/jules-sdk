@@ -15,17 +15,20 @@
 # .github/workflows/fleet-merge.yml
 #
 # Sequentially merges Jules-authored PRs: update branch → wait for CI → squash merge.
-# On merge conflict, re-dispatches the task as a new Jules session against current base.
+# On merge conflict with --re-dispatch, re-dispatches the task as a new Jules session.
 name: Fleet Sequential Merge
 
 on:
-  # Allow manual trigger (recommended: review PRs first, then trigger)
   workflow_dispatch:
     inputs:
       base_branch:
         description: 'Base branch for merge'
         type: string
         default: 'main'
+      re_dispatch:
+        description: 'Automatically re-dispatch on merge conflict'
+        type: boolean
+        default: true
 
 concurrency:
   group: fleet-merge
@@ -34,173 +37,28 @@ concurrency:
 jobs:
   sequential-merge:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-      - name: Install fleet dependencies
-        run: cd scripts/fleet && bun install
-
-      - name: Find and merge fleet PRs sequentially
+      - name: Sequential merge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
         run: |
-          set -euo pipefail
-
-          BASE_BRANCH="${{ inputs.base_branch || 'main' }}"
-          MAX_CI_WAIT=600   # 10 minutes per PR
-          MAX_RETRIES=2     # Max re-dispatch attempts per PR
-          PR_POLL_TIMEOUT=900  # 15 minutes to wait for re-dispatched PR
-
-          echo "🔍 Finding open Jules co-authored PRs targeting ${BASE_BRANCH}..."
-
-          # Get all open PRs, then filter to those with google-labs-jules[bot] as a commit co-author
-          ALL_PRS=$(gh pr list \
-            --state open \
-            --base "$BASE_BRANCH" \
-            --json number \
-            --jq '.[].number')
-
-          PRS=""
-          for PR in $ALL_PRS; do
-            IS_JULES=$(gh pr view "$PR" --json commits \
-              --jq '[.commits[].authors[].login] | any(. == "google-labs-jules[bot]")')
-            if [ "$IS_JULES" = "true" ]; then
-              PRS="${PRS:+$PRS }$PR"
-            fi
-          done
-
-          if [ -z "$PRS" ]; then
-            echo "ℹ️  No Jules co-authored PRs found. Nothing to merge."
-            exit 0
+          REDISPATCH_FLAG=""
+          if [ "${{ inputs.re_dispatch }}" = "true" ]; then
+            REDISPATCH_FLAG="--re-dispatch"
           fi
 
-          PR_COUNT=$(echo "$PRS" | wc -l | tr -d ' ')
-          echo "Found ${PR_COUNT} Jules PR(s) to merge."
-
-          for PR_NUM in $PRS; do
-            echo ""
-            echo "📦 Processing PR #${PR_NUM}..."
-            RETRY_COUNT=0
-
-            while true; do
-              # Update branch from base
-              echo "  🔄 Updating branch from ${BASE_BRANCH}..."
-              UPDATE_OUTPUT=$(gh pr update-branch "$PR_NUM" --rebase 2>&1) || true
-
-              # Check for merge conflict
-              if echo "$UPDATE_OUTPUT" | grep -qi "conflict\|cannot be rebased"; then
-                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                  echo "  ❌ Conflict persists after ${MAX_RETRIES} retries. Human intervention required."
-                  echo "  PR: $(gh pr view "$PR_NUM" --json url --jq '.url')"
-                  exit 1
-                fi
-
-                echo "  ⚠️ Merge conflict detected. Re-dispatching task..."
-
-                # Get the PR's task prompt from the fleet data
-                TASK_PROMPT=$(gh pr view "$PR_NUM" --json body --jq '.body')
-
-                # Close the conflicting PR
-                echo "  🔒 Closing conflicting PR #${PR_NUM}..."
-                gh pr close "$PR_NUM" --comment "⚠️ Closed by fleet-merge: merge conflict detected. Task re-dispatched as a new session."
-
-                # Re-dispatch via Jules SDK
-                echo "  🚀 Re-dispatching against current ${BASE_BRANCH}..."
-                REPO_FULL="${{ github.repository }}"
-                NEW_SESSION_ID=$(bun -e "
-                  import { jules } from '@google/jules-sdk';
-                  const session = await jules.createSession({
-                    prompt: process.env.TASK_PROMPT,
-                    source: { github: '${REPO_FULL}', baseBranch: '${BASE_BRANCH}' },
-                  });
-                  console.log(session.id);
-                " 2>/dev/null)
-                echo "  📝 New session: ${NEW_SESSION_ID}"
-
-                # Poll for new PR
-                echo "  ⏳ Waiting for new PR from session ${NEW_SESSION_ID}..."
-                POLL_ELAPSED=0
-                NEW_PR_NUM=""
-                while [ $POLL_ELAPSED -lt $PR_POLL_TIMEOUT ]; do
-                  sleep 30
-                  POLL_ELAPSED=$((POLL_ELAPSED + 30))
-                  NEW_PR_NUM=$(gh pr list --state open --base "$BASE_BRANCH" --json number,headRefName,body \
-                    --jq "[.[] | select(.headRefName | contains(\"${NEW_SESSION_ID}\")) // select(.body | contains(\"${NEW_SESSION_ID}\"))] | .[0].number // empty")
-                  if [ -n "$NEW_PR_NUM" ]; then
-                    echo "  ✅ New PR #${NEW_PR_NUM} found."
-                    break
-                  fi
-                  echo "  ⏳ No PR yet... (${POLL_ELAPSED}s/${PR_POLL_TIMEOUT}s)"
-                done
-
-                if [ -z "$NEW_PR_NUM" ]; then
-                  echo "  ❌ Timed out waiting for re-dispatched PR. Human intervention required."
-                  exit 1
-                fi
-
-                PR_NUM="$NEW_PR_NUM"
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                continue
-              fi
-
-              # Wait for branch update to propagate
-              sleep 5
-
-              # Wait for CI checks to pass
-              echo "  🧪 Waiting for CI checks..."
-              ELAPSED=0
-              CI_PASSED=false
-
-              while [ $ELAPSED -lt $MAX_CI_WAIT ]; do
-                STATUS=$(gh pr checks "$PR_NUM" --json name,state --jq '[.[].state] | if length == 0 then "none" elif all(. == "SUCCESS" or . == "SKIPPED") then "pass" elif any(. == "FAILURE") then "fail" else "pending" end')
-
-                case "$STATUS" in
-                  "pass")
-                    CI_PASSED=true
-                    break
-                    ;;
-                  "none")
-                    echo "  ℹ️  No CI checks configured. Proceeding."
-                    CI_PASSED=true
-                    break
-                    ;;
-                  "fail")
-                    echo "  ❌ CI failed for PR #${PR_NUM}. Skipping."
-                    break
-                    ;;
-                  *)
-                    echo "  ⏳ CI pending... (${ELAPSED}s/${MAX_CI_WAIT}s)"
-                    sleep 30
-                    ELAPSED=$((ELAPSED + 30))
-                    ;;
-                esac
-              done
-
-              if [ "$CI_PASSED" = false ]; then
-                echo "  ⏭️  Skipping PR #${PR_NUM} (CI did not pass)"
-              else
-                # Squash merge
-                echo "  ✅ CI passed. Merging PR #${PR_NUM}..."
-                if gh pr merge "$PR_NUM" --squash --admin; then
-                  echo "  🎉 PR #${PR_NUM} merged successfully."
-                else
-                  echo "  ❌ Failed to merge PR #${PR_NUM}. Stopping sequential merge."
-                  exit 1
-                fi
-              fi
-
-              # Exit the retry loop for this PR
-              break
-            done
-
-            # Brief pause for merge to propagate before next PR
-            sleep 5
-          done
-
-          echo ""
-          echo "✅ Sequential merge complete."
+          npx @google/jules-fleet merge \
+            --mode label \
+            --base ${{ inputs.base_branch || 'main' }} \
+            --owner ${{ github.repository_owner }} \
+            --repo ${{ github.event.repository.name }} \
+            $REDISPATCH_FLAG

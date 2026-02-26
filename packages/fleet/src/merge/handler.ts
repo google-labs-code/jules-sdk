@@ -87,6 +87,16 @@ export class MergeHandler implements MergeSpec {
             );
 
             if (!updateResult.ok && updateResult.conflict) {
+              // If re-dispatch is disabled, fail immediately on conflict
+              if (!input.reDispatch) {
+                return fail(
+                  'CONFLICT_RETRIES_EXHAUSTED',
+                  `Merge conflict detected for PR #${currentPr.number}. Use --re-dispatch to automatically retry.`,
+                  false,
+                  `Review PR: https://github.com/${input.owner}/${input.repo}/pull/${currentPr.number}`,
+                );
+              }
+
               if (retryCount >= input.maxRetries) {
                 return fail(
                   'CONFLICT_RETRIES_EXHAUSTED',

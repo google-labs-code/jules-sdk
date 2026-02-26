@@ -48,7 +48,7 @@ describe('AnalyzeHandler', () => {
     dispatcher = createMockDispatcher();
   });
 
-  it('returns NO_GOALS_FOUND when no goal files exist', async () => {
+  it('auto-injects triage goal when no goal files exist', async () => {
     const handler = new AnalyzeHandler(octokit, dispatcher, noop);
     const result = await handler.execute({
       goalsDir: '/nonexistent/dir',
@@ -57,9 +57,10 @@ describe('AnalyzeHandler', () => {
       baseBranch: 'main',
     });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe('NO_GOALS_FOUND');
+    // With the built-in triage goal, an empty dir still produces a session
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sessionsStarted).toHaveLength(1);
     }
   });
 

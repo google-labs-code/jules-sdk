@@ -13,15 +13,17 @@
 // limitations under the License.
 
 import { readFileSync, existsSync } from 'fs';
+import { join, basename } from 'path';
 import { globSync } from 'glob';
 import type { Octokit } from 'octokit';
 import type { AnalyzeInput, AnalyzeResult, AnalyzeSpec } from './spec.js';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
 import { ok, fail } from '../shared/result/index.js';
-import { parseGoalFile } from './goals.js';
+import { parseGoalFile, parseGoalContent } from './goals.js';
 import { getMilestoneContext } from './milestone.js';
 import { toIssueMarkdown, formatPRContext } from './formatting.js';
 import { buildAnalyzerPrompt } from './prompt.js';
+import { TRIAGE_GOAL_FILENAME, getBuiltInTriagePrompt } from './triage-prompt.js';
 
 /**
  * AnalyzeHandler reads goal files, fetches milestone context,
@@ -80,14 +82,40 @@ export class AnalyzeHandler implements AnalyzeSpec {
       }
       return [input.goal];
     }
-    return globSync(`${input.goalsDir}/*.md`);
+
+    const userGoals = globSync(`${input.goalsDir}/*.md`);
+
+    // Auto-inject built-in triage goal if no triage.md exists
+    const hasUserTriage = userGoals.some(
+      (f) => basename(f) === TRIAGE_GOAL_FILENAME,
+    );
+    if (!hasUserTriage) {
+      // Use a virtual marker — processGoal handles it
+      userGoals.push(`__builtin__:${TRIAGE_GOAL_FILENAME}`);
+    }
+
+    return userGoals;
   }
 
   private async processGoal(
     goalFile: string,
     input: AnalyzeInput,
   ): Promise<{ goal: string; sessionId: string } | null> {
-    const goal = parseGoalFile(goalFile);
+    // Handle built-in triage goal
+    const isBuiltIn = goalFile.startsWith('__builtin__:');
+    let goal: ReturnType<typeof parseGoalFile>;
+    let goalInstructions: string;
+
+    if (isBuiltIn) {
+      const repoFullName = `${input.owner}/${input.repo}`;
+      goalInstructions = getBuiltInTriagePrompt(repoFullName);
+      goal = parseGoalContent(goalInstructions);
+      this.log(`🔄 Using built-in triage goal (no ${TRIAGE_GOAL_FILENAME} found)`);
+    } else {
+      goal = parseGoalFile(goalFile);
+      goalInstructions = readFileSync(goalFile, 'utf-8');
+    }
+
     const milestoneId = input.milestone ?? goal.config?.milestone?.toString();
 
     if (milestoneId) {
@@ -116,8 +144,6 @@ export class AnalyzeHandler implements AnalyzeSpec {
     this.log(
       `📄 Context: ${ctx.issues.open.length} open + ${ctx.issues.closed.length} closed issues, ${ctx.pullRequests.length} PRs`,
     );
-
-    const goalInstructions = readFileSync(goalFile, 'utf-8');
 
     const prompt = buildAnalyzerPrompt({
       goalInstructions,

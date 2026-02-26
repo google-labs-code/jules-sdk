@@ -20,6 +20,7 @@ export type {
   AnalyzeSpec,
 } from './spec.js';
 export { AnalyzeInputSchema, AnalyzeErrorCode } from './spec.js';
+export { TRIAGE_GOAL_FILENAME, getBuiltInTriagePrompt } from './triage-prompt.js';
 export { AnalyzeHandler } from './handler.js';
 export {
   parseGoalFile,

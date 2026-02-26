@@ -33,6 +33,8 @@ export const MergeInputSchema = z
     maxCIWaitSeconds: z.number().positive().default(600),
     /** Max re-dispatch attempts per PR on conflict */
     maxRetries: z.number().nonnegative().default(2),
+    /** Enable automatic re-dispatch on merge conflict (requires JULES_API_KEY) */
+    reDispatch: z.boolean().default(false),
     /** Max seconds to wait for re-dispatched PR to appear */
     pollTimeoutSeconds: z.number().positive().default(900),
     /** Repository owner */
