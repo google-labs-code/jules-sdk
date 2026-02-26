@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-fleet",
-  "version": "0.0.1",
+  "version": "0.0.1-experimental.1",
   "type": "module",
   "description": "Fleet orchestration tools for Jules — analyze, dispatch, merge, init, configure",
   "repository": {
@@ -30,7 +30,7 @@
     "build:js": "bun run build.ts",
     "build:types": "tsc",
     "build": "bun run build:js && bun run build:types",
-    "prepublishOnly": "bun run build && bun run test",
+    "prepublishOnly": "bun run build && vitest run",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
   },
