@@ -16,6 +16,7 @@ import { defineCommand } from 'citty';
 import { MergeInputSchema } from '../merge/spec.js';
 import { MergeHandler } from '../merge/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
+import { getGitRepoInfo } from '../shared/auth/git.js';
 
 export default defineCommand({
   meta: {
@@ -50,24 +51,31 @@ export default defineCommand({
     },
     owner: {
       type: 'string',
-      description: 'Repository owner',
-      required: true,
+      description: 'Repository owner (auto-detected from git remote if omitted)',
     },
     repo: {
       type: 'string',
-      description: 'Repository name',
-      required: true,
+      description: 'Repository name (auto-detected from git remote if omitted)',
     },
   },
   async run({ args }) {
+    // Auto-detect owner/repo from git remote if not provided
+    let owner = args.owner;
+    let repo = args.repo;
+    if (!owner || !repo) {
+      const repoInfo = await getGitRepoInfo();
+      owner = owner || repoInfo.owner;
+      repo = repo || repoInfo.repo;
+    }
+
     const input = MergeInputSchema.parse({
       mode: args.mode,
       runId: args['run-id'] || undefined,
       baseBranch: args.base,
       admin: args.admin,
       reDispatch: args['re-dispatch'],
-      owner: args.owner,
-      repo: args.repo,
+      owner,
+      repo,
     });
 
     const octokit = createFleetOctokit();

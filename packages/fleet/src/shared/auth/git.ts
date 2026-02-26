@@ -25,12 +25,22 @@ export interface GitRepoInfo {
 }
 
 /**
- * Parses the current git repository's remote URL to extract owner and repo.
- * Supports both HTTPS and SSH remote URL formats.
+ * Detect repository owner and name.
+ *
+ * Priority:
+ * 1. `GITHUB_REPOSITORY` env var (always set in GitHub Actions: "owner/repo")
+ * 2. git remote URL parsing (HTTPS or SSH)
  */
 export async function getGitRepoInfo(
   remoteName = 'origin',
 ): Promise<GitRepoInfo> {
+  // GitHub Actions sets this automatically — no checkout required
+  const ghRepo = process.env.GITHUB_REPOSITORY;
+  if (ghRepo) {
+    const [owner, repo] = ghRepo.split('/');
+    return { owner, repo, fullName: ghRepo };
+  }
+
   const { stdout } = await execAsync(`git remote get-url ${remoteName}`);
   return parseGitRemoteUrl(stdout.trim());
 }

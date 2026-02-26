@@ -17,6 +17,7 @@ import { InitInputSchema } from '../init/spec.js';
 import { InitHandler } from '../init/handler.js';
 import { ConfigureHandler } from '../configure/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
+import { getGitRepoInfo } from '../shared/auth/git.js';
 
 export default defineCommand({
   meta: {
@@ -26,8 +27,7 @@ export default defineCommand({
   args: {
     repo: {
       type: 'string',
-      description: 'Repository in owner/repo format',
-      required: true,
+      description: 'Repository in owner/repo format (auto-detected from git remote if omitted)',
     },
     base: {
       type: 'string',
@@ -36,10 +36,16 @@ export default defineCommand({
     },
   },
   async run({ args }) {
-    const [owner, repoName] = args.repo.split('/');
+    // Auto-detect from git remote if --repo not provided
+    let repoSlug = args.repo;
+    if (!repoSlug) {
+      const repoInfo = await getGitRepoInfo();
+      repoSlug = `${repoInfo.owner}/${repoInfo.repo}`;
+    }
+    const [owner, repoName] = repoSlug.split('/');
 
     const input = InitInputSchema.parse({
-      repo: args.repo,
+      repo: repoSlug,
       owner,
       repoName,
       baseBranch: args.base,
