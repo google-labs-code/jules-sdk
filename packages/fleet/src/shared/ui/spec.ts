@@ -12,23 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export { ok, fail, createResultSchemas } from './result/index.js';
-export {
-  RepoInfoSchema,
-  PRSchema,
-  CheckRunSchema,
-  LabelSchema,
-  type RepoInfo,
-  type PR,
-  type CheckRun,
-  type Label,
-} from './schemas/index.js';
-export * from './auth/index.js';
-export type { SessionDispatcher } from './session-dispatcher.js';
-export type { FleetEvent, FleetEmitter } from './events/index.js';
-export {
-  createRenderer,
-  createEmitter,
-  isInteractive,
-  type FleetRenderer,
-} from './ui/index.js';
+import type { FleetEvent } from '../events.js';
+
+/**
+ * FleetRenderer interface — the UI contract.
+ * Implementations render FleetEvents into terminal output.
+ */
+export interface FleetRenderer {
+  /** Render a single event */
+  render(event: FleetEvent): void;
+
+  /** Start the UI (e.g., intro banner) */
+  start(title: string): void;
+
+  /** End the UI (e.g., outro message) */
+  end(message: string): void;
+
+  /** End the UI with an error */
+  error(message: string): void;
+}

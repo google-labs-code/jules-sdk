@@ -19,6 +19,7 @@ import type {
   MergeSpec,
 } from './spec.js';
 import type { PR } from '../shared/schemas/pr.js';
+import type { FleetEmitter } from '../shared/events.js';
 import { ok, fail } from '../shared/result/index.js';
 import { selectByLabel } from './select/by-label.js';
 import { selectByFleetRun } from './select/by-fleet-run.js';
@@ -26,6 +27,12 @@ import { updateBranch } from './ops/update-branch.js';
 import { waitForCI } from './ops/wait-for-ci.js';
 import { squashMerge } from './ops/squash-merge.js';
 import { redispatch } from './ops/redispatch.js';
+
+export interface MergeHandlerDeps {
+  octokit: Octokit;
+  emit?: FleetEmitter;
+  sleep?: (ms: number) => Promise<void>;
+}
 
 /** Default delay helper */
 const defaultSleep = (ms: number): Promise<void> =>
@@ -37,14 +44,14 @@ const defaultSleep = (ms: number): Promise<void> =>
  * Never throws — all errors returned as Result.
  */
 export class MergeHandler implements MergeSpec {
+  private octokit: Octokit;
+  private emit: FleetEmitter;
   private sleep: (ms: number) => Promise<void>;
 
-  constructor(
-    private octokit: Octokit,
-    private log: (msg: string) => void = console.log,
-    sleep?: (ms: number) => Promise<void>,
-  ) {
-    this.sleep = sleep ?? defaultSleep;
+  constructor(deps: MergeHandlerDeps) {
+    this.octokit = deps.octokit;
+    this.emit = deps.emit ?? (() => { });
+    this.sleep = deps.sleep ?? defaultSleep;
   }
 
   async execute(input: MergeInput): Promise<MergeResult> {
@@ -53,11 +60,17 @@ export class MergeHandler implements MergeSpec {
       const prs = await this.selectPRs(input);
 
       if (prs.length === 0) {
-        this.log('ℹ️  No PRs found matching selection criteria.');
+        this.emit({ type: 'merge:no-prs' });
         return ok({ merged: [], skipped: [], redispatched: [] });
       }
 
-      this.log(`Found ${prs.length} PR(s) to merge.`);
+      this.emit({
+        type: 'merge:start',
+        owner: input.owner,
+        repo: input.repo,
+        mode: input.mode,
+        prCount: prs.length,
+      });
 
       const merged: number[] = [];
       const skipped: number[] = [];
@@ -70,11 +83,12 @@ export class MergeHandler implements MergeSpec {
         let prMerged = false;
 
         while (!prMerged) {
-          const retryLabel =
-            retryCount > 0 ? ` (retry ${retryCount})` : '';
-          this.log(
-            `\n📦 Processing PR #${currentPr.number}${retryLabel}`,
-          );
+          this.emit({
+            type: 'merge:pr:processing',
+            number: currentPr.number,
+            title: currentPr.body?.split('\n')[0] ?? `PR #${currentPr.number}`,
+            retry: retryCount > 0 ? retryCount : undefined,
+          });
 
           // Update branch from base (skip for first PR on first attempt)
           if (prs.indexOf(pr) > 0 || retryCount > 0) {
@@ -83,7 +97,7 @@ export class MergeHandler implements MergeSpec {
               input.owner,
               input.repo,
               currentPr.number,
-              this.log,
+              this.emit,
             );
 
             if (!updateResult.ok && updateResult.conflict) {
@@ -106,10 +120,6 @@ export class MergeHandler implements MergeSpec {
                 );
               }
 
-              this.log(
-                `  ⚠️ Merge conflict detected. Re-dispatching...`,
-              );
-
               const newPr = await redispatch(
                 this.octokit,
                 input.owner,
@@ -117,7 +127,7 @@ export class MergeHandler implements MergeSpec {
                 currentPr,
                 input.baseBranch,
                 input.pollTimeoutSeconds,
-                this.log,
+                this.emit,
                 this.sleep,
               );
 
@@ -151,39 +161,38 @@ export class MergeHandler implements MergeSpec {
           }
 
           // Wait for CI
-          this.log(`  🧪 Waiting for CI on PR #${currentPr.number}...`);
           const ciResult = await waitForCI(
             this.octokit,
             input.owner,
             input.repo,
             currentPr.number,
             input.maxCIWaitSeconds * 1000,
-            this.log,
+            this.emit,
             this.sleep,
           );
 
           if (ciResult === 'none') {
-            this.log(
-              `  ℹ️  No CI checks configured. Proceeding.`,
-            );
+            // No CI checks — proceed
           } else if (ciResult === 'fail') {
-            this.log(
-              `  ❌ CI failed for PR #${currentPr.number}. Skipping.`,
-            );
+            this.emit({
+              type: 'merge:pr:skipped',
+              prNumber: currentPr.number,
+              reason: 'CI failure',
+            });
             skipped.push(currentPr.number);
             break;
           } else if (ciResult === 'timeout') {
-            this.log(
-              `  ⏰ CI timeout for PR #${currentPr.number}. Skipping.`,
-            );
+            this.emit({
+              type: 'merge:pr:skipped',
+              prNumber: currentPr.number,
+              reason: 'CI timeout',
+            });
             skipped.push(currentPr.number);
             break;
           }
 
           // Merge
-          this.log(
-            `  ✅ CI passed. Merging PR #${currentPr.number}...`,
-          );
+          this.emit({ type: 'merge:pr:merging', prNumber: currentPr.number });
           const mergeResult = await squashMerge(
             this.octokit,
             input.owner,
@@ -199,7 +208,7 @@ export class MergeHandler implements MergeSpec {
             );
           }
 
-          this.log(`  🎉 PR #${currentPr.number} merged successfully.`);
+          this.emit({ type: 'merge:pr:merged', prNumber: currentPr.number });
           merged.push(currentPr.number);
           prMerged = true;
         }
@@ -208,7 +217,7 @@ export class MergeHandler implements MergeSpec {
         await this.sleep(5_000);
       }
 
-      this.log(`\n✅ Sequential merge complete.`);
+      this.emit({ type: 'merge:done', merged, skipped, redispatched });
       return ok({ merged, skipped, redispatched });
     } catch (error) {
       return fail(

@@ -15,10 +15,17 @@
 import type { Octokit } from 'octokit';
 import type { DispatchInput, DispatchResult, DispatchSpec } from './spec.js';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
+import type { FleetEmitter } from '../shared/events.js';
 import { ok, fail } from '../shared/result/index.js';
 import { getMilestoneContext } from '../analyze/milestone.js';
 import { getDispatchStatus } from './status.js';
 import { recordDispatch } from './events.js';
+
+export interface DispatchHandlerDeps {
+  octokit: Octokit;
+  dispatcher: SessionDispatcher;
+  emit?: FleetEmitter;
+}
 
 /**
  * DispatchHandler finds undispatched fleet issues in a milestone
@@ -26,17 +33,20 @@ import { recordDispatch } from './events.js';
  * Never throws — all errors returned as Result.
  */
 export class DispatchHandler implements DispatchSpec {
-  constructor(
-    private octokit: Octokit,
-    private dispatcher: SessionDispatcher,
-    private log: (msg: string) => void = console.log,
-  ) {}
+  private octokit: Octokit;
+  private dispatcher: SessionDispatcher;
+  private emit: FleetEmitter;
+
+  constructor(deps: DispatchHandlerDeps) {
+    this.octokit = deps.octokit;
+    this.dispatcher = deps.dispatcher;
+    this.emit = deps.emit ?? (() => { });
+  }
 
   async execute(input: DispatchInput): Promise<DispatchResult> {
     try {
-      this.log(
-        `📡 Fetching issues for milestone ${input.milestone} in ${input.owner}/${input.repo}...`,
-      );
+      this.emit({ type: 'dispatch:start', milestone: input.milestone });
+      this.emit({ type: 'dispatch:scanning' });
 
       // 1. Get milestone context
       const ctx = await getMilestoneContext(this.octokit, {
@@ -51,13 +61,9 @@ export class DispatchHandler implements DispatchSpec {
       );
 
       if (fleetIssues.length === 0) {
-        this.log('✅ No fleet-labeled open issues. Nothing to dispatch.');
+        this.emit({ type: 'dispatch:done', dispatched: 0, skipped: 0 });
         return ok({ dispatched: [], skipped: 0 });
       }
-
-      this.log(
-        `Found ${fleetIssues.length} fleet-labeled issues. Checking dispatch status...`,
-      );
 
       // 3. Get dispatch status for each issue
       const statuses = await getDispatchStatus(
@@ -75,19 +81,21 @@ export class DispatchHandler implements DispatchSpec {
       const skipped = statuses.length - undispatched.length;
 
       if (undispatched.length === 0) {
-        this.log(
-          '✅ All fleet issues are already dispatched or have linked PRs.',
-        );
+        this.emit({ type: 'dispatch:done', dispatched: 0, skipped });
         return ok({ dispatched: [], skipped });
       }
 
-      this.log(`🚀 Dispatching ${undispatched.length} issues...`);
+      this.emit({ type: 'dispatch:found', count: undispatched.length });
 
       const dispatched: Array<{ issueNumber: number; sessionId: string }> = [];
 
       for (const status of undispatched) {
         const issue = fleetIssues.find((i) => i.number === status.number)!;
-        this.log(`\n  Dispatching #${issue.number}: ${issue.title}`);
+        this.emit({
+          type: 'dispatch:issue:dispatching',
+          number: issue.number,
+          title: issue.title,
+        });
 
         const workerPrompt = `Fix Issue #${issue.number}: ${issue.title}
 
@@ -124,17 +132,38 @@ ${issue.body}
             issueNumber: issue.number,
             sessionId: session.id,
           });
-          this.log(
-            `  ✅ Session ${session.id} dispatched, event recorded on #${issue.number}`,
-          );
+
+          this.emit({
+            type: 'dispatch:issue:dispatched',
+            number: issue.number,
+            sessionId: session.id,
+          });
         } catch (error) {
-          this.log(
-            `  ❌ Failed to dispatch #${issue.number}: ${error instanceof Error ? error.message : error}`,
-          );
+          this.emit({
+            type: 'error',
+            code: 'DISPATCH_FAILED',
+            message: `Failed to dispatch #${issue.number}: ${error instanceof Error ? error.message : error}`,
+          });
         }
       }
 
-      this.log(`\n🎉 Dispatched ${dispatched.length} issues.`);
+      // Emit skipped issues
+      for (const status of statuses) {
+        if (!undispatched.includes(status)) {
+          this.emit({
+            type: 'dispatch:issue:skipped',
+            number: status.number,
+            reason: status.dispatchEvent ? 'already dispatched' : 'has linked PRs',
+          });
+        }
+      }
+
+      this.emit({
+        type: 'dispatch:done',
+        dispatched: dispatched.length,
+        skipped,
+      });
+
       return ok({ dispatched, skipped });
     } catch (error) {
       return fail(

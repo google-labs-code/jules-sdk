@@ -18,6 +18,7 @@ import { globSync } from 'glob';
 import type { Octokit } from 'octokit';
 import type { AnalyzeInput, AnalyzeResult, AnalyzeSpec } from './spec.js';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
+import type { FleetEmitter } from '../shared/events.js';
 import { ok, fail } from '../shared/result/index.js';
 import { parseGoalFile, parseGoalContent } from './goals.js';
 import { getMilestoneContext } from './milestone.js';
@@ -25,17 +26,27 @@ import { toIssueMarkdown, formatPRContext } from './formatting.js';
 import { buildAnalyzerPrompt } from './prompt.js';
 import { TRIAGE_GOAL_FILENAME, getBuiltInTriagePrompt } from './triage-prompt.js';
 
+export interface AnalyzeHandlerDeps {
+  octokit: Octokit;
+  dispatcher: SessionDispatcher;
+  emit?: FleetEmitter;
+}
+
 /**
  * AnalyzeHandler reads goal files, fetches milestone context,
  * builds a prompt, and dispatches Jules analyzer sessions.
  * Never throws — all errors returned as Result.
  */
 export class AnalyzeHandler implements AnalyzeSpec {
-  constructor(
-    private octokit: Octokit,
-    private dispatcher: SessionDispatcher,
-    private log: (msg: string) => void = console.log,
-  ) {}
+  private octokit: Octokit;
+  private dispatcher: SessionDispatcher;
+  private emit: FleetEmitter;
+
+  constructor(deps: AnalyzeHandlerDeps) {
+    this.octokit = deps.octokit;
+    this.dispatcher = deps.dispatcher;
+    this.emit = deps.emit ?? (() => { });
+  }
 
   async execute(input: AnalyzeInput): Promise<AnalyzeResult> {
     try {
@@ -51,20 +62,30 @@ export class AnalyzeHandler implements AnalyzeSpec {
         );
       }
 
-      this.log(`📂 Processing ${goalFiles.length} goal file(s)...`);
+      this.emit({
+        type: 'analyze:start',
+        owner: input.owner,
+        repo: input.repo,
+        goalCount: goalFiles.length,
+      });
 
       const sessionsStarted: Array<{ goal: string; sessionId: string }> = [];
 
       // 2. Process each goal
-      for (const goalFile of goalFiles) {
-        this.log(`\n${'─'.repeat(60)}`);
-        const result = await this.processGoal(goalFile, input);
+      for (let i = 0; i < goalFiles.length; i++) {
+        const goalFile = goalFiles[i];
+        const result = await this.processGoal(goalFile, input, i + 1, goalFiles.length);
         if (result) {
           sessionsStarted.push(result);
         }
       }
 
-      this.log(`\n✅ All ${goalFiles.length} goal(s) processed.`);
+      this.emit({
+        type: 'analyze:done',
+        sessionsStarted: sessionsStarted.length,
+        goalsProcessed: goalFiles.length,
+      });
+
       return ok({ sessionsStarted });
     } catch (error) {
       return fail(
@@ -100,6 +121,8 @@ export class AnalyzeHandler implements AnalyzeSpec {
   private async processGoal(
     goalFile: string,
     input: AnalyzeInput,
+    index: number,
+    total: number,
   ): Promise<{ goal: string; sessionId: string } | null> {
     // Handle built-in triage goal
     const isBuiltIn = goalFile.startsWith('__builtin__:');
@@ -110,19 +133,21 @@ export class AnalyzeHandler implements AnalyzeSpec {
       const repoFullName = `${input.owner}/${input.repo}`;
       goalInstructions = getBuiltInTriagePrompt(repoFullName);
       goal = parseGoalContent(goalInstructions);
-      this.log(`🔄 Using built-in triage goal (no ${TRIAGE_GOAL_FILENAME} found)`);
     } else {
       goal = parseGoalFile(goalFile);
       goalInstructions = readFileSync(goalFile, 'utf-8');
     }
 
+    const displayName = isBuiltIn ? `triage.md (built-in)` : basename(goalFile);
     const milestoneId = input.milestone ?? goal.config?.milestone?.toString();
 
-    if (milestoneId) {
-      this.log(`📡 Fetching context for Milestone ${milestoneId}...`);
-    } else {
-      this.log('📡 Running in General Mode (no milestone)...');
-    }
+    this.emit({
+      type: 'analyze:goal:start',
+      file: displayName,
+      index,
+      total,
+      milestone: milestoneId,
+    });
 
     const ctx = await getMilestoneContext(this.octokit, {
       owner: input.owner,
@@ -131,8 +156,19 @@ export class AnalyzeHandler implements AnalyzeSpec {
     });
 
     if (ctx.milestone?.title) {
-      this.log(`✅ Milestone resolved: "${ctx.milestone.title}"`);
+      this.emit({
+        type: 'analyze:milestone:resolved',
+        title: ctx.milestone.title,
+        id: milestoneId!,
+      });
     }
+
+    this.emit({
+      type: 'analyze:context:fetched',
+      openIssues: ctx.issues.open.length,
+      closedIssues: ctx.issues.closed.length,
+      prs: ctx.pullRequests.length,
+    });
 
     const openContext =
       ctx.issues.open.map(toIssueMarkdown).join('\n') || 'None.';
@@ -140,10 +176,6 @@ export class AnalyzeHandler implements AnalyzeSpec {
       ctx.issues.closed.map(toIssueMarkdown).join('\n') || 'None.';
     const prContext =
       ctx.pullRequests.map(formatPRContext).join('\n') || 'None.';
-
-    this.log(
-      `📄 Context: ${ctx.issues.open.length} open + ${ctx.issues.closed.length} closed issues, ${ctx.pullRequests.length} PRs`,
-    );
 
     const prompt = buildAnalyzerPrompt({
       goalInstructions,
@@ -154,7 +186,7 @@ export class AnalyzeHandler implements AnalyzeSpec {
       milestoneId,
     });
 
-    this.log(`🔍 Dispatching Analyzer session for ${goalFile}...`);
+    this.emit({ type: 'analyze:session:dispatching', goal: displayName });
 
     try {
       const session = await this.dispatcher.dispatch({
@@ -167,12 +199,18 @@ export class AnalyzeHandler implements AnalyzeSpec {
         autoPr: false,
       });
 
-      this.log(`✅ Analyzer session started: ${session.id}`);
+      this.emit({
+        type: 'analyze:session:started',
+        id: session.id,
+        goal: displayName,
+      });
       return { goal: goalFile, sessionId: session.id };
     } catch (error) {
-      this.log(
-        `❌ Failed to dispatch session for ${goalFile}: ${error instanceof Error ? error.message : error}`,
-      );
+      this.emit({
+        type: 'analyze:session:failed',
+        goal: displayName,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   }
