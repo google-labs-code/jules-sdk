@@ -89,7 +89,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { owner, repo, baseBranch, secretsToUpload, dryRun } = inputs as Exclude<typeof inputs, { success: false }>;
+    const { owner, repo, baseBranch, secretsToUpload, dryRun, overwrite } = inputs as Exclude<typeof inputs, { success: false }>;
 
     renderer.start(`Fleet Init — ${owner}/${repo}`);
 
@@ -108,12 +108,21 @@ export default defineCommand({
       owner,
       repoName: repo,
       baseBranch,
+      overwrite,
     });
 
     const octokit = createFleetOctokit();
     const labelConfigurator = new ConfigureHandler({ octokit });
     const handler = new InitHandler({ octokit, emit, labelConfigurator });
     const result = await handler.execute(input);
+
+    // ── Upload secrets (always, even if files already exist) ──
+    const secretNames = Object.keys(secretsToUpload);
+    if (secretNames.length > 0) {
+      for (const name of secretNames) {
+        await uploadSecret(octokit, owner, repo, name, secretsToUpload[name], emit);
+      }
+    }
 
     if (!result.success) {
       renderer.error(result.error.message);
@@ -124,15 +133,11 @@ export default defineCommand({
           message: result.error.suggestion,
         });
       }
-      process.exit(1);
-    }
-
-    // ── Upload secrets ──
-    const secretNames = Object.keys(secretsToUpload);
-    if (secretNames.length > 0) {
-      for (const name of secretNames) {
-        await uploadSecret(octokit, owner, repo, name, secretsToUpload[name], emit);
+      // If secrets were uploaded despite file failure, note partial success
+      if (secretNames.length > 0) {
+        renderer.end(`${secretNames.length} secret(s) uploaded, but no new files were committed.`);
       }
+      process.exit(1);
     }
 
     renderer.end('Fleet initialized! Merge the PR to activate Fleet.');
