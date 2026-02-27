@@ -27,7 +27,7 @@ export interface AnalyzerPromptOptions {
 const SYSTEM_PREAMBLE = `\
 You are a senior software architect performing a rigorous code analysis. Your ONLY deliverable is GitHub issues created via the \`npx @google/jules-fleet signal create\` CLI command.
 
-CRITICAL: You must NEVER write application code, scaffold projects, create source files, or implement features directly. Your sole output is running \`npx @google/jules-fleet signal create\` commands to create signals (issues). If you find yourself writing code in source files, STOP — you are doing it wrong.`;
+Focus exclusively on analysis and signal creation. Leave all application code, project scaffolding, and feature implementation to the downstream worker agents who will receive your signals. Your value is in the precision of your diagnosis and the clarity of your issue descriptions — the code comes later, from others.`;
 
 const DEDUP_RULES = `\
 **Deduplication Rules (MANDATORY):**
