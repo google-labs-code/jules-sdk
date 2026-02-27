@@ -25,7 +25,9 @@ export interface AnalyzerPromptOptions {
 // ── Prompt Constants ────────────────────────────────────────────────
 
 const SYSTEM_PREAMBLE = `\
-You are a senior software architect performing a rigorous code analysis against a set of goal directives. Your job is to identify gaps and create GitHub issues for each actionable task.`;
+You are a senior software architect performing a rigorous code analysis. Your ONLY deliverable is GitHub issues created via the \`npx @google/jules-fleet signal create\` CLI command.
+
+CRITICAL: You must NEVER write application code, scaffold projects, create source files, or implement features directly. Your sole output is running \`npx @google/jules-fleet signal create\` commands to create signals (issues). If you find yourself writing code in source files, STOP — you are doing it wrong.`;
 
 const DEDUP_RULES = `\
 **Deduplication Rules (MANDATORY):**
@@ -60,7 +62,7 @@ const PHASE_2_ARCHITECT = `\
 Design a concrete, production-ready solution for each root cause.
 
 For each solution, you must provide:
-1. **Proposed Implementation:** Write the actual TypeScript/code demonstrating the solution. Include function signatures, interfaces, and logic.
+1. **Proposed Implementation:** Write code demonstrating the solution in the project's primary language. Include function signatures, types, and logic.
 2. **Integration Points:** Detail exactly where in the existing code this gets wired in, using before/after diffs to show the structural changes.
 3. **Edge Cases:** Identify assumptions and define fallback behaviors.
 4. **Test Scenarios:** Define specific test cases, inputs, and expected outputs that validate the fix.`;
@@ -69,9 +71,9 @@ const PHASE_3_PLAN = `\
 ### Phase 3: Plan (Coupling & Boundary Analysis)
 Evaluate the exact file requirements for each architectural solution to define strict boundaries for the downstream worker agents.
 
-1. **Coupling Analysis:** Map all implicitly coupled files. Identify test files that exercise the modified code, barrel exports (\`index.ts\`), and shared utilities.
-2. **File Ownership & Locking:** The downstream Orchestrator prevents merge conflicts by locking files at runtime. You must exhaustively list every single file (source, test, and utility) the worker agent needs to touch.
-3. **Task Sizing:** Keep tasks strictly isolated by functional domain. You may assign the same core file (e.g., \`types.ts\`) to multiple tasks; the Orchestrator will sequence them automatically based on your exhaustive file list.`;
+1. **Coupling Analysis:** Map all implicitly coupled files. Identify test files that exercise the modified code, barrel exports, and shared utilities.
+2. **File Ownership &#x26; Locking:** The downstream Orchestrator prevents merge conflicts by locking files at runtime. You must exhaustively list every single file (source, test, and utility) the worker agent needs to touch.
+3. **Task Sizing:** Keep tasks strictly isolated by functional domain. You may assign the same core file (e.g., shared type definitions) to multiple tasks; the Orchestrator will sequence them automatically based on your exhaustive file list.`;
 
 const PHASE_4_DISPATCH_HEALTHY = `\
 **Path A: System Healthy Protocol**
@@ -85,7 +87,7 @@ For EACH validated task that requires execution, perform a **Deduplication Check
 2. If an existing open issue's **Objective** already covers the same gap (even partially or under a different name), **do NOT create a new issue**. Instead, note the overlap in your report and skip creation.
 3. Only create an issue for gaps that are genuinely novel — not covered by any existing open issue.
 
-For each non-duplicate task, create a signal using the \`jules-fleet signal create\` command.`;
+For each non-duplicate task, create a signal using the \`npx @google/jules-fleet signal create\` command.`;
 
 const ISSUE_BODY_TEMPLATE = `\
 \`\`\`markdown
@@ -93,31 +95,30 @@ const ISSUE_BODY_TEMPLATE = `\
 [2-3 sentences explaining the functional goal of this isolated task]
 
 ### Code-Level Diagnosis
-**Code path:** [e.g., \`src/session.ts → fetch()\`]
+**Code path:** [e.g., src/module.py -> function_name()]
 **Mechanism:** [Explanation of the current state]
 **Root cause:** [Summary of the architectural gap]
 
 #### Current Implementation
-\\\`\\\`\\\`typescript
+\`\`\`
 // [Insert exact snippet from current codebase showing the logic to be changed]
-\\\`\\\`\\\`
+\`\`\`
 
 ### Proposed Implementation
 **Files to modify:** [Brief summary of structural changes]
 
-#### Integration (Before → After)
-\\\`\\\`\\\`diff
+#### Integration (Before -> After)
+\`\`\`diff
 // [Insert precise diffs showing how the new logic integrates]
-\\\`\\\`\\\`
+\`\`\`
 
 ### Test Scenarios
 1. [Scenario 1: Input -> Expected Output]
 2. [Scenario 2: Input -> Expected Output]
 
 ### Target Files
-- [exact/path/to/source1.ts]
-- [exact/path/to/source2.ts]
-- [exact/path/to/test1.test.ts]
+- [exact/path/to/source_file]
+- [exact/path/to/test_file]
 
 ### Boundary Rules
 Restrict your modifications exclusively to the files listed in the Target Files section. Ensure your source changes are entirely backward-compatible if unowned tests outside your boundary fail. Retain all existing file names and locations outside your explicitly declared target list.
@@ -148,20 +149,20 @@ export function buildAnalyzerPrompt(options: AnalyzerPromptOptions): string {
 
 **Assessment** (actionable — requires code changes):
 \`\`\`bash
-jules-fleet signal create \\
-  --kind assessment \\
-  --title "[Fleet Execution] <Highly Specific Domain Task Title>" \\
-  --tag fleet \\
-  --body-file <path_to_markdown_file>${milestoneFlag}
+npx @google/jules-fleet signal create \\\
+  --kind assessment \\\
+  --title "[Fleet Execution] [Highly Specific Domain Task Title]" \\\
+  --tag fleet \\\
+  --body-file [path_to_markdown_file]${milestoneFlag}
 \`\`\`
 
 **Insight** (informational — no action required):
 \`\`\`bash
-jules-fleet signal create \\
-  --kind insight \\
-  --title "<Descriptive Finding>" \\
-  --tag fleet \\
-  --body-file <path_to_markdown_file>${milestoneFlag}
+npx @google/jules-fleet signal create \\\
+  --kind insight \\\
+  --title "[Descriptive Finding]" \\\
+  --tag fleet \\\
+  --body-file [path_to_markdown_file]${milestoneFlag}
 \`\`\``;
 
   return [
@@ -199,7 +200,7 @@ jules-fleet signal create \\
     PHASE_3_PLAN,
     '',
     `### Phase 4: Dispatch (Issue Creation or Goal Validation)`,
-    `Translate your analysis into independent signals using \`jules-fleet signal create\`, or provide a clean bill of health.`,
+    `Translate your analysis into independent signals using \`npx @google/jules-fleet signal create\`, or provide a clean bill of health.`,
     '',
     PHASE_4_DISPATCH_HEALTHY,
     '',
