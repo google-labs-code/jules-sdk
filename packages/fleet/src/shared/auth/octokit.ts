@@ -24,14 +24,17 @@ const CachedOctokit = Octokit.plugin(cachePlugin) as typeof Octokit;
  * Detect auth mode from environment variables and return Octokit options.
  *
  * Priority:
- * 1. GitHub App (GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY[_BASE64] + GITHUB_APP_INSTALLATION_ID)
+ * 1. GitHub App (FLEET_APP_* or GITHUB_APP_* env vars)
  * 2. PAT fallback (GITHUB_TOKEN)
+ *
+ * FLEET_APP_* and GITHUB_APP_* are interchangeable — same names used
+ * in .env files, CI secrets, and workflow templates.
  */
 export function getAuthOptions(): ConstructorParameters<typeof Octokit>[0] {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKeyBase64 = process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
+  const appId = process.env.FLEET_APP_ID || process.env.GITHUB_APP_ID;
+  const privateKeyBase64 = process.env.FLEET_APP_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
   const privateKeyRaw = process.env.GITHUB_APP_PRIVATE_KEY;
-  const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
+  const installationId = process.env.FLEET_APP_INSTALLATION_ID || process.env.GITHUB_APP_INSTALLATION_ID;
 
   if (appId && (privateKeyBase64 || privateKeyRaw) && installationId) {
     return {
@@ -50,7 +53,7 @@ export function getAuthOptions(): ConstructorParameters<typeof Octokit>[0] {
   }
 
   throw new Error(
-    'GitHub auth not configured. Set GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY + GITHUB_APP_INSTALLATION_ID for App auth, or GITHUB_TOKEN for PAT auth.',
+    'GitHub auth not configured. Set FLEET_APP_ID + FLEET_APP_PRIVATE_KEY + FLEET_APP_INSTALLATION_ID for App auth, or GITHUB_TOKEN for PAT auth.',
   );
 }
 

@@ -178,19 +178,18 @@ Options:
 
 ### Environment Variables
 
-Fleet auto-detects auth from environment variables. GitHub App auth takes priority over `GITHUB_TOKEN`.
+Fleet auto-detects auth from environment variables. App auth takes priority over `GITHUB_TOKEN`.
 
 ```
 GITHUB_TOKEN                       Auto-provided in GitHub Actions. For local use, set a PAT.
 JULES_API_KEY                      Required for analyze, dispatch, and re-dispatch.
-GITHUB_APP_ID                      GitHub App ID (for local App auth).
-GITHUB_APP_PRIVATE_KEY             GitHub App private key (PEM format, for local use).
-GITHUB_APP_PRIVATE_KEY_BASE64      GitHub App private key (base64-encoded, used in CI).
-GITHUB_APP_INSTALLATION_ID         GitHub App installation ID.
+FLEET_APP_ID                       GitHub App ID.
+FLEET_APP_PRIVATE_KEY              GitHub App private key (base64-encoded).
+FLEET_APP_INSTALLATION_ID          GitHub App installation ID.
 FLEET_BASE_BRANCH                  Override default base branch (default: main).
 ```
 
-**GitHub Actions secrets:** The `init` wizard uploads secrets with `FLEET_APP_*` prefix (e.g., `FLEET_APP_ID`) since GitHub restricts `GITHUB_*` secret names. The workflow templates map these to the `GITHUB_APP_*` env vars at runtime.
+`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY_BASE64`, and `GITHUB_APP_INSTALLATION_ID` are also accepted as aliases. The `FLEET_APP_*` names are recommended because they work both as GitHub Actions secret names and as local env vars.
 
 ## Programmatic API
 
