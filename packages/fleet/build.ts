@@ -25,6 +25,8 @@ const shared = {
     'citty',
     'glob',
     'zod',
+    '@clack/prompts',
+    'libsodium-wrappers',
   ],
   outdir: './dist',
   naming: '[dir]/[name].mjs',
@@ -38,6 +40,7 @@ await Bun.build({
 
 // CLI entry points — auto-discover *.command.ts files
 import { globSync } from 'glob';
+import { writeFileSync } from 'fs';
 
 const cliEntrypoints = [
   './src/cli/index.ts',
@@ -49,4 +52,16 @@ await Bun.build({
   entrypoints: cliEntrypoints,
 });
 
+// Write CLI command manifest for reliable discovery after npm install
+const commandNames = cliEntrypoints
+  .filter(f => f.includes('.command.'))
+  .map(f => f.match(/([^/]+)\.command/)?.[1])
+  .filter(Boolean);
+
+writeFileSync(
+  './dist/cli/commands.json',
+  JSON.stringify(commandNames),
+);
+
 console.log('✅ Build complete');
+

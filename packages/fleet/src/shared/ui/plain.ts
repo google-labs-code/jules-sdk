@@ -13,14 +13,39 @@
 // limitations under the License.
 
 import type { FleetEvent } from '../events.js';
-import type { FleetRenderer } from './index.js';
-import { sessionUrl } from './session-url.js';
+import type { FleetRenderer, RenderContext } from './spec.js';
+import { renderInitEvent } from './render/init.js';
+import { renderConfigureEvent } from './render/configure.js';
+import { renderAnalyzeEvent } from './render/analyze.js';
+import { renderDispatchEvent } from './render/dispatch.js';
+import { renderMergeEvent } from './render/merge.js';
+import { renderErrorEvent } from './render/error.js';
+import type { InitEvent } from '../events/init.js';
+import type { ConfigureEvent } from '../events/configure.js';
+import type { AnalyzeEvent } from '../events/analyze.js';
+import type { DispatchEvent } from '../events/dispatch.js';
+import type { MergeEvent } from '../events/merge.js';
+import type { ErrorEvent } from '../events/error.js';
 
 /**
  * PlainRenderer uses console.log for CI-friendly plain text output.
  * Used when stdout is not a TTY (CI environments).
+ *
+ * This is a thin shell — all domain-specific rendering is delegated
+ * to per-domain functions in render/*.ts via the RenderContext interface.
  */
 export class PlainRenderer implements FleetRenderer {
+  private ctx: RenderContext = {
+    info: (msg) => console.log(msg),
+    success: (msg) => console.log(msg),
+    warn: (msg) => console.log(msg),
+    error: (msg) => console.error(msg),
+    message: (msg) => console.log(msg),
+    step: (msg) => console.log(msg),
+    startSpinner: (msg) => console.log(msg),
+    stopSpinner: (msg) => { if (msg) console.log(`  ✓ ${msg}`); },
+  };
+
   start(title: string): void {
     console.log(`\n═══ ${title} ═══\n`);
   }
@@ -34,188 +59,11 @@ export class PlainRenderer implements FleetRenderer {
   }
 
   render(event: FleetEvent): void {
-    switch (event.type) {
-      // ── Init events ──────────────────────────────────────────────
-      case 'init:start':
-        console.log(`Initializing fleet for ${event.owner}/${event.repo}`);
-        break;
-      case 'init:branch:creating':
-        console.log(`Creating branch ${event.name} from ${event.base}…`);
-        break;
-      case 'init:branch:created':
-        console.log(`  ✓ Branch ${event.name} created`);
-        break;
-      case 'init:file:committed':
-        console.log(`  ✓ ${event.path}`);
-        break;
-      case 'init:file:skipped':
-        console.log(`  ⊘ ${event.path} — ${event.reason}`);
-        break;
-      case 'init:pr:creating':
-        console.log('Creating pull request…');
-        break;
-      case 'init:pr:created':
-        console.log(`  ✓ PR #${event.number} created: ${event.url}`);
-        break;
-      case 'init:done':
-        console.log(`Fleet initialized — PR: ${event.prUrl}`);
-        break;
-
-      // ── Configure events ─────────────────────────────────────────
-      case 'configure:start':
-        console.log(`Configuring ${event.resource} for ${event.owner}/${event.repo}`);
-        break;
-      case 'configure:label:created':
-        console.log(`  ✓ Label "${event.name}" created`);
-        break;
-      case 'configure:label:exists':
-        console.log(`  ⊘ Label "${event.name}" already exists`);
-        break;
-      case 'configure:secret:uploading':
-        console.log(`Uploading secret ${event.name}…`);
-        break;
-      case 'configure:secret:uploaded':
-        console.log(`  ✓ Secret ${event.name} uploaded`);
-        break;
-      case 'configure:done':
-        console.log('Configuration complete');
-        break;
-
-      // ── Analyze events ───────────────────────────────────────────
-      case 'analyze:start':
-        console.log(`Analyzing ${event.goalCount} goal(s) for ${event.owner}/${event.repo}`);
-        break;
-      case 'analyze:goal:start':
-        if (event.total > 1) {
-          console.log(`[${event.index}/${event.total}] ${event.file}`);
-        } else {
-          console.log(event.file);
-        }
-        if (event.milestone) console.log(`  Milestone: ${event.milestone}`);
-        break;
-      case 'analyze:milestone:resolved':
-        console.log(`  Milestone "${event.title}" (#${event.id})`);
-        break;
-      case 'analyze:context:fetched':
-        console.log(
-          `  Context: ${event.openIssues} open, ${event.closedIssues} closed, ${event.prs} PRs`,
-        );
-        break;
-      case 'analyze:session:dispatching':
-        console.log(`Dispatching session for ${event.goal}…`);
-        break;
-      case 'analyze:session:started':
-        console.log(`  ✓ Session started: ${event.id}`);
-        console.log(`    ${sessionUrl(event.id)}`);
-        break;
-      case 'analyze:session:failed':
-        console.error(`  ✗ Failed: ${event.error}`);
-        break;
-      case 'analyze:done':
-        console.log(
-          `Analysis complete — ${event.sessionsStarted} session(s) from ${event.goalsProcessed} goal(s)`,
-        );
-        break;
-
-      // ── Dispatch events ──────────────────────────────────────────
-      case 'dispatch:start':
-        console.log(`Dispatching from milestone ${event.milestone}`);
-        break;
-      case 'dispatch:scanning':
-        console.log('Scanning for fleet issues…');
-        break;
-      case 'dispatch:found':
-        console.log(`Found ${event.count} undispatched issue(s)`);
-        break;
-      case 'dispatch:issue:dispatching':
-        console.log(`  Dispatching #${event.number}: ${event.title}`);
-        break;
-      case 'dispatch:issue:dispatched':
-        console.log(`  ✓ #${event.number} → session ${event.sessionId}`);
-        console.log(`    ${sessionUrl(event.sessionId)}`);
-        break;
-      case 'dispatch:issue:skipped':
-        console.log(`  ⊘ #${event.number}: ${event.reason}`);
-        break;
-      case 'dispatch:done':
-        console.log(
-          `Dispatch complete — ${event.dispatched} dispatched, ${event.skipped} skipped`,
-        );
-        break;
-
-      // ── Merge events ─────────────────────────────────────────────
-      case 'merge:start':
-        console.log(
-          `Merging ${event.prCount} PR(s) in ${event.owner}/${event.repo} [${event.mode}]`,
-        );
-        break;
-      case 'merge:no-prs':
-        console.log('No PRs ready to merge.');
-        break;
-      case 'merge:pr:processing':
-        console.log(
-          `Processing PR #${event.number}: ${event.title}${event.retry ? ` (retry ${event.retry})` : ''}`,
-        );
-        break;
-      case 'merge:branch:updating':
-        console.log(`  Updating branch for PR #${event.prNumber}…`);
-        break;
-      case 'merge:branch:updated':
-        console.log(`  ✓ Branch updated for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:waiting':
-        console.log(`  Waiting for CI on PR #${event.prNumber}…`);
-        break;
-      case 'merge:ci:check': {
-        const icon = event.status === 'pass' ? '✓' : event.status === 'fail' ? '✗' : '…';
-        const dur = event.duration ? ` (${event.duration}s)` : '';
-        console.log(`    ${icon} ${event.name}${dur}`);
-        break;
-      }
-      case 'merge:ci:passed':
-        console.log(`  ✓ CI passed for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:failed':
-        console.log(`  ✗ CI failed for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:timeout':
-        console.log(`  ⏱ CI timed out for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:none':
-        console.log(`  — No CI checks for PR #${event.prNumber}`);
-        break;
-      case 'merge:pr:merging':
-        console.log(`  Merging PR #${event.prNumber}…`);
-        break;
-      case 'merge:pr:merged':
-        console.log(`  ✓ PR #${event.prNumber} merged`);
-        break;
-      case 'merge:pr:skipped':
-        console.log(`  ⊘ PR #${event.prNumber}: ${event.reason}`);
-        break;
-      case 'merge:conflict:detected':
-        console.log(`  ⚠ Conflict detected on PR #${event.prNumber}`);
-        break;
-      case 'merge:redispatch:start':
-        console.log(`  Re-dispatching PR #${event.oldPr}…`);
-        break;
-      case 'merge:redispatch:waiting':
-        console.log(`  Waiting for re-dispatched PR (was #${event.oldPr})…`);
-        break;
-      case 'merge:redispatch:done':
-        console.log(`  ✓ Re-dispatched: #${event.oldPr} → #${event.newPr}`);
-        break;
-      case 'merge:done':
-        console.log(
-          `Merge complete — ${event.merged.length} merged, ${event.skipped.length} skipped`,
-        );
-        break;
-
-      // ── Error ────────────────────────────────────────────────────
-      case 'error':
-        console.error(`ERROR [${event.code}]: ${event.message}`);
-        if (event.suggestion) console.log(`  💡 ${event.suggestion}`);
-        break;
-    }
+    if (event.type.startsWith('init:')) return renderInitEvent(event as InitEvent, this.ctx);
+    if (event.type.startsWith('configure:')) return renderConfigureEvent(event as ConfigureEvent, this.ctx);
+    if (event.type.startsWith('analyze:')) return renderAnalyzeEvent(event as AnalyzeEvent, this.ctx);
+    if (event.type.startsWith('dispatch:')) return renderDispatchEvent(event as DispatchEvent, this.ctx);
+    if (event.type.startsWith('merge:')) return renderMergeEvent(event as MergeEvent, this.ctx);
+    if (event.type === 'error') return renderErrorEvent(event as ErrorEvent, this.ctx);
   }
 }

@@ -1,15 +1,15 @@
 {
   "name": "@google/jules-fleet",
-  "version": "0.0.1",
+  "version": "0.0.1-experimental.5",
   "type": "module",
   "description": "Fleet orchestration tools for Jules — analyze, dispatch, merge, init, configure",
   "repository": {
     "type": "git",
-    "url": "https://github.com/google-labs-code/jules-sdk.git"
+    "url": "git+https://github.com/google-labs-code/jules-sdk.git"
   },
   "types": "./dist/index.d.ts",
   "bin": {
-    "jules-fleet": "./dist/cli/index.mjs"
+    "jules-fleet": "dist/cli/index.mjs"
   },
   "exports": {
     ".": {
@@ -18,14 +18,19 @@
     },
     "./package.json": "./package.json"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "files": [
     "dist/",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build:js": "bun run build.ts",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:types": "tsc",
     "build": "bun run build:js && bun run build:types",
+    "prepublishOnly": "bun run build && vitest run",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
   },
@@ -44,6 +49,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
+    "@google/jules-sdk": "^0.0.6",
     "@octokit/auth-app": "^8.2.0",
     "citty": "^0.1.6",
     "glob": "^13.0.6",
@@ -52,20 +58,16 @@
     "yaml": "^2.8.2",
     "zod": "^3.25.0"
   },
-  "peerDependencies": {
-    "@google/jules-sdk": "*"
-  },
-  "peerDependenciesMeta": {
-    "@google/jules-sdk": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@google/jules-sdk": "^0.0.6",
     "@types/bun": "^1.3.9",
     "@types/libsodium-wrappers": "^0.8.2",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "main": "index.js",
+  "bugs": {
+    "url": "https://github.com/google-labs-code/jules-sdk/issues"
+  },
+  "homepage": "https://github.com/google-labs-code/jules-sdk#readme"
 }

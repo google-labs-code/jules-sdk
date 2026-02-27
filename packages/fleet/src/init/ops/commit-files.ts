@@ -25,6 +25,7 @@ export async function commitFiles(
   ctx: InitContext,
   templates: readonly WorkflowTemplate[],
   exampleGoal: string,
+  overwrite = false,
 ): Promise<string[] | InitResult> {
   const filesCreated: string[] = [];
 
@@ -46,7 +47,35 @@ export async function commitFiles(
         error && typeof error === 'object' && 'status' in error
           ? (error as { status: number }).status
           : 0;
-      if (status === 422) {
+      if (status === 422 && overwrite) {
+        // File exists — fetch SHA and overwrite
+        try {
+          const { data } = await ctx.octokit.rest.repos.getContent({
+            owner: ctx.owner,
+            repo: ctx.repo,
+            path: tmpl.repoPath,
+            ref: ctx.branchName,
+          });
+          const sha = 'sha' in data ? data.sha : undefined;
+          await ctx.octokit.rest.repos.createOrUpdateFileContents({
+            owner: ctx.owner,
+            repo: ctx.repo,
+            path: tmpl.repoPath,
+            message: `chore: update ${tmpl.repoPath}`,
+            content: Buffer.from(tmpl.content).toString('base64'),
+            branch: ctx.branchName,
+            sha,
+          });
+          filesCreated.push(tmpl.repoPath);
+          ctx.emit({ type: 'init:file:committed', path: tmpl.repoPath });
+        } catch (updateErr) {
+          return fail(
+            'FILE_COMMIT_FAILED',
+            `Failed to overwrite "${tmpl.repoPath}": ${updateErr instanceof Error ? updateErr.message : updateErr}`,
+            true,
+          );
+        }
+      } else if (status === 422) {
         ctx.emit({ type: 'init:file:skipped', path: tmpl.repoPath, reason: 'already exists' });
       } else {
         return fail(

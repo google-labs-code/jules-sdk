@@ -48,7 +48,7 @@ export class InitHandler implements InitSpec {
 
   async execute(input: InitInput): Promise<InitResult> {
     try {
-      const { owner, repoName: repo, baseBranch } = input;
+      const { owner, repoName: repo, baseBranch, overwrite } = input;
       this.emit({ type: 'init:start', owner, repo });
 
       // 1. Create branch
@@ -67,9 +67,25 @@ export class InitHandler implements InitSpec {
       };
 
       // 2. Commit workflow templates + example goal
-      const filesResult = await commitFiles(ctx, WORKFLOW_TEMPLATES, EXAMPLE_GOAL);
+      const filesResult = await commitFiles(ctx, WORKFLOW_TEMPLATES, EXAMPLE_GOAL, overwrite);
       if (isCommitResult(filesResult)) return filesResult;
       const filesCreated = filesResult;
+
+      // 2b. Guard: bail out if every file was skipped (nothing to PR)
+      if (filesCreated.length === 0) {
+        this.emit({
+          type: 'error',
+          code: 'ALREADY_INITIALIZED',
+          message: 'All fleet files already exist — nothing to commit.',
+          suggestion: 'This repo appears to be already initialized. Use jules-fleet configure to update settings.',
+        });
+        return fail(
+          'FILE_COMMIT_FAILED',
+          'All fleet files already exist — nothing to commit.',
+          false,
+          'This repo appears to be already initialized. Use jules-fleet configure to update settings.',
+        );
+      }
 
       // 3. Create PR
       const prResult = await createInitPR(ctx, baseBranch, filesCreated);

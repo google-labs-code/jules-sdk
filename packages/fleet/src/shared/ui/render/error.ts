@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Each slice owns its own barrel — adding exports to a slice
-// only touches that slice's index.ts, never this file.
-export * from './shared/index.js';
-export * from './merge/index.js';
-export * from './init/index.js';
-export * from './configure/index.js';
-export * from './analyze/index.js';
-export * from './dispatch/index.js';
-export * from './signal/index.js';
+import type { ErrorEvent } from '../../events/error.js';
+import type { RenderContext } from '../spec.js';
+
+/** Render an error event. */
+export function renderErrorEvent(event: ErrorEvent, ctx: RenderContext): void {
+  ctx.stopSpinner();
+  ctx.error(`[${event.code}] ${event.message}`);
+  if (event.suggestion) ctx.info(`  💡 ${event.suggestion}`);
+}

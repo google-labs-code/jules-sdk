@@ -14,15 +14,40 @@
 
 import * as p from '@clack/prompts';
 import type { FleetEvent } from '../events.js';
-import type { FleetRenderer } from './index.js';
-import { sessionUrl } from './session-url.js';
+import type { FleetRenderer, RenderContext } from './spec.js';
+import { renderInitEvent } from './render/init.js';
+import { renderConfigureEvent } from './render/configure.js';
+import { renderAnalyzeEvent } from './render/analyze.js';
+import { renderDispatchEvent } from './render/dispatch.js';
+import { renderMergeEvent } from './render/merge.js';
+import { renderErrorEvent } from './render/error.js';
+import type { InitEvent } from '../events/init.js';
+import type { ConfigureEvent } from '../events/configure.js';
+import type { AnalyzeEvent } from '../events/analyze.js';
+import type { DispatchEvent } from '../events/dispatch.js';
+import type { MergeEvent } from '../events/merge.js';
+import type { ErrorEvent } from '../events/error.js';
 
 /**
  * InteractiveRenderer uses @clack/prompts for rich TUI output.
  * Used when stdout is a TTY (local development).
+ *
+ * This is a thin shell — all domain-specific rendering is delegated
+ * to per-domain functions in render/*.ts via the RenderContext interface.
  */
 export class InteractiveRenderer implements FleetRenderer {
   private spinner: ReturnType<typeof p.spinner> | null = null;
+
+  private ctx: RenderContext = {
+    info: (msg) => p.log.info(msg),
+    success: (msg) => p.log.success(msg),
+    warn: (msg) => p.log.warn(msg),
+    error: (msg) => p.log.error(msg),
+    message: (msg) => p.log.message(msg),
+    step: (msg) => p.log.step(msg),
+    startSpinner: (msg) => this.startSpinner(msg),
+    stopSpinner: (msg) => this.stopSpinner(msg),
+  };
 
   start(title: string): void {
     p.intro(title);
@@ -39,192 +64,12 @@ export class InteractiveRenderer implements FleetRenderer {
   }
 
   render(event: FleetEvent): void {
-    switch (event.type) {
-      // ── Init events ──────────────────────────────────────────────
-      case 'init:start':
-        p.log.info(`Initializing fleet for ${event.owner}/${event.repo}`);
-        break;
-      case 'init:branch:creating':
-        this.startSpinner(`Creating branch ${event.name} from ${event.base}`);
-        break;
-      case 'init:branch:created':
-        this.stopSpinner(`Branch ${event.name} created`);
-        break;
-      case 'init:file:committed':
-        p.log.info(`  ✓ ${event.path}`);
-        break;
-      case 'init:file:skipped':
-        p.log.warn(`  ⊘ ${event.path} — ${event.reason}`);
-        break;
-      case 'init:pr:creating':
-        this.startSpinner('Creating pull request…');
-        break;
-      case 'init:pr:created':
-        this.stopSpinner(`PR #${event.number} created`);
-        p.log.info(`  ${event.url}`);
-        break;
-      case 'init:done':
-        p.log.success(`Fleet initialized — PR: ${event.prUrl}`);
-        break;
-
-      // ── Configure events ─────────────────────────────────────────
-      case 'configure:start':
-        p.log.info(`Configuring ${event.resource} for ${event.owner}/${event.repo}`);
-        break;
-      case 'configure:label:created':
-        p.log.info(`  ✓ Label "${event.name}" created`);
-        break;
-      case 'configure:label:exists':
-        p.log.warn(`  ⊘ Label "${event.name}" already exists`);
-        break;
-      case 'configure:secret:uploading':
-        this.startSpinner(`Uploading secret ${event.name}…`);
-        break;
-      case 'configure:secret:uploaded':
-        this.stopSpinner(`Secret ${event.name} uploaded`);
-        break;
-      case 'configure:done':
-        p.log.success('Configuration complete');
-        break;
-
-      // ── Analyze events ───────────────────────────────────────────
-      case 'analyze:start':
-        p.log.info(`Analyzing ${event.goalCount} goal(s) for ${event.owner}/${event.repo}`);
-        break;
-      case 'analyze:goal:start':
-        if (event.total > 1) {
-          p.log.step(`[${event.index}/${event.total}] ${event.file}`);
-        } else {
-          p.log.step(event.file);
-        }
-        if (event.milestone) p.log.info(`  Milestone: ${event.milestone}`);
-        break;
-      case 'analyze:milestone:resolved':
-        p.log.info(`  Milestone "${event.title}" (#${event.id})`);
-        break;
-      case 'analyze:context:fetched':
-        p.log.info(
-          `  Context: ${event.openIssues} open, ${event.closedIssues} closed, ${event.prs} PRs`,
-        );
-        break;
-      case 'analyze:session:dispatching':
-        this.startSpinner(`Dispatching session for ${event.goal}…`);
-        break;
-      case 'analyze:session:started':
-        this.stopSpinner(`Session started: ${event.id}`);
-        p.log.info(`  ${sessionUrl(event.id)}`);
-        break;
-      case 'analyze:session:failed':
-        this.stopSpinner();
-        p.log.error(`  Failed: ${event.error}`);
-        break;
-      case 'analyze:done':
-        p.log.success(
-          `Analysis complete — ${event.sessionsStarted} session(s) from ${event.goalsProcessed} goal(s)`,
-        );
-        break;
-
-      // ── Dispatch events ──────────────────────────────────────────
-      case 'dispatch:start':
-        p.log.info(`Dispatching from milestone ${event.milestone}`);
-        break;
-      case 'dispatch:scanning':
-        this.startSpinner('Scanning for fleet issues…');
-        break;
-      case 'dispatch:found':
-        this.stopSpinner(`Found ${event.count} undispatched issue(s)`);
-        break;
-      case 'dispatch:issue:dispatching':
-        this.startSpinner(`#${event.number}: ${event.title}`);
-        break;
-      case 'dispatch:issue:dispatched':
-        this.stopSpinner(`#${event.number} → session ${event.sessionId}`);
-        p.log.info(`  ${sessionUrl(event.sessionId)}`);
-        break;
-      case 'dispatch:issue:skipped':
-        p.log.warn(`  ⊘ #${event.number}: ${event.reason}`);
-        break;
-      case 'dispatch:done':
-        p.log.success(
-          `Dispatch complete — ${event.dispatched} dispatched, ${event.skipped} skipped`,
-        );
-        break;
-
-      // ── Merge events ─────────────────────────────────────────────
-      case 'merge:start':
-        p.log.info(
-          `Merging ${event.prCount} PR(s) in ${event.owner}/${event.repo} [${event.mode}]`,
-        );
-        break;
-      case 'merge:no-prs':
-        p.log.info('No PRs ready to merge.');
-        break;
-      case 'merge:pr:processing':
-        this.startSpinner(
-          `PR #${event.number}: ${event.title}${event.retry ? ` (retry ${event.retry})` : ''}`,
-        );
-        break;
-      case 'merge:branch:updating':
-        this.startSpinner(`Updating branch for PR #${event.prNumber}…`);
-        break;
-      case 'merge:branch:updated':
-        this.stopSpinner(`Branch updated for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:waiting':
-        this.startSpinner(`Waiting for CI on PR #${event.prNumber}…`);
-        break;
-      case 'merge:ci:check': {
-        const icon = event.status === 'pass' ? '✓' : event.status === 'fail' ? '✗' : '…';
-        const dur = event.duration ? ` (${event.duration}s)` : '';
-        p.log.info(`  ${icon} ${event.name}${dur}`);
-        break;
-      }
-      case 'merge:ci:passed':
-        this.stopSpinner(`CI passed for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:failed':
-        this.stopSpinner(`CI failed for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:timeout':
-        this.stopSpinner(`CI timed out for PR #${event.prNumber}`);
-        break;
-      case 'merge:ci:none':
-        this.stopSpinner(`No CI checks for PR #${event.prNumber}`);
-        break;
-      case 'merge:pr:merging':
-        this.startSpinner(`Merging PR #${event.prNumber}…`);
-        break;
-      case 'merge:pr:merged':
-        this.stopSpinner(`PR #${event.prNumber} merged ✓`);
-        break;
-      case 'merge:pr:skipped':
-        p.log.warn(`  ⊘ PR #${event.prNumber}: ${event.reason}`);
-        break;
-      case 'merge:conflict:detected':
-        this.stopSpinner(`Conflict detected on PR #${event.prNumber}`);
-        break;
-      case 'merge:redispatch:start':
-        this.startSpinner(`Re-dispatching PR #${event.oldPr}…`);
-        break;
-      case 'merge:redispatch:waiting':
-        this.startSpinner(`Waiting for re-dispatched PR (was #${event.oldPr})…`);
-        break;
-      case 'merge:redispatch:done':
-        this.stopSpinner(`Re-dispatched: #${event.oldPr} → #${event.newPr}`);
-        break;
-      case 'merge:done':
-        p.log.success(
-          `Merge complete — ${event.merged.length} merged, ${event.skipped.length} skipped`,
-        );
-        break;
-
-      // ── Error ────────────────────────────────────────────────────
-      case 'error':
-        this.stopSpinner();
-        p.log.error(`[${event.code}] ${event.message}`);
-        if (event.suggestion) p.log.info(`  💡 ${event.suggestion}`);
-        break;
-    }
+    if (event.type.startsWith('init:')) return renderInitEvent(event as InitEvent, this.ctx);
+    if (event.type.startsWith('configure:')) return renderConfigureEvent(event as ConfigureEvent, this.ctx);
+    if (event.type.startsWith('analyze:')) return renderAnalyzeEvent(event as AnalyzeEvent, this.ctx);
+    if (event.type.startsWith('dispatch:')) return renderDispatchEvent(event as DispatchEvent, this.ctx);
+    if (event.type.startsWith('merge:')) return renderMergeEvent(event as MergeEvent, this.ctx);
+    if (event.type === 'error') return renderErrorEvent(event as ErrorEvent, this.ctx);
   }
 
   // ── Private helpers ──────────────────────────────────────────────

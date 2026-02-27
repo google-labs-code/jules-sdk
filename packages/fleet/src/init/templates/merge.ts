@@ -71,5 +71,8 @@ jobs:
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: \${{ secrets.JULES_API_KEY }}
+          GITHUB_APP_ID: \${{ secrets.FLEET_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY_BASE64: \${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          GITHUB_APP_INSTALLATION_ID: \${{ secrets.FLEET_APP_INSTALLATION_ID }}
 `,
 };

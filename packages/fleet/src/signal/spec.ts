@@ -16,68 +16,63 @@ import { z } from 'zod';
 
 // ── INPUT ───────────────────────────────────────────────────────────
 
-export const InitInputSchema = z.object({
-  /** Repository in owner/repo format (auto-detected from git if omitted) */
-  repo: z
-    .string()
-    .regex(/^[^/]+\/[^/]+$/, 'Must be in owner/repo format')
-    .optional(),
-  /** Repository owner (resolved from repo or git) */
+export const SignalKind = z.enum(['insight', 'assessment']);
+export type SignalKind = z.infer<typeof SignalKind>;
+
+export const SignalCreateInputSchema = z.object({
+  /** Repository owner */
   owner: z.string().min(1),
-  /** Repository name (resolved from repo or git) */
-  repoName: z.string().min(1),
-  /** Base branch for the PR */
-  baseBranch: z.string().default('main'),
-  /** Whether to overwrite existing workflow files */
-  overwrite: z.boolean().default(false),
+  /** Repository name */
+  repo: z.string().min(1),
+  /** Signal kind: insight (informational) or assessment (actionable) */
+  kind: SignalKind.default('assessment'),
+  /** Signal title */
+  title: z.string().min(1),
+  /** Markdown body content */
+  body: z.string().min(1),
+  /** Tags to apply (become labels in GitHub) */
+  tags: z.array(z.string()).default([]),
+  /** Scope name (maps to milestone title in GitHub) */
+  scope: z.string().optional(),
 });
 
-export type InitInput = z.infer<typeof InitInputSchema>;
+export type SignalCreateInput = z.infer<typeof SignalCreateInputSchema>;
 
 // ── ERROR CODES ─────────────────────────────────────────────────────
 
-export const InitErrorCode = z.enum([
-  'REPO_NOT_FOUND',
-  'BRANCH_CREATE_FAILED',
-  'FILE_COMMIT_FAILED',
-  'PR_CREATE_FAILED',
-  'LABEL_CREATE_FAILED',
-  'ALREADY_INITIALIZED',
+export const SignalCreateErrorCode = z.enum([
   'GITHUB_API_ERROR',
+  'SCOPE_NOT_FOUND',
   'UNKNOWN_ERROR',
 ]);
-export type InitErrorCode = z.infer<typeof InitErrorCode>;
+export type SignalCreateErrorCode = z.infer<typeof SignalCreateErrorCode>;
 
 // ── RESULT ──────────────────────────────────────────────────────────
 
-export interface InitSuccess {
+export interface SignalCreateSuccess {
   success: true;
   data: {
-    /** URL of the created PR */
-    prUrl: string;
-    /** PR number */
-    prNumber: number;
-    /** Files committed to the branch */
-    filesCreated: string[];
-    /** Labels created in the repo */
-    labelsCreated: string[];
+    /** Created signal ID (issue number in GitHub) */
+    id: number;
+    /** URL to the created signal */
+    url: string;
   };
 }
 
-export interface InitFailure {
+export interface SignalCreateFailure {
   success: false;
   error: {
-    code: InitErrorCode;
+    code: SignalCreateErrorCode;
     message: string;
     recoverable: boolean;
     suggestion?: string;
   };
 }
 
-export type InitResult = InitSuccess | InitFailure;
+export type SignalCreateResult = SignalCreateSuccess | SignalCreateFailure;
 
 // ── INTERFACE ───────────────────────────────────────────────────────
 
-export interface InitSpec {
-  execute(input: InitInput): Promise<InitResult>;
+export interface SignalCreateSpec {
+  execute(input: SignalCreateInput): Promise<SignalCreateResult>;
 }

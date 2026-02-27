@@ -17,8 +17,11 @@ import { InitInputSchema } from '../init/spec.js';
 import { InitHandler } from '../init/handler.js';
 import { ConfigureHandler } from '../configure/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
-import { getGitRepoInfo } from '../shared/auth/git.js';
-import { createRenderer, createEmitter } from '../shared/ui/index.js';
+import { createRenderer, createEmitter, isInteractive } from '../shared/ui/index.js';
+import { runInitWizard, validateHeadlessInputs } from '../init/wizard/index.js';
+import type { InitArgs } from '../init/wizard/types.js';
+import { uploadSecret } from '../init/ops/upload-secrets.js';
+import { WORKFLOW_TEMPLATES } from '../init/templates.js';
 
 export default defineCommand({
   meta: {
@@ -35,38 +38,108 @@ export default defineCommand({
       description: 'Base branch for the PR',
       default: 'main',
     },
+    'non-interactive': {
+      type: 'boolean',
+      description: 'Disable wizard prompts — all inputs via flags/env vars',
+      default: false,
+    },
+    'dry-run': {
+      type: 'boolean',
+      description: 'Show what would be created without making changes',
+      default: false,
+    },
+    auth: {
+      type: 'string',
+      description: 'Auth mode: token | app (auto-detected from env vars)',
+    },
+    'app-id': {
+      type: 'string',
+      description: 'GitHub App ID (overrides GITHUB_APP_ID env var)',
+    },
+    'installation-id': {
+      type: 'string',
+      description: 'GitHub App Installation ID (overrides env var)',
+    },
+    'upload-secrets': {
+      type: 'boolean',
+      description: 'Upload secrets to GitHub Actions (default: true in interactive, false in non-interactive)',
+    },
   },
   async run({ args }) {
-    const renderer = createRenderer();
+    const nonInteractive = args['non-interactive'] || !isInteractive();
+    const renderer = createRenderer(!nonInteractive);
+    const emit = createEmitter(renderer);
 
-    // Auto-detect from git remote if --repo not provided
-    let repoSlug = args.repo;
-    if (!repoSlug) {
-      const repoInfo = await getGitRepoInfo();
-      repoSlug = `${repoInfo.owner}/${repoInfo.repo}`;
+    // ── Collect inputs: wizard or headless ──
+    const wizardArgs = args as unknown as InitArgs;
+    const inputs = nonInteractive
+      ? await validateHeadlessInputs(wizardArgs, emit)
+      : await runInitWizard(wizardArgs, emit);
+
+    // Check if input collection failed
+    if ('success' in inputs && !inputs.success) {
+      renderer.error(inputs.error.message);
+      if (inputs.error.suggestion) {
+        renderer.render({
+          type: 'error',
+          code: inputs.error.code,
+          message: inputs.error.suggestion,
+        });
+      }
+      process.exit(1);
     }
-    const [owner, repoName] = repoSlug.split('/');
 
-    renderer.start(`Fleet Init — ${owner}/${repoName}`);
+    const { owner, repo, baseBranch, secretsToUpload, dryRun, overwrite } = inputs as Exclude<typeof inputs, { success: false }>;
 
+    renderer.start(`Fleet Init — ${owner}/${repo}`);
+
+    // ── Dry run: list files and exit ──
+    if (dryRun) {
+      const files = WORKFLOW_TEMPLATES.map((t) => t.repoPath);
+      files.push('.fleet/goals/example.md');
+      emit({ type: 'init:dry-run', files });
+      renderer.end(`Dry run complete. ${files.length} files would be created.`);
+      return;
+    }
+
+    // ── Execute init pipeline ──
     const input = InitInputSchema.parse({
-      repo: repoSlug,
+      repo: `${owner}/${repo}`,
       owner,
-      repoName,
-      baseBranch: args.base,
+      repoName: repo,
+      baseBranch,
+      overwrite,
     });
 
     const octokit = createFleetOctokit();
-    const emit = createEmitter(renderer);
     const labelConfigurator = new ConfigureHandler({ octokit });
     const handler = new InitHandler({ octokit, emit, labelConfigurator });
     const result = await handler.execute(input);
 
+    // ── Upload secrets (always, even if files already exist) ──
+    const secretNames = Object.keys(secretsToUpload);
+    if (secretNames.length > 0) {
+      for (const name of secretNames) {
+        await uploadSecret(octokit, owner, repo, name, secretsToUpload[name], emit);
+      }
+    }
+
     if (!result.success) {
       renderer.error(result.error.message);
+      if (result.error.suggestion) {
+        renderer.render({
+          type: 'error',
+          code: result.error.code,
+          message: result.error.suggestion,
+        });
+      }
+      // If secrets were uploaded despite file failure, note partial success
+      if (secretNames.length > 0) {
+        renderer.end(`${secretNames.length} secret(s) uploaded, but no new files were committed.`);
+      }
       process.exit(1);
     }
 
-    renderer.end('Fleet initialized!');
+    renderer.end('Fleet initialized! Merge the PR to activate Fleet.');
   },
 });

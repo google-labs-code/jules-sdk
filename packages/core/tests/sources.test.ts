@@ -15,7 +15,15 @@
  */
 
 // tests/sources.test.ts
-import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
+import {
+  beforeAll,
+  afterAll,
+  afterEach,
+  describe,
+  it,
+  expect,
+  vi,
+} from 'vitest';
 import { server } from './mocks/server.js';
 import { jules as defaultJules, Source } from '../src/index.js';
 import { http, HttpResponse } from 'msw';
@@ -215,6 +223,60 @@ describe('SourceManager', () => {
       await expect(promise).rejects.toMatchObject({ status: 500 });
 
       vi.useRealTimers();
+    });
+
+    it('should send filter parameter when provided', async () => {
+      let capturedFilter: string | null = null;
+      server.use(
+        http.get(`${BASE_URL}/sources`, ({ request }) => {
+          const url = new URL(request.url);
+          capturedFilter = url.searchParams.get('filter');
+          return HttpResponse.json({ sources: [] });
+        }),
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _ of jules.sources({ filter: 'name="foo"' })) {
+        // empty
+      }
+
+      expect(capturedFilter).toBe('name="foo"');
+    });
+
+    it('should use default page size when not provided', async () => {
+      let capturedPageSize: string | null = null;
+      server.use(
+        http.get(`${BASE_URL}/sources`, ({ request }) => {
+          const url = new URL(request.url);
+          capturedPageSize = url.searchParams.get('pageSize');
+          return HttpResponse.json({ sources: [] });
+        }),
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _ of jules.sources()) {
+        // empty
+      }
+
+      expect(capturedPageSize).toBe('100');
+    });
+
+    it('should use provided page size', async () => {
+      let capturedPageSize: string | null = null;
+      server.use(
+        http.get(`${BASE_URL}/sources`, ({ request }) => {
+          const url = new URL(request.url);
+          capturedPageSize = url.searchParams.get('pageSize');
+          return HttpResponse.json({ sources: [] });
+        }),
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _ of jules.sources({ pageSize: 50 })) {
+        // empty
+      }
+
+      expect(capturedPageSize).toBe('50');
     });
   });
 });
