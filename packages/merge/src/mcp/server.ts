@@ -88,6 +88,42 @@ export function createMergeServer(): McpServer {
     },
   );
 
+  server.tool(
+    'init_workflow',
+    'Generate a GitHub Actions workflow file for automated merge conflict detection.',
+    {
+      outputDir: z
+        .string()
+        .default('.')
+        .describe('Directory to write .github/workflows/ into'),
+      workflowName: z
+        .string()
+        .default('jules-merge-check')
+        .describe('Workflow filename (without .yml)'),
+      baseBranch: z
+        .string()
+        .default('main')
+        .describe('Base branch to check against'),
+      force: z
+        .boolean()
+        .default(false)
+        .describe('Overwrite existing workflow file'),
+    },
+    async ({ outputDir, workflowName, baseBranch, force }) => {
+      const { InitHandler } = await import('../init/init-handler.js');
+      const { InitInputSchema } = await import('../init/init-spec.js');
+      const input = InitInputSchema.parse({ outputDir, workflowName, baseBranch, force });
+      const handler = new InitHandler();
+      const result = await handler.execute(input);
+
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    },
+  );
+
   return server;
 }
 

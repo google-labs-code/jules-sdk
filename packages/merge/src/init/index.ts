@@ -12,13 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Conflict detection
-export * from './conflicts/index.js';
-
-// Init / workflow generation
-export * from './init/index.js';
-
-// Shared utilities
-export { ok, fail } from './shared/result.js';
-export { getSessionChangedFiles, createJulesClient } from './shared/session.js';
-export type { SessionFileInfo } from './shared/session.js';
+export * from './init-spec.js';
+export { InitHandler } from './init-handler.js';
+export { buildWorkflowYaml } from './templates.js';
+export type { WorkflowTemplateOptions } from './templates.js';
