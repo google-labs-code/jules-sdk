@@ -32,7 +32,7 @@ const CachedOctokit = Octokit.plugin(cachePlugin) as typeof Octokit;
  */
 export function getAuthOptions(): ConstructorParameters<typeof Octokit>[0] {
   const appId = process.env.FLEET_APP_ID || process.env.GITHUB_APP_ID;
-  const privateKeyBase64 = process.env.FLEET_APP_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
+  const privateKeyBase64 = process.env.FLEET_APP_PRIVATE_KEY || process.env.FLEET_APP_PRIVATE_KEY_BASE64 || process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
   const privateKeyRaw = process.env.GITHUB_APP_PRIVATE_KEY;
   const installationId = process.env.FLEET_APP_INSTALLATION_ID || process.env.GITHUB_APP_INSTALLATION_ID;
 
