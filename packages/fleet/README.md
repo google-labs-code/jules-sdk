@@ -53,10 +53,18 @@ If a merge conflict is detected, the fleet closes the conflicting PR, re-dispatc
 ## Set up a repository
 
 ```bash
-npx @google/jules-fleet init --repo your-org/your-repo
+npx @google/jules-fleet init
 ```
 
-This creates a pull request containing three GitHub Actions workflows and an example goal file. It also creates the `fleet` and `fleet-merge-ready` labels. Merge the PR, then add `JULES_API_KEY` to your repository secrets.
+The interactive wizard will:
+1. **Detect the repo** from your git remote (or pass `--repo owner/repo`)
+2. **Configure auth** — choose GitHub App (recommended) or personal access token
+   - For GitHub App: enter your app slug and path to the `.pem` private key file. Fleet auto-detects the App ID and Installation ID.
+3. **Upload secrets** — `JULES_API_KEY` and app credentials are uploaded to GitHub Actions secrets
+4. **Create a PR** with three workflow files and an example goal
+5. **Create labels** — `fleet` and `fleet-merge-ready`
+
+If workflow files already exist (re-initialization), the wizard prompts to overwrite them with the latest templates.
 
 ## CLI Reference
 
@@ -65,16 +73,20 @@ This creates a pull request containing three GitHub Actions workflows and an exa
 Scaffold a repository for fleet workflows by creating a PR with the necessary files.
 
 ```
-jules-fleet init --repo <owner/repo> [options]
+jules-fleet init [options]
 
 Options:
-  --base <branch>   Base branch for the PR (default: main)
+  --repo <owner/repo>    Repository (auto-detected from git remote)
+  --base <branch>        Base branch for the PR (default: main)
+  --non-interactive      Disable wizard prompts — all inputs via flags/env vars
+  --dry-run              Show what would be created without making changes
+  --upload-secrets       Upload secrets to GitHub Actions (default: true)
 ```
 
 Files added by the PR:
-- `.github/workflows/fleet-merge.yml`
-- `.github/workflows/fleet-dispatch.yml`
 - `.github/workflows/fleet-analyze.yml`
+- `.github/workflows/fleet-dispatch.yml`
+- `.github/workflows/fleet-merge.yml`
 - `.fleet/goals/example.md`
 
 Labels created: `fleet`, `fleet-merge-ready`
@@ -166,14 +178,19 @@ Options:
 
 ### Environment Variables
 
+Fleet auto-detects auth from environment variables. GitHub App auth takes priority over `GITHUB_TOKEN`.
+
 ```
-GITHUB_TOKEN                    Required. GitHub token with repo access.
-JULES_API_KEY                   Required for analyze, dispatch, and re-dispatch.
-GITHUB_APP_ID                   GitHub App authentication (alternative to token).
-GITHUB_APP_PRIVATE_KEY          GitHub App private key (PEM or base64).
-GITHUB_APP_INSTALLATION_ID      GitHub App installation ID.
-FLEET_BASE_BRANCH               Override default base branch (default: main).
+GITHUB_TOKEN                       Auto-provided in GitHub Actions. For local use, set a PAT.
+JULES_API_KEY                      Required for analyze, dispatch, and re-dispatch.
+GITHUB_APP_ID                      GitHub App ID (for local App auth).
+GITHUB_APP_PRIVATE_KEY             GitHub App private key (PEM format, for local use).
+GITHUB_APP_PRIVATE_KEY_BASE64      GitHub App private key (base64-encoded, used in CI).
+GITHUB_APP_INSTALLATION_ID         GitHub App installation ID.
+FLEET_BASE_BRANCH                  Override default base branch (default: main).
 ```
+
+**GitHub Actions secrets:** The `init` wizard uploads secrets with `FLEET_APP_*` prefix (e.g., `FLEET_APP_ID`) since GitHub restricts `GITHUB_*` secret names. The workflow templates map these to the `GITHUB_APP_*` env vars at runtime.
 
 ## Programmatic API
 
