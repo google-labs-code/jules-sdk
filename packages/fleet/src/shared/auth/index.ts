@@ -20,4 +20,6 @@ export {
   type GitRepoInfo,
 } from './git.js';
 export { resolvePrivateKey } from './resolve-key.js';
+export { resolvePrivateKeyFromInput } from './resolve-key-input.js';
+export { resolveInstallation, type ResolvedInstallation } from './resolve-installation.js';
 export { cachePlugin } from './cache-plugin.js';
