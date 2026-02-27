@@ -89,7 +89,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { owner, repo, baseBranch, secretsToUpload, dryRun } = inputs as Exclude<typeof inputs, { success: false }>;
+    const { owner, repo, baseBranch, secretsToUpload, dryRun, overwrite } = inputs as Exclude<typeof inputs, { success: false }>;
 
     renderer.start(`Fleet Init — ${owner}/${repo}`);
 
@@ -108,6 +108,7 @@ export default defineCommand({
       owner,
       repoName: repo,
       baseBranch,
+      overwrite,
     });
 
     const octokit = createFleetOctokit();

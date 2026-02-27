@@ -22,6 +22,8 @@ export interface InitWizardResult {
   secretsToUpload: Record<string, string>;
   /** Whether to perform a dry run (list files but don't create PR) */
   dryRun: boolean;
+  /** Whether to overwrite existing workflow files */
+  overwrite: boolean;
 }
 
 /** Parsed args from citty */

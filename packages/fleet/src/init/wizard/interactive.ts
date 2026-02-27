@@ -17,6 +17,7 @@ import { fail } from '../../shared/result/index.js';
 import { getGitRepoInfo } from '../../shared/auth/git.js';
 import type { FleetEmitter } from '../../shared/events.js';
 import { WORKFLOW_TEMPLATES } from '../templates.js';
+import { createFleetOctokit } from '../../shared/auth/octokit.js';
 import type { InitArgs, InitWizardResult } from './types.js';
 
 /**
@@ -227,6 +228,33 @@ export async function runInitWizard(
   // ── Step 6: Dry run? ──
   const dryRun = args['dry-run'] ?? false;
 
+  // ── Step 6b: Check for existing workflow files ──
+  let overwrite = false;
+  if (!dryRun) {
+    const octokit = createFleetOctokit();
+    const existingFiles: string[] = [];
+    for (const tmpl of WORKFLOW_TEMPLATES) {
+      try {
+        await octokit.rest.repos.getContent({ owner, repo, path: tmpl.repoPath });
+        existingFiles.push(tmpl.repoPath);
+      } catch {
+        // File doesn't exist — will be created fresh
+      }
+    }
+    if (existingFiles.length > 0) {
+      p.log.warn(`Found ${existingFiles.length} existing workflow file(s):`);
+      for (const f of existingFiles) {
+        p.log.message(`  • ${f}`);
+      }
+      const shouldOverwrite = await p.confirm({
+        message: 'Overwrite existing workflow files with latest templates?',
+        initialValue: true,
+      });
+      if (p.isCancel(shouldOverwrite)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      overwrite = shouldOverwrite;
+    }
+  }
+
   // ── Step 7: Confirmation ──
   if (!dryRun) {
     const files = WORKFLOW_TEMPLATES.map((t) => t.repoPath);
@@ -235,7 +263,7 @@ export async function runInitWizard(
     p.log.info([
       'Fleet will:',
       `  • Create a branch from ${baseBranch}`,
-      `  • Commit ${files.length} files`,
+      `  • ${overwrite ? 'Overwrite' : 'Commit'} ${files.length} files`,
       '  • Open a pull request',
       '  • Configure labels (fleet, fleet-merge-ready)',
     ].join('\n'));
@@ -255,5 +283,5 @@ export async function runInitWizard(
     }
   }
 
-  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun };
+  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite };
 }

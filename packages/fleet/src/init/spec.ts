@@ -28,6 +28,8 @@ export const InitInputSchema = z.object({
   repoName: z.string().min(1),
   /** Base branch for the PR */
   baseBranch: z.string().default('main'),
+  /** Whether to overwrite existing workflow files */
+  overwrite: z.boolean().default(false),
 });
 
 export type InitInput = z.infer<typeof InitInputSchema>;
@@ -40,6 +42,7 @@ export const InitErrorCode = z.enum([
   'FILE_COMMIT_FAILED',
   'PR_CREATE_FAILED',
   'LABEL_CREATE_FAILED',
+  'ALREADY_INITIALIZED',
   'GITHUB_API_ERROR',
   'UNKNOWN_ERROR',
 ]);
