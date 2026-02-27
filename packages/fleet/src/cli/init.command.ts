@@ -115,6 +115,14 @@ export default defineCommand({
     const handler = new InitHandler({ octokit, emit, labelConfigurator });
     const result = await handler.execute(input);
 
+    // ── Upload secrets (always, even if files already exist) ──
+    const secretNames = Object.keys(secretsToUpload);
+    if (secretNames.length > 0) {
+      for (const name of secretNames) {
+        await uploadSecret(octokit, owner, repo, name, secretsToUpload[name], emit);
+      }
+    }
+
     if (!result.success) {
       renderer.error(result.error.message);
       if (result.error.suggestion) {
@@ -124,15 +132,11 @@ export default defineCommand({
           message: result.error.suggestion,
         });
       }
-      process.exit(1);
-    }
-
-    // ── Upload secrets ──
-    const secretNames = Object.keys(secretsToUpload);
-    if (secretNames.length > 0) {
-      for (const name of secretNames) {
-        await uploadSecret(octokit, owner, repo, name, secretsToUpload[name], emit);
+      // If secrets were uploaded despite file failure, note partial success
+      if (secretNames.length > 0) {
+        renderer.end(`${secretNames.length} secret(s) uploaded, but no new files were committed.`);
       }
+      process.exit(1);
     }
 
     renderer.end('Fleet initialized! Merge the PR to activate Fleet.');
