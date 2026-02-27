@@ -37,3 +37,9 @@ export {
 } from './milestone.js';
 export { toIssueMarkdown, toIssueLean, formatPRContext } from './formatting.js';
 export { buildAnalyzerPrompt, type AnalyzerPromptOptions } from './prompt.js';
+export {
+  readFleetConfig,
+  getAnalyzePreamble,
+  type FleetConfig,
+} from './config.js';
+export * from './overlap/index.js';

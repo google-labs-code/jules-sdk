@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { readFileSync, existsSync } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, resolve } from 'path';
 import { globSync } from 'glob';
 import type { Octokit } from 'octokit';
 import type { AnalyzeInput, AnalyzeResult, AnalyzeSpec } from './spec.js';
@@ -24,6 +24,7 @@ import { parseGoalFile, parseGoalContent } from './goals.js';
 import { getMilestoneContext } from './milestone.js';
 import { toIssueMarkdown, formatPRContext } from './formatting.js';
 import { buildAnalyzerPrompt } from './prompt.js';
+import { getAnalyzePreamble } from './config.js';
 import { TRIAGE_GOAL_FILENAME, getBuiltInTriagePrompt } from './triage-prompt.js';
 
 export interface AnalyzeHandlerDeps {
@@ -177,6 +178,10 @@ export class AnalyzeHandler implements AnalyzeSpec {
     const prContext =
       ctx.pullRequests.map(formatPRContext).join('\n') || 'None.';
 
+    // Resolve repo root from goalsDir to read .fleet/config.yml
+    const repoRoot = resolve(input.goalsDir, '..', '..');
+    const preamble = getAnalyzePreamble(repoRoot);
+
     const prompt = buildAnalyzerPrompt({
       goalInstructions,
       openContext,
@@ -184,6 +189,7 @@ export class AnalyzeHandler implements AnalyzeSpec {
       prContext,
       milestoneTitle: ctx.milestone?.title,
       milestoneId,
+      preamble,
     });
 
     this.emit({ type: 'analyze:session:dispatching', goal: displayName });

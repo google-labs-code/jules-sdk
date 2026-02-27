@@ -20,6 +20,8 @@ export interface AnalyzerPromptOptions {
   prContext?: string;
   milestoneTitle?: string;
   milestoneId?: string;
+  /** Repo-wide preamble from .fleet/config.yml, prepended to goal body */
+  preamble?: string;
 }
 
 // ── Prompt Constants ────────────────────────────────────────────────
@@ -36,7 +38,7 @@ const DEDUP_RULES = `\
 3. **PR with "Fixes #N" = Issue Being Resolved.** If a PR references an issue, that issue is handled. Do NOT create a new issue for the same thing.
 4. **When in doubt, skip it.** It is better to miss a real gap than to create a duplicate that wastes engineering time.`;
 
-const PHASE_0_VERIFY = `\
+const PHASE_0_VERIFY_CORE = `\
 ### Phase 0: Reality Verification
 Before planning new tasks, verify the current state of the repository against your goal directives.
 
@@ -48,7 +50,14 @@ Proceed to Phase 1 exclusively for gaps that are:
 1. Demonstrably present in the live codebase today, AND
 2. Not already covered by an existing open issue's Objective.`;
 
-const PHASE_1_INVESTIGATE = `\
+/** Addon: Diagnostics execution — separate so edits don't conflict with Phase 0 core */
+const PHASE_0_DIAGNOSTICS = `\
+**Diagnostics:** If the goal includes a \`## Diagnostics\` section, execute each command now and include the output in your Phase 0 findings. Build failures, type errors, and audit warnings are objective evidence — they are findings themselves. Diagnose the root cause of any failure before proceeding.`;
+
+/** Composed Phase 0 — core + diagnostics addon */
+const PHASE_0_VERIFY = [PHASE_0_VERIFY_CORE.split('\n').slice(0, 2).join('\n'), '', PHASE_0_DIAGNOSTICS, '', PHASE_0_VERIFY_CORE.split('\n').slice(3).join('\n')].join('\n');
+
+const PHASE_1_INVESTIGATE_CORE = `\
 ### Phase 1: Investigate
 Trace identified gaps directly to their source in the codebase. Produce a code-level diagnosis.
 
@@ -56,6 +65,13 @@ For every identified issue, you must:
 1. **Identify the exact code path:** Map the execution flow referencing specific files, functions, and line ranges.
 2. **Explain the mechanism:** Show the relevant code snippet from the existing codebase and annotate exactly where the logic diverges from the goal directives.
 3. **Determine the root cause:** Classify the gap (e.g., architectural mismatch, schema update, missing logic).`;
+
+/** Addon: Tools execution — separate so edits don't conflict with Phase 1 core */
+const PHASE_1_TOOLS = `\
+**Evidence Gathering:** If the goal includes a \`## Tools\` section, use these commands to gather evidence for specific findings. Run them selectively — only when a finding warrants deeper investigation. For example, run coverage analysis only for modules where you suspect gaps, not across the entire codebase.`;
+
+/** Composed Phase 1 — core header + tools addon + core body */
+const PHASE_1_INVESTIGATE = [PHASE_1_INVESTIGATE_CORE.split('\n').slice(0, 2).join('\n'), '', PHASE_1_TOOLS, '', PHASE_1_INVESTIGATE_CORE.split('\n').slice(3).join('\n')].join('\n');
 
 const PHASE_2_ARCHITECT = `\
 ### Phase 2: Architect
@@ -133,7 +149,13 @@ export function buildAnalyzerPrompt(options: AnalyzerPromptOptions): string {
     closedContext,
     prContext,
     milestoneTitle,
+    preamble,
   } = options;
+
+  // Prepend repo-wide preamble to goal instructions if provided
+  const fullGoalInstructions = preamble
+    ? `${preamble}\n\n${goalInstructions}`
+    : goalInstructions;
 
   const prSection = prContext
     ? `\n**Recent Pull Requests (shows what code changes are in flight or merged):**\n${prContext}\n`
@@ -169,7 +191,7 @@ npx @google/jules-fleet signal create \\\
     SYSTEM_PREAMBLE,
     '',
     `## Your Goal & Directives`,
-    goalInstructions,
+    fullGoalInstructions,
     '',
     `---`,
     '',
