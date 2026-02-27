@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-fleet",
-  "version": "0.0.1-experimental.1",
+  "version": "0.0.1-experimental.2",
   "type": "module",
   "description": "Fleet orchestration tools for Jules — analyze, dispatch, merge, init, configure",
   "repository": {
@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
+    "@google/jules-sdk": "^0.0.6",
     "@octokit/auth-app": "^8.2.0",
     "citty": "^0.1.6",
     "glob": "^13.0.6",
@@ -57,16 +58,7 @@
     "yaml": "^2.8.2",
     "zod": "^3.25.0"
   },
-  "peerDependencies": {
-    "@google/jules-sdk": "*"
-  },
-  "peerDependenciesMeta": {
-    "@google/jules-sdk": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@google/jules-sdk": "^0.0.6",
     "@types/bun": "^1.3.9",
     "@types/libsodium-wrappers": "^0.8.2",
     "@types/node": "^22.15.0",

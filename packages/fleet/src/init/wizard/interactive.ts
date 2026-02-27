@@ -102,20 +102,72 @@ export async function runInitWizard(
         process.env.GITHUB_TOKEN = token;
       }
     } else {
-      if (!process.env.GITHUB_APP_ID) {
-        const appId = await p.text({ message: 'Enter your GitHub App ID:' });
-        if (p.isCancel(appId)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      // ── GitHub App: slug → key file → auto-detect ──
+      const { resolvePrivateKeyFromInput } = await import('../../shared/auth/resolve-key-input.js');
+      const { resolveInstallation } = await import('../../shared/auth/resolve-installation.js');
+
+      // 1. App slug
+      const slug = await p.text({
+        message: 'What is your GitHub App slug? (from the URL: github.com/settings/apps/<slug>)',
+        validate: (v) => !v?.trim() ? 'App slug is required' : undefined,
+      });
+      if (p.isCancel(slug)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+
+      p.log.info(`Download your private key from: https://github.com/settings/apps/${slug}`);
+
+      // 2. Private key (file path, PEM, or base64)
+      const keyInput = await p.text({
+        message: 'Path to your private key (.pem file), or paste the key directly:',
+        validate: (v) => !v?.trim() ? 'Private key is required' : undefined,
+      });
+      if (p.isCancel(keyInput)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+
+      let privateKeyPem: string;
+      try {
+        privateKeyPem = resolvePrivateKeyFromInput(keyInput);
+      } catch (err) {
+        return fail(
+          'UNKNOWN_ERROR',
+          err instanceof Error ? err.message : 'Could not parse private key.',
+          true,
+        );
+      }
+
+      // 3. Auto-detect App ID and Installation ID
+      const s = p.spinner();
+      s.start(`Authenticating as "${slug}" and finding installation for ${owner}/${repo}...`);
+
+      try {
+        // We need the app ID — get it from the API using the slug
+        // First, authenticate as the app to discover its ID
+        const { Octokit } = await import('octokit');
+        const { createAppAuth } = await import('@octokit/auth-app');
+
+        // Use slug to look up the app's ID via the public endpoint
+        const tempOctokit = new Octokit();
+        const { data: appData } = await tempOctokit.rest.apps.getBySlug({ app_slug: slug });
+        if (!appData) {
+          throw new Error(`Could not find GitHub App with slug "${slug}". Check the slug at https://github.com/settings/apps`);
+        }
+        const appId = String(appData.id);
+
+        const resolved = await resolveInstallation(appId, privateKeyPem, owner, repo);
+
+        s.stop(`Authenticated as "${resolved.appName}" (ID: ${resolved.appId})`);
+        p.log.success(`Found installation for ${resolved.accountLogin} (ID: ${resolved.installationId})`);
+
+        // Set env vars for downstream use
         process.env.GITHUB_APP_ID = appId;
-      }
-      if (!process.env.GITHUB_APP_INSTALLATION_ID) {
-        const installId = await p.text({ message: 'Enter your Installation ID:' });
-        if (p.isCancel(installId)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-        process.env.GITHUB_APP_INSTALLATION_ID = installId;
-      }
-      if (!process.env.GITHUB_APP_PRIVATE_KEY_BASE64 && !process.env.GITHUB_APP_PRIVATE_KEY) {
-        const key = await p.password({ message: 'Paste your private key (base64 encoded):' });
-        if (p.isCancel(key)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-        process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = key;
+        process.env.GITHUB_APP_INSTALLATION_ID = String(resolved.installationId);
+        process.env.GITHUB_APP_PRIVATE_KEY = privateKeyPem;
+        process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = Buffer.from(privateKeyPem).toString('base64');
+      } catch (err) {
+        s.stop('Authentication failed');
+        return fail(
+          'UNKNOWN_ERROR',
+          err instanceof Error ? err.message : 'Could not authenticate with GitHub App.',
+          true,
+        );
       }
     }
   }
@@ -162,12 +214,12 @@ export async function runInitWizard(
       initialValue: true,
     });
     if (!p.isCancel(uploadApp) && uploadApp) {
-      if (process.env.GITHUB_APP_ID) secretsToUpload['GITHUB_APP_ID'] = process.env.GITHUB_APP_ID;
+      if (process.env.GITHUB_APP_ID) secretsToUpload['FLEET_APP_ID'] = process.env.GITHUB_APP_ID;
       if (process.env.GITHUB_APP_PRIVATE_KEY_BASE64) {
-        secretsToUpload['GITHUB_APP_PRIVATE_KEY_BASE64'] = process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
+        secretsToUpload['FLEET_APP_PRIVATE_KEY'] = process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
       }
       if (process.env.GITHUB_APP_INSTALLATION_ID) {
-        secretsToUpload['GITHUB_APP_INSTALLATION_ID'] = process.env.GITHUB_APP_INSTALLATION_ID;
+        secretsToUpload['FLEET_APP_INSTALLATION_ID'] = process.env.GITHUB_APP_INSTALLATION_ID;
       }
     }
   }
