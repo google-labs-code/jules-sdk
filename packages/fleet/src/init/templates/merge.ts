@@ -25,6 +25,9 @@ name: Fleet Merge
 on:
   schedule:
     - cron: '0 */4 * * *' # Every 4 hours — edit to your preference
+  workflow_run:
+    workflows: ['Conflict Detection']
+    types: [completed]
   workflow_dispatch:
     inputs:
       mode:
