@@ -24,6 +24,9 @@ import { fail } from '../../shared/result/fail.js';
 /** Check run name used by the conflict-detection workflow */
 const CONFLICT_CHECK_NAME = 'check-conflicts';
 
+/** Workflow filename used by the conflict-detection workflow */
+const CONFLICT_WORKFLOW_FILENAME = 'jules-merge-conflicts.yml';
+
 interface ConflictOutput {
   files: string[];
   rawOutput: string;
@@ -112,36 +115,35 @@ export class ConflictEscalationHandler implements ConflictEscalationSpec {
   }
 
   /**
-   * Counts consecutive conflict-detection failures for a PR.
-   * Returns -1 if no conflict-detection check runs were found.
+   * Counts consecutive conflict-detection workflow failures for a PR's branch.
+   * Uses the Workflow Runs API (not Check Runs) so failures accumulate
+   * across pushes — each Jules retry creates a new SHA but stays on the same branch.
+   * Returns -1 if no conflict-detection workflow runs were found.
    */
   async countConflictFailures(input: ConflictEscalationInput): Promise<number> {
-    // Get the PR to find the head SHA
+    // Get the PR to find the head branch
     const { data: pr } = await this.octokit.rest.pulls.get({
       owner: input.owner,
       repo: input.repo,
       pull_number: input.prNumber,
     });
 
-    // List check runs for the head SHA
-    const { data: checkRuns } = await this.octokit.rest.checks.listForRef({
+    // List workflow runs for the conflict-detection workflow on this branch
+    const { data: workflowRuns } = await this.octokit.rest.actions.listWorkflowRuns({
       owner: input.owner,
       repo: input.repo,
-      ref: pr.head.sha,
+      workflow_id: CONFLICT_WORKFLOW_FILENAME,
+      branch: pr.head.ref,
+      per_page: 10,
     });
 
-    // Filter for conflict-detection runs
-    const conflictRuns = checkRuns.check_runs.filter(
-      (run) => run.name.includes(CONFLICT_CHECK_NAME),
-    );
-
-    if (conflictRuns.length === 0) {
+    if (workflowRuns.workflow_runs.length === 0) {
       return -1;
     }
 
-    // Count consecutive failures (most recent first)
-    const sorted = conflictRuns.sort(
-      (a, b) => new Date(b.started_at ?? 0).getTime() - new Date(a.started_at ?? 0).getTime(),
+    // Count consecutive failures (most recent first — API returns desc by default)
+    const sorted = workflowRuns.workflow_runs.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
 
     let consecutiveFailures = 0;
