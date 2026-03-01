@@ -15,6 +15,7 @@ export async function createSession(
   // Build config - source is optional for repoless sessions
   const config: SessionConfig = {
     prompt: options.prompt,
+    title: options.title,
     requireApproval: options.interactive,
     autoPr: options.autoPr !== undefined ? options.autoPr : true,
   };

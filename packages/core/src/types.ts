@@ -172,7 +172,9 @@ export interface SessionConfig {
    */
   source?: SourceInput;
   /**
-   * Optional title for the session. If not provided, the system will generate one.
+   * A short, descriptive title for the session. Strongly recommended.
+   * This title is displayed in the Jules UI and helps identify the session at a glance.
+   * If omitted, the session will have no title in the UI.
    * Maps to `title` in the REST API.
    */
   title?: string;
