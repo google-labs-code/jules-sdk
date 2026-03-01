@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-merge",
-  "version": "0.0.1-experimental.1",
+  "version": "0.0.1",
   "type": "module",
   "description": "Predictive conflict detection for parallel AI agents",
   "types": "./dist/index.d.ts",
@@ -25,6 +25,12 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/google-labs-code/jules-sdk.git"
+  },
+  "author": "Google LLC",
+  "license": "Apache-2.0",
   "publishConfig": {
     "registry": "https://wombat-dressing-room.appspot.com",
     "access": "public"
