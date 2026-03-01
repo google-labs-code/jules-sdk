@@ -30,11 +30,10 @@ export type MergeEvent =
   | { type: 'merge:pr:skipped'; prNumber: number; reason: string }
   | { type: 'merge:conflict:detected'; prNumber: number }
   | { type: 'merge:redispatch:start'; oldPr: number }
-  | { type: 'merge:redispatch:waiting'; oldPr: number }
-  | { type: 'merge:redispatch:done'; oldPr: number; newPr: number }
+  | { type: 'merge:redispatch:done'; oldPr: number; sessionId: string }
   | {
       type: 'merge:done';
       merged: number[];
       skipped: number[];
-      redispatched: Array<{ oldPr: number; newPr: number }>;
+    redispatched: Array<{ oldPr: number; sessionId?: string }>;
     };

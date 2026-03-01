@@ -25,6 +25,8 @@ export const DispatchInputSchema = z.object({
   repo: z.string().min(1),
   /** Base branch for Jules sessions */
   baseBranch: z.string().default('main'),
+  /** Directory containing goal files (for verification commands) */
+  goalsDir: z.string().default('.fleet/goals'),
 });
 
 export type DispatchInput = z.infer<typeof DispatchInputSchema>;

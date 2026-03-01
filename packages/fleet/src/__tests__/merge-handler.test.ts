@@ -235,4 +235,85 @@ describe('MergeHandler (Logic Tests)', () => {
     }
     expect(mergeOrder).toEqual([42, 43]);
   });
+
+  it('detects conflict on first (only) PR and returns CONFLICT_RETRIES_EXHAUSTED', async () => {
+    const conflictError = new Error('Conflict') as any;
+    conflictError.status = 422;
+
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [makePR(28, ['fleet-merge-ready'])],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'abc123' } },
+        }),
+        merge: vi.fn(),
+        updateBranch: vi.fn().mockRejectedValue(conflictError),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({
+          data: { check_runs: [] },
+        }),
+      },
+    });
+
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
+    const result = await handler.execute(baseInput);
+
+    // Without re-dispatch, should return conflict error (not MERGE_FAILED)
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('CONFLICT_RETRIES_EXHAUSTED');
+      expect(result.error.message).toContain('PR #28');
+    }
+    // Merge should NOT have been attempted
+    expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('re-dispatches first (only) PR on conflict when reDispatch is enabled', async () => {
+    const conflictError = new Error('Conflict') as any;
+    conflictError.status = 422;
+
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [makePR(28, ['fleet-merge-ready'])],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'abc123' } },
+        }),
+        // Close old PR during redispatch
+        update: vi.fn().mockResolvedValue({ data: {} }),
+        // updateBranch always returns conflict (simulates persistent conflict)
+        updateBranch: vi.fn().mockRejectedValue(conflictError),
+        merge: vi.fn(),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({
+          data: { check_runs: [] },
+        }),
+      },
+    });
+
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
+    const result = await handler.execute({
+      ...baseInput,
+      reDispatch: true,
+      maxRetries: 0, // Exhaust immediately after first conflict to avoid infinite loop
+    });
+
+    // updateBranch should have been called for the first PR
+    expect(octokit.rest.pulls.updateBranch).toHaveBeenCalledWith(
+      expect.objectContaining({ pull_number: 28 }),
+    );
+    // Merge should NOT have been attempted
+    expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+    // Should fail after exhausting retries
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('CONFLICT_RETRIES_EXHAUSTED');
+    }
+  });
 });
+

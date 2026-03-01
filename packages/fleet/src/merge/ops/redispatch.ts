@@ -47,52 +47,32 @@ export async function redispatch(
 
   // Re-dispatch via Jules SDK
   try {
+    // Gather context: recently merged PRs and the closed PR's diff
+    const [recentlyMerged, prDiff] = await Promise.all([
+      getRecentlyMergedPRs(octokit, owner, repo, baseBranch),
+      getClosedPRDiff(octokit, owner, repo, oldPr.number),
+    ]);
+    const contextBlock = buildRedispatchContext(oldPr, recentlyMerged, prDiff);
+    const enrichedPrompt = `${contextBlock}\n\n---\n\n${oldPr.body ?? ''}`;
+
     const { jules } = await import('@google/jules-sdk');
     const session = await jules.session({
-      prompt: oldPr.body ?? '',
+      prompt: enrichedPrompt,
       source: {
         github: `${owner}/${repo}`,
         baseBranch,
       },
+      requireApproval: false,
+      autoPr: true,
     });
 
-    // Poll for new PR
-    emit({ type: 'merge:redispatch:waiting', oldPr: oldPr.number });
-    const start = Date.now();
-    const timeoutMs = pollTimeoutSeconds * 1000;
-    const pollIntervalMs = 30_000;
+    emit({
+      type: 'merge:redispatch:done',
+      oldPr: oldPr.number,
+      sessionId: session.id,
+    });
 
-    while (Date.now() - start < timeoutMs) {
-      await sleep(pollIntervalMs);
-      const { data: pulls } = await octokit.rest.pulls.list({
-        owner,
-        repo,
-        state: 'open',
-        base: baseBranch,
-        per_page: 100,
-      });
-
-      const newPr = pulls.find(
-        (pr) =>
-          pr.head.ref.includes(session.id) ||
-          pr.body?.includes(session.id),
-      );
-
-      if (newPr) {
-        const result: PR = {
-          number: newPr.number,
-          headRef: newPr.head.ref,
-          headSha: newPr.head.sha,
-          body: newPr.body,
-        };
-        emit({
-          type: 'merge:redispatch:done',
-          oldPr: oldPr.number,
-          newPr: newPr.number,
-        });
-        return result;
-      }
-    }
+    return null;
   } catch (error) {
     emit({
       type: 'error',
@@ -103,3 +83,108 @@ export async function redispatch(
 
   return null;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+interface MergedPRSummary {
+  number: number;
+  title: string;
+}
+
+/**
+ * Fetches recently merged PRs into the base branch (last 10).
+ */
+async function getRecentlyMergedPRs(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  baseBranch: string,
+): Promise<MergedPRSummary[]> {
+  try {
+    const { data: pulls } = await octokit.rest.pulls.list({
+      owner,
+      repo,
+      state: 'closed',
+      base: baseBranch,
+      sort: 'updated',
+      direction: 'desc',
+      per_page: 10,
+    });
+    return pulls
+      .filter((pr) => pr.merged_at !== null)
+      .map((pr) => ({ number: pr.number, title: pr.title }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetches the unified diff from a closed PR as reference implementation.
+ * Returns empty string on failure (non-fatal).
+ */
+async function getClosedPRDiff(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<string> {
+  try {
+    const { data: diff } = await octokit.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: prNumber,
+      mediaType: { format: 'diff' },
+    });
+    // diff comes as a string when using the diff media type
+    const diffStr = diff as unknown as string;
+    // Cap at ~8000 chars to avoid prompt bloat
+    if (diffStr.length > 8000) {
+      return diffStr.slice(0, 8000) + '\n... (diff truncated)';
+    }
+    return diffStr;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Builds a context block for re-dispatched sessions so Jules knows
+ * why the task is being re-tried and what's already been merged.
+ */
+function buildRedispatchContext(
+  oldPr: PR,
+  recentlyMerged: MergedPRSummary[],
+  prDiff: string,
+): string {
+  const lines: string[] = [
+    '⚠️ RE-DISPATCH CONTEXT',
+    '',
+    `This task was previously attempted in PR #${oldPr.number}, which was closed due to merge conflicts after other PRs were merged into the base branch.`,
+    '',
+  ];
+
+  if (recentlyMerged.length > 0) {
+    lines.push('The following PRs have been recently merged into the base branch:');
+    for (const pr of recentlyMerged) {
+      lines.push(`- PR #${pr.number}: ${pr.title}`);
+    }
+    lines.push('');
+  }
+
+  lines.push(
+    'Your new PR must build on top of these merged changes. Do NOT duplicate work that already exists in the base branch.',
+  );
+
+  if (prDiff) {
+    lines.push('');
+    lines.push('## Reference Implementation (from closed PR)');
+    lines.push('The diff below shows what the previous attempt implemented. Use it as a reference — adapt the changes to the current state of the codebase, resolving any conflicts with recently merged work.');
+    lines.push('');
+    lines.push('```diff');
+    lines.push(prDiff);
+    lines.push('```');
+  }
+
+  return lines.join('\n');
+}
+

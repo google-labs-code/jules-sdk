@@ -20,6 +20,8 @@ import { ok, fail } from '../shared/result/index.js';
 import { getMilestoneContext } from '../analyze/milestone.js';
 import { getDispatchStatus } from './status.js';
 import { recordDispatch } from './events.js';
+import { parseGoalFile } from '../analyze/goals.js';
+import { globSync } from 'glob';
 
 export interface DispatchHandlerDeps {
   octokit: Octokit;
@@ -47,6 +49,9 @@ export class DispatchHandler implements DispatchSpec {
     try {
       this.emit({ type: 'dispatch:start', milestone: input.milestone });
       this.emit({ type: 'dispatch:scanning' });
+
+      // Load verification commands from goal files
+      const verificationCommands = loadVerificationCommands(input.goalsDir);
 
       // 1. Get milestone context
       const ctx = await getMilestoneContext(this.octokit, {
@@ -97,16 +102,7 @@ export class DispatchHandler implements DispatchSpec {
           title: issue.title,
         });
 
-        const workerPrompt = `Fix Issue #${issue.number}: ${issue.title}
-
-IMPORTANT: Your PR title MUST start with "Fixes #${issue.number}" and your PR description MUST include "Fixes #${issue.number}" on its own line so the issue is auto-closed on merge.
-
-You are an autonomous execution agent. Implement the fix described below exactly as specified.
-
----
-
-${issue.body}
-`;
+        const workerPrompt = buildWorkerPrompt(issue, verificationCommands);
 
         try {
           const session = await this.dispatcher.dispatch({
@@ -174,3 +170,60 @@ ${issue.body}
     }
   }
 }
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Loads verification commands from all goal files in the goals directory.
+ * Returns a deduplicated array of commands, or empty if none found.
+ */
+function loadVerificationCommands(goalsDir: string): string[] {
+  try {
+    const files = globSync(`${goalsDir}/*.md`);
+    const commands: string[] = [];
+    for (const file of files) {
+      const parsed = parseGoalFile(file);
+      if (parsed.config.verification) {
+        commands.push(...parsed.config.verification);
+      }
+    }
+    // Deduplicate
+    return [...new Set(commands)];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Builds the worker session prompt from an issue and optional verification commands.
+ */
+function buildWorkerPrompt(
+  issue: { number: number; title: string; body: string },
+  verificationCommands: string[],
+): string {
+  const lines = [
+    `Fix Issue #${issue.number}: ${issue.title}`,
+    '',
+    `IMPORTANT: Your PR title MUST start with "Fixes #${issue.number}" and your PR description MUST include "Fixes #${issue.number}" on its own line so the issue is auto-closed on merge.`,
+    '',
+    'You are an autonomous execution agent. Implement the fix described below exactly as specified.',
+  ];
+
+  if (verificationCommands.length > 0) {
+    lines.push('');
+    lines.push('## Verification');
+    lines.push('After implementing your changes, run each of the following commands and ensure they all pass before creating your PR. If any command fails, fix the issue before proceeding.');
+    lines.push('');
+    for (const cmd of verificationCommands) {
+      lines.push(`- \`${cmd}\``);
+    }
+  }
+
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+  lines.push(issue.body);
+
+  return lines.join('\n');
+}
+

@@ -52,7 +52,7 @@ Proceed to Phase 1 exclusively for gaps that are:
 
 /** Addon: Diagnostics execution — separate so edits don't conflict with Phase 0 core */
 const PHASE_0_DIAGNOSTICS = `\
-**Diagnostics:** If the goal includes a \`## Diagnostics\` section, execute each command now and include the output in your Phase 0 findings. Build failures, type errors, and audit warnings are objective evidence — they are findings themselves. Diagnose the root cause of any failure before proceeding.`;
+**Diagnostics:** If the goal includes a \`## Diagnostics\` section, execute each command now and write the raw terminal output of every command to a file called \`diagnostics-report.md\` at the repo root. This file is your evidence artifact — it must contain the exact command run, its exit code, and its full stdout/stderr for each diagnostic. Do NOT include \`diagnostics-report.md\` in any commits or pull requests — it is for local evidence only and may contain sensitive information. Include a summary of the results in your Phase 0 findings. Build failures, type errors, and audit warnings are objective evidence — they are findings themselves. Diagnose the root cause of any failure before proceeding.`;
 
 /** Composed Phase 0 — core + diagnostics addon */
 const PHASE_0_VERIFY = [PHASE_0_VERIFY_CORE.split('\n').slice(0, 2).join('\n'), '', PHASE_0_DIAGNOSTICS, '', PHASE_0_VERIFY_CORE.split('\n').slice(3).join('\n')].join('\n');

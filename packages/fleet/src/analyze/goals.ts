@@ -19,6 +19,8 @@ import { parse as parseYaml } from 'yaml';
 export interface GoalFileConfig {
   /** Milestone number to scope to */
   milestone?: string;
+  /** Verification commands extracted from ## Verification section */
+  verification?: string[];
 }
 
 /** Result of parsing a goal file */
@@ -59,7 +61,27 @@ export function parseGoalContent(content: string): ParsedGoalFile {
   return {
     config: {
       milestone: parsed.milestone?.toString(),
+      verification: extractVerificationCommands(body),
     },
     body,
   };
+}
+
+/**
+ * Extracts commands from a ## Verification section in the goal body.
+ * Commands are expected as markdown list items with backtick-wrapped commands.
+ */
+function extractVerificationCommands(body: string): string[] | undefined {
+  const sectionMatch = body.match(/## Verification\s*\n([\s\S]*?)(?=\n## |$)/);
+  if (!sectionMatch) return undefined;
+
+  const section = sectionMatch[1];
+  const commands: string[] = [];
+  // Match list items containing backtick-wrapped commands: - `command here`
+  const linePattern = /^\s*-\s*`([^`]+)`/gm;
+  let match;
+  while ((match = linePattern.exec(section)) !== null) {
+    commands.push(match[1]);
+  }
+  return commands.length > 0 ? commands : undefined;
 }

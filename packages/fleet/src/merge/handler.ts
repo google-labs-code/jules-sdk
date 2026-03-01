@@ -74,7 +74,7 @@ export class MergeHandler implements MergeSpec {
 
       const merged: number[] = [];
       const skipped: number[] = [];
-      const redispatched: Array<{ oldPr: number; newPr: number }> = [];
+      const redispatched: Array<{ oldPr: number; sessionId?: string }> = [];
 
       // 2. Sequential merge loop
       for (const pr of prs) {
@@ -90,75 +90,63 @@ export class MergeHandler implements MergeSpec {
             retry: retryCount > 0 ? retryCount : undefined,
           });
 
-          // Update branch from base (skip for first PR on first attempt)
-          if (prs.indexOf(pr) > 0 || retryCount > 0) {
-            const updateResult = await updateBranch(
+          // Update branch from base to detect conflicts early
+          const updateResult = await updateBranch(
+            this.octokit,
+            input.owner,
+            input.repo,
+            currentPr.number,
+            this.emit,
+          );
+
+          if (!updateResult.ok && updateResult.conflict) {
+            // If re-dispatch is disabled, fail immediately on conflict
+            if (!input.reDispatch) {
+              return fail(
+                'CONFLICT_RETRIES_EXHAUSTED',
+                `Merge conflict detected for PR #${currentPr.number}. Use --re-dispatch to automatically retry.`,
+                false,
+                `Review PR: https://github.com/${input.owner}/${input.repo}/pull/${currentPr.number}`,
+              );
+            }
+
+            if (retryCount >= input.maxRetries) {
+              return fail(
+                'CONFLICT_RETRIES_EXHAUSTED',
+                `Conflict persists for PR #${currentPr.number} after ${input.maxRetries} retries. Human intervention required.`,
+                false,
+                `Review PR: https://github.com/${input.owner}/${input.repo}/pull/${currentPr.number}`,
+              );
+            }
+
+            await redispatch(
               this.octokit,
               input.owner,
               input.repo,
-              currentPr.number,
+              currentPr,
+              input.baseBranch,
+              input.pollTimeoutSeconds,
               this.emit,
+              this.sleep,
             );
 
-            if (!updateResult.ok && updateResult.conflict) {
-              // If re-dispatch is disabled, fail immediately on conflict
-              if (!input.reDispatch) {
-                return fail(
-                  'CONFLICT_RETRIES_EXHAUSTED',
-                  `Merge conflict detected for PR #${currentPr.number}. Use --re-dispatch to automatically retry.`,
-                  false,
-                  `Review PR: https://github.com/${input.owner}/${input.repo}/pull/${currentPr.number}`,
-                );
-              }
-
-              if (retryCount >= input.maxRetries) {
-                return fail(
-                  'CONFLICT_RETRIES_EXHAUSTED',
-                  `Conflict persists for PR #${currentPr.number} after ${input.maxRetries} retries. Human intervention required.`,
-                  false,
-                  `Review PR: https://github.com/${input.owner}/${input.repo}/pull/${currentPr.number}`,
-                );
-              }
-
-              const newPr = await redispatch(
-                this.octokit,
-                input.owner,
-                input.repo,
-                currentPr,
-                input.baseBranch,
-                input.pollTimeoutSeconds,
-                this.emit,
-                this.sleep,
-              );
-
-              if (!newPr) {
-                return fail(
-                  'REDISPATCH_TIMEOUT',
-                  `Timed out waiting for re-dispatched PR for #${currentPr.number}.`,
-                  true,
-                );
-              }
-
-              redispatched.push({
-                oldPr: currentPr.number,
-                newPr: newPr.number,
-              });
-              currentPr = newPr;
-              retryCount++;
-              continue;
-            }
-
-            if (!updateResult.ok && !updateResult.conflict) {
-              return fail(
-                'GITHUB_API_ERROR',
-                `Failed to update branch for PR #${currentPr.number}: ${updateResult.error}`,
-                true,
-              );
-            }
-
-            // Wait for update to propagate
-            await this.sleep(5_000);
+            redispatched.push({
+              oldPr: currentPr.number,
+            });
+            skipped.push(currentPr.number);
+            break;
           }
+
+          if (!updateResult.ok && !updateResult.conflict) {
+            return fail(
+              'GITHUB_API_ERROR',
+              `Failed to update branch for PR #${currentPr.number}: ${updateResult.error}`,
+              true,
+            );
+          }
+
+          // Wait for update to propagate
+          await this.sleep(5_000);
 
           // Wait for CI
           const ciResult = await waitForCI(

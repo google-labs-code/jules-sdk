@@ -73,11 +73,8 @@ export function renderMergeEvent(event: MergeEvent, ctx: RenderContext): void {
     case 'merge:redispatch:start':
       ctx.startSpinner(`Re-dispatching PR #${event.oldPr}…`);
       break;
-    case 'merge:redispatch:waiting':
-      ctx.startSpinner(`Waiting for re-dispatched PR (was #${event.oldPr})…`);
-      break;
     case 'merge:redispatch:done':
-      ctx.stopSpinner(`Re-dispatched: #${event.oldPr} → #${event.newPr}`);
+      ctx.stopSpinner(`Re-dispatched PR #${event.oldPr} → session ${event.sessionId}`);
       break;
     case 'merge:done':
       ctx.success(

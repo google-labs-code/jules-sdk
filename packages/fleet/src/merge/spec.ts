@@ -57,7 +57,6 @@ export const MergeErrorCode = z.enum([
   'CI_TIMEOUT',
   'MERGE_FAILED',
   'CONFLICT_RETRIES_EXHAUSTED',
-  'REDISPATCH_TIMEOUT',
   'GITHUB_API_ERROR',
   'UNKNOWN_ERROR',
 ]);
@@ -73,7 +72,7 @@ export interface MergeSuccess {
     /** PRs skipped (CI failure, etc.) */
     skipped: number[];
     /** PRs that were re-dispatched due to conflicts */
-    redispatched: Array<{ oldPr: number; newPr: number }>;
+    redispatched: Array<{ oldPr: number; sessionId?: string }>;
   };
 }
 
