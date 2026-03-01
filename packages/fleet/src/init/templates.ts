@@ -21,14 +21,17 @@ export type { WorkflowTemplate } from './templates/types.js';
 export { FLEET_ANALYZE_TEMPLATE } from './templates/analyze.js';
 export { FLEET_DISPATCH_TEMPLATE } from './templates/dispatch.js';
 export { FLEET_MERGE_TEMPLATE } from './templates/merge.js';
+export { CONFLICT_DETECTION_TEMPLATE } from './templates/conflict-detection.js';
 
 import { FLEET_ANALYZE_TEMPLATE } from './templates/analyze.js';
 import { FLEET_DISPATCH_TEMPLATE } from './templates/dispatch.js';
 import { FLEET_MERGE_TEMPLATE } from './templates/merge.js';
+import { CONFLICT_DETECTION_TEMPLATE } from './templates/conflict-detection.js';
 import type { WorkflowTemplate } from './templates/types.js';
 
 export const WORKFLOW_TEMPLATES: readonly WorkflowTemplate[] = [
   FLEET_ANALYZE_TEMPLATE,
   FLEET_DISPATCH_TEMPLATE,
   FLEET_MERGE_TEMPLATE,
+  CONFLICT_DETECTION_TEMPLATE,
 ];

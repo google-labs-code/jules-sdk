@@ -57,6 +57,7 @@ const baseInput = {
   owner: 'o',
   repoName: 'r',
   baseBranch: 'main',
+  overwrite: false,
 };
 
 describe('InitHandler', () => {
@@ -136,11 +137,12 @@ describe('InitHandler', () => {
   });
 
   it('succeeds with partial files (some exist, some new)', async () => {
-    // First call succeeds, second throws 422, third succeeds, goal succeeds
+    // First call succeeds, second throws 422, third+fourth succeed, goal succeeds
     const createOrUpdate = vi.fn()
       .mockResolvedValueOnce({ data: {} }) // analyze.yml — new
       .mockRejectedValueOnce(Object.assign(new Error('exists'), { status: 422 })) // dispatch.yml — exists
       .mockResolvedValueOnce({ data: {} }) // merge.yml — new
+      .mockResolvedValueOnce({ data: {} }) // conflict-detection.yml — new
       .mockResolvedValueOnce({ data: {} }); // example.md — new
 
     const octokit = {
@@ -166,7 +168,7 @@ describe('InitHandler', () => {
     // Should succeed — some files were created
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.filesCreated.length).toBe(3); // analyze + merge + example
+      expect(result.data.filesCreated.length).toBe(4); // analyze + merge + conflict-detection + example
     }
 
     // Should have both committed and skipped events

@@ -3,13 +3,13 @@
   "version": "0.0.1",
   "type": "module",
   "description": "Predictive conflict detection for parallel AI agents",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/merge/src/index.d.ts",
   "bin": {
     "jules-merge": "./dist/cli/index.mjs"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/merge/src/index.d.ts",
       "import": "./dist/index.mjs"
     },
     "./package.json": "./package.json"

@@ -24,6 +24,8 @@ export interface InitWizardResult {
   dryRun: boolean;
   /** Whether to overwrite existing workflow files */
   overwrite: boolean;
+  /** Feature toggles — which workflows to install */
+  features?: Record<string, boolean>;
 }
 
 /** Parsed args from citty */
