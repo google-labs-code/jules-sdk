@@ -27,7 +27,6 @@ export type GitCheckInput = z.infer<typeof GitCheckInputSchema>;
 
 // ERROR CODES (exhaustive)
 export const GitCheckErrorCode = z.enum([
-  'NO_UNMERGED_FILES',
   'GIT_STATUS_FAILED',
   'FILE_READ_FAILED',
   'UNKNOWN_ERROR',

@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-merge",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "description": "Predictive conflict detection for parallel AI agents",
   "types": "./dist/merge/src/index.d.ts",
