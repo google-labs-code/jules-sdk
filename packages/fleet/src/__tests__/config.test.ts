@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { readFleetConfig, getAnalyzePreamble } from '../shared/config.js';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
@@ -28,12 +28,12 @@ function makeTempRepo(configYaml?: string): string {
 }
 
 describe('readFleetConfig', () => {
-  test('returns empty config when no .fleet/config.yml exists', () => {
+  it('returns empty config when no .fleet/config.yml exists', () => {
     const dir = makeTempRepo();
     expect(readFleetConfig(dir)).toEqual({});
   });
 
-  test('parses preamble from valid config', () => {
+  it('parses preamble from valid config', () => {
     const dir = makeTempRepo(`
 analyze:
   preamble: "This is a Python 3.12 project using FastAPI."
@@ -44,17 +44,17 @@ analyze:
     );
   });
 
-  test('returns empty config for malformed YAML', () => {
+  it('returns empty config for malformed YAML', () => {
     const dir = makeTempRepo(':::invalid:yaml:::');
     expect(readFleetConfig(dir)).toEqual({});
   });
 
-  test('returns empty config for empty file', () => {
+  it('returns empty config for empty file', () => {
     const dir = makeTempRepo('');
     expect(readFleetConfig(dir)).toEqual({});
   });
 
-  test('ignores non-string preamble values', () => {
+  it('ignores non-string preamble values', () => {
     const dir = makeTempRepo(`
 analyze:
   preamble: 42
@@ -63,7 +63,7 @@ analyze:
     expect(config.analyze?.preamble).toBeUndefined();
   });
 
-  test('handles config with analyze but no preamble', () => {
+  it('handles config with analyze but no preamble', () => {
     const dir = makeTempRepo(`
 analyze:
   some_other_key: true
@@ -74,7 +74,7 @@ analyze:
 });
 
 describe('getAnalyzePreamble', () => {
-  test('returns preamble string when set', () => {
+  it('returns preamble string when set', () => {
     const dir = makeTempRepo(`
 analyze:
   preamble: "Use strict mode."
@@ -82,7 +82,7 @@ analyze:
     expect(getAnalyzePreamble(dir)).toBe('Use strict mode.');
   });
 
-  test('returns undefined when no config exists', () => {
+  it('returns undefined when no config exists', () => {
     const dir = makeTempRepo();
     expect(getAnalyzePreamble(dir)).toBeUndefined();
   });

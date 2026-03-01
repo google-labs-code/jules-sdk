@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { OverlapHandler } from '../analyze/overlap/handler.js';
 
 describe('OverlapHandler', () => {
   const handler = new OverlapHandler();
 
-  test('returns clean when no overlaps exist', () => {
+  it('returns clean when no overlaps exist', () => {
     const result = handler.execute({
       issues: [
         { number: 1, targetFiles: ['src/client.py'] },
@@ -35,7 +35,7 @@ describe('OverlapHandler', () => {
     }
   });
 
-  test('detects single file overlap between two issues', () => {
+  it('detects single file overlap between two issues', () => {
     const result = handler.execute({
       issues: [
         { number: 1, targetFiles: ['src/client.py', 'src/auth.py'] },
@@ -55,7 +55,7 @@ describe('OverlapHandler', () => {
     }
   });
 
-  test('detects multiple file overlaps', () => {
+  it('detects multiple file overlaps', () => {
     const result = handler.execute({
       issues: [
         { number: 1, targetFiles: ['src/client.py', 'pyproject.toml'] },
@@ -76,7 +76,7 @@ describe('OverlapHandler', () => {
     }
   });
 
-  test('groups issues into separate clusters when they share different files', () => {
+  it('groups issues into separate clusters when they share different files', () => {
     const result = handler.execute({
       issues: [
         { number: 1, targetFiles: ['src/client.py', 'src/shared-a.py'] },
@@ -99,7 +99,7 @@ describe('OverlapHandler', () => {
     }
   });
 
-  test('transitively clusters via shared files', () => {
+  it('transitively clusters via shared files', () => {
     // Issue 1 shares file-a with Issue 2
     // Issue 2 shares file-b with Issue 3
     // All three should be in one cluster via transitive union
@@ -118,7 +118,7 @@ describe('OverlapHandler', () => {
     }
   });
 
-  test('handles single issue (no overlaps possible)', () => {
+  it('handles single issue (no overlaps possible)', () => {
     const result = handler.execute({
       issues: [{ number: 1, targetFiles: ['src/client.py'] }],
     });

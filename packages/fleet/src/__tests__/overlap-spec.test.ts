@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { OverlapInputSchema } from '../analyze/overlap/spec.js';
 
 describe('OverlapInputSchema', () => {
-  test('accepts valid input with issues', () => {
+  it('accepts valid input with issues', () => {
     const result = OverlapInputSchema.safeParse({
       issues: [
         { number: 1, targetFiles: ['src/client.py'] },
@@ -26,28 +26,28 @@ describe('OverlapInputSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('rejects empty issues array', () => {
+  it('rejects empty issues array', () => {
     const result = OverlapInputSchema.safeParse({
       issues: [],
     });
     expect(result.success).toBe(false);
   });
 
-  test('rejects issues without number', () => {
+  it('rejects issues without number', () => {
     const result = OverlapInputSchema.safeParse({
       issues: [{ targetFiles: ['src/client.py'] }],
     });
     expect(result.success).toBe(false);
   });
 
-  test('rejects issues with empty target files', () => {
+  it('rejects issues with empty target files', () => {
     const result = OverlapInputSchema.safeParse({
       issues: [{ number: 1, targetFiles: [''] }],
     });
     expect(result.success).toBe(false);
   });
 
-  test('rejects negative issue numbers', () => {
+  it('rejects negative issue numbers', () => {
     const result = OverlapInputSchema.safeParse({
       issues: [{ number: -1, targetFiles: ['src/file.py'] }],
     });

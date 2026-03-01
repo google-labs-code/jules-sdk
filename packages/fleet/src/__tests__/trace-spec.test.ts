@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { TraceInputSchema } from '../trace/spec.js';
 
 describe('TraceInputSchema', () => {
-  test('accepts session entry point', () => {
+  it('accepts session entry point', () => {
     const result = TraceInputSchema.safeParse({
       sessionId: 'abc123',
       repo: 'owner/repo',
@@ -24,7 +24,7 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('accepts issue entry point', () => {
+  it('accepts issue entry point', () => {
     const result = TraceInputSchema.safeParse({
       issueNumber: 4,
       repo: 'owner/repo',
@@ -32,7 +32,7 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('accepts milestone entry point', () => {
+  it('accepts milestone entry point', () => {
     const result = TraceInputSchema.safeParse({
       milestone: '1',
       repo: 'owner/repo',
@@ -40,7 +40,7 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('accepts milestone by title', () => {
+  it('accepts milestone by title', () => {
     const result = TraceInputSchema.safeParse({
       milestone: 'v1.0',
       repo: 'owner/repo',
@@ -48,14 +48,14 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('rejects when no entry point is provided', () => {
+  it('rejects when no entry point is provided', () => {
     const result = TraceInputSchema.safeParse({
       repo: 'owner/repo',
     });
     expect(result.success).toBe(false);
   });
 
-  test('rejects repo without slash', () => {
+  it('rejects repo without slash', () => {
     const result = TraceInputSchema.safeParse({
       sessionId: 'abc123',
       repo: 'just-repo',
@@ -63,7 +63,7 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  test('defaults format to json', () => {
+  it('defaults format to json', () => {
     const result = TraceInputSchema.safeParse({
       sessionId: 'abc123',
       repo: 'owner/repo',
@@ -74,7 +74,7 @@ describe('TraceInputSchema', () => {
     }
   });
 
-  test('accepts md format', () => {
+  it('accepts md format', () => {
     const result = TraceInputSchema.safeParse({
       sessionId: 'abc123',
       repo: 'owner/repo',
@@ -83,7 +83,7 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  test('rejects invalid format', () => {
+  it('rejects invalid format', () => {
     const result = TraceInputSchema.safeParse({
       sessionId: 'abc123',
       repo: 'owner/repo',
@@ -92,7 +92,7 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  test('rejects negative issue number', () => {
+  it('rejects negative issue number', () => {
     const result = TraceInputSchema.safeParse({
       issueNumber: -1,
       repo: 'owner/repo',
@@ -100,7 +100,7 @@ describe('TraceInputSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  test('accepts multiple entry points (session takes priority in handler)', () => {
+  it('accepts multiple entry points (session takes priority in handler)', () => {
     const result = TraceInputSchema.safeParse({
       sessionId: 'abc123',
       issueNumber: 4,

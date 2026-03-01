@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { UnionFind } from '../shared/union-find.js';
 
 describe('UnionFind', () => {
-  test('isolated elements form singleton groups', () => {
+  it('isolated elements form singleton groups', () => {
     const uf = new UnionFind<number>();
     uf.makeSet(1);
     uf.makeSet(2);
@@ -29,7 +29,7 @@ describe('UnionFind', () => {
     expect(groups.map((g) => g.sort())).toContainEqual([3]);
   });
 
-  test('union merges two elements into one group', () => {
+  it('union merges two elements into one group', () => {
     const uf = new UnionFind<number>();
     uf.makeSet(1);
     uf.makeSet(2);
@@ -40,7 +40,7 @@ describe('UnionFind', () => {
     expect(groups).toHaveLength(1);
   });
 
-  test('transitive union chains correctly', () => {
+  it('transitive union chains correctly', () => {
     const uf = new UnionFind<number>();
     uf.makeSet(1);
     uf.makeSet(2);
@@ -53,7 +53,7 @@ describe('UnionFind', () => {
     expect(groups).toHaveLength(1);
   });
 
-  test('separate groups remain separate', () => {
+  it('separate groups remain separate', () => {
     const uf = new UnionFind<number>();
     uf.makeSet(1);
     uf.makeSet(2);
@@ -70,7 +70,7 @@ describe('UnionFind', () => {
     expect(groups).toHaveLength(2);
   });
 
-  test('union of same element is a no-op', () => {
+  it('union of same element is a no-op', () => {
     const uf = new UnionFind<number>();
     uf.makeSet(1);
     uf.union(1, 1);
@@ -80,13 +80,13 @@ describe('UnionFind', () => {
     expect(groups).toHaveLength(1);
   });
 
-  test('find auto-creates set for unknown elements', () => {
+  it('find auto-creates set for unknown elements', () => {
     const uf = new UnionFind<number>();
     const root = uf.find(42);
     expect(root).toBe(42);
   });
 
-  test('works with string type parameter', () => {
+  it('works with string type parameter', () => {
     const uf = new UnionFind<string>();
     uf.makeSet('a');
     uf.makeSet('b');

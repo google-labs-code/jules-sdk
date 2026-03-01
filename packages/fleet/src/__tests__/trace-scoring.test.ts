@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { computeScores, aggregateScores } from '../trace/scoring.js';
 import type { SessionTrace } from '../trace/spec.js';
 
@@ -29,14 +29,14 @@ function makeSession(overrides: Partial<SessionTrace> = {}): SessionTrace {
 }
 
 describe('computeScores', () => {
-  test('returns null mergeSuccess when no PR exists', () => {
+  it('returns null mergeSuccess when no PR exists', () => {
     const scores = computeScores(makeSession());
     expect(scores.mergeSuccess).toBeNull();
     expect(scores.filesChanged).toBe(0);
     expect(scores.issueLinked).toBe(false);
   });
 
-  test('returns true mergeSuccess for merged PR', () => {
+  it('returns true mergeSuccess for merged PR', () => {
     const scores = computeScores(
       makeSession({
         pullRequest: { number: 1, title: 'Fix', state: 'closed', merged: true },
@@ -47,7 +47,7 @@ describe('computeScores', () => {
     expect(scores.filesChanged).toBe(2);
   });
 
-  test('returns false mergeSuccess for unmerged PR', () => {
+  it('returns false mergeSuccess for unmerged PR', () => {
     const scores = computeScores(
       makeSession({
         pullRequest: { number: 1, title: 'Fix', state: 'open', merged: false },
@@ -56,7 +56,7 @@ describe('computeScores', () => {
     expect(scores.mergeSuccess).toBe(false);
   });
 
-  test('returns true issueLinked when dispatch info exists', () => {
+  it('returns true issueLinked when dispatch info exists', () => {
     const scores = computeScores(
       makeSession({
         dispatchedBy: { issueNumber: 4, issueTitle: 'Test' },
@@ -67,14 +67,14 @@ describe('computeScores', () => {
 });
 
 describe('aggregateScores', () => {
-  test('returns null for empty sessions', () => {
+  it('returns null for empty sessions', () => {
     const scores = aggregateScores([]);
     expect(scores.mergeSuccess).toBeNull();
     expect(scores.filesChanged).toBe(0);
     expect(scores.issueLinked).toBe(true); // vacuously true
   });
 
-  test('returns true mergeSuccess when all PRs merged', () => {
+  it('returns true mergeSuccess when all PRs merged', () => {
     const sessions = [
       makeSession({
         pullRequest: { number: 1, title: 'A', state: 'closed', merged: true },
@@ -93,7 +93,7 @@ describe('aggregateScores', () => {
     expect(scores.issueLinked).toBe(true);
   });
 
-  test('returns false mergeSuccess when any PR not merged', () => {
+  it('returns false mergeSuccess when any PR not merged', () => {
     const sessions = [
       makeSession({
         pullRequest: { number: 1, title: 'A', state: 'closed', merged: true },
@@ -108,7 +108,7 @@ describe('aggregateScores', () => {
     expect(scores.mergeSuccess).toBe(false);
   });
 
-  test('returns false issueLinked when any session is unlinked', () => {
+  it('returns false issueLinked when any session is unlinked', () => {
     const sessions = [
       makeSession({ dispatchedBy: { issueNumber: 1, issueTitle: 'A' } }),
       makeSession({ dispatchedBy: null }),

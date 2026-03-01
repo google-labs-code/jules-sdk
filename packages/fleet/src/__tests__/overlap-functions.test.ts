@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import {
   buildFileOwnership,
   detectOverlaps,
@@ -20,7 +20,7 @@ import {
 } from '../analyze/overlap/handler.js';
 
 describe('buildFileOwnership', () => {
-  test('maps files to their owning issue numbers', () => {
+  it('maps files to their owning issue numbers', () => {
     const ownership = buildFileOwnership([
       { number: 1, targetFiles: ['a.py', 'b.py'] },
       { number: 2, targetFiles: ['b.py', 'c.py'] },
@@ -31,14 +31,14 @@ describe('buildFileOwnership', () => {
     expect(ownership.get('c.py')).toEqual([2]);
   });
 
-  test('handles issues with no files', () => {
+  it('handles issues with no files', () => {
     const ownership = buildFileOwnership([
       { number: 1, targetFiles: [] },
     ]);
     expect(ownership.size).toBe(0);
   });
 
-  test('handles duplicate files within same issue', () => {
+  it('handles duplicate files within same issue', () => {
     const ownership = buildFileOwnership([
       { number: 1, targetFiles: ['a.py', 'a.py'] },
     ]);
@@ -48,7 +48,7 @@ describe('buildFileOwnership', () => {
 });
 
 describe('detectOverlaps', () => {
-  test('returns empty when no files are shared', () => {
+  it('returns empty when no files are shared', () => {
     const ownership = new Map<string, number[]>([
       ['a.py', [1]],
       ['b.py', [2]],
@@ -56,7 +56,7 @@ describe('detectOverlaps', () => {
     expect(detectOverlaps(ownership)).toEqual([]);
   });
 
-  test('detects files shared by multiple issues', () => {
+  it('detects files shared by multiple issues', () => {
     const ownership = new Map<string, number[]>([
       ['a.py', [1]],
       ['b.py', [1, 2]],
@@ -69,7 +69,7 @@ describe('detectOverlaps', () => {
     expect(overlaps).toContainEqual({ file: 'c.py', issues: [2, 3] });
   });
 
-  test('sorts issue numbers within an overlap', () => {
+  it('sorts issue numbers within an overlap', () => {
     const ownership = new Map<string, number[]>([
       ['a.py', [5, 2, 8]],
     ]);
@@ -79,12 +79,12 @@ describe('detectOverlaps', () => {
 });
 
 describe('clusterIssues', () => {
-  test('returns empty when no overlaps exist', () => {
+  it('returns empty when no overlaps exist', () => {
     const clusters = clusterIssues([], [1, 2, 3]);
     expect(clusters).toEqual([]);
   });
 
-  test('groups issues sharing a file into one cluster', () => {
+  it('groups issues sharing a file into one cluster', () => {
     const overlaps = [{ file: 'a.py', issues: [1, 2] }];
     const clusters = clusterIssues(overlaps, [1, 2, 3]);
 
@@ -93,7 +93,7 @@ describe('clusterIssues', () => {
     expect(clusters[0].sharedFiles).toEqual(['a.py']);
   });
 
-  test('separates independent clusters', () => {
+  it('separates independent clusters', () => {
     const overlaps = [
       { file: 'a.py', issues: [1, 2] },
       { file: 'b.py', issues: [3, 4] },
@@ -106,7 +106,7 @@ describe('clusterIssues', () => {
     expect(clusterIssueArrays).toContainEqual([3, 4]);
   });
 
-  test('transitively merges clusters via shared files', () => {
+  it('transitively merges clusters via shared files', () => {
     const overlaps = [
       { file: 'a.py', issues: [1, 2] },
       { file: 'b.py', issues: [2, 3] },

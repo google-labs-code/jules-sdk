@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, test, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import {
   readAnalysisEvent,
   buildAnalysisEventBody,
 } from '../analyze/overlap/reader.js';
 
 describe('buildAnalysisEventBody', () => {
-  test('builds a well-formed analysis event comment', () => {
+  it('builds a well-formed analysis event comment', () => {
     const body = buildAnalysisEventBody(['src/client.py', 'src/models.py']);
     expect(body).toContain('📋 **Fleet Analysis Event**');
     expect(body).toContain('- `src/client.py`');
@@ -29,13 +29,13 @@ describe('buildAnalysisEventBody', () => {
 });
 
 describe('readAnalysisEvent', () => {
-  test('parses files from a valid analysis event comment', () => {
+  it('parses files from a valid analysis event comment', () => {
     const body = buildAnalysisEventBody(['src/client.py', 'src/models.py']);
     const files = readAnalysisEvent([{ body }]);
     expect(files).toEqual(['src/client.py', 'src/models.py']);
   });
 
-  test('returns null when no analysis event found', () => {
+  it('returns null when no analysis event found', () => {
     const files = readAnalysisEvent([
       { body: 'Regular comment' },
       { body: 'Another comment' },
@@ -43,24 +43,24 @@ describe('readAnalysisEvent', () => {
     expect(files).toBeNull();
   });
 
-  test('returns null for empty comments array', () => {
+  it('returns null for empty comments array', () => {
     const files = readAnalysisEvent([]);
     expect(files).toBeNull();
   });
 
-  test('returns null for null body comments', () => {
+  it('returns null for null body comments', () => {
     const files = readAnalysisEvent([{ body: null }]);
     expect(files).toBeNull();
   });
 
-  test('reads the most recent analysis event when multiple exist', () => {
+  it('reads the most recent analysis event when multiple exist', () => {
     const older = buildAnalysisEventBody(['src/old.py']);
     const newer = buildAnalysisEventBody(['src/new.py', 'src/newer.py']);
     const files = readAnalysisEvent([{ body: older }, { body: newer }]);
     expect(files).toEqual(['src/new.py', 'src/newer.py']);
   });
 
-  test('skips non-analysis comments to find the event', () => {
+  it('skips non-analysis comments to find the event', () => {
     const body = buildAnalysisEventBody(['src/client.py']);
     const files = readAnalysisEvent([
       { body: 'Random comment' },
@@ -70,13 +70,13 @@ describe('readAnalysisEvent', () => {
     expect(files).toEqual(['src/client.py']);
   });
 
-  test('returns null when analysis event has no parseable files', () => {
+  it('returns null when analysis event has no parseable files', () => {
     const body = '📋 **Fleet Analysis Event**\nTarget Files:\nNo files found.';
     const files = readAnalysisEvent([{ body }]);
     expect(files).toBeNull();
   });
 
-  test('handles files with special characters in paths', () => {
+  it('handles files with special characters in paths', () => {
     const body = buildAnalysisEventBody([
       'src/my-module/sub_dir/file.py',
       'tests/test_my-module.py',
