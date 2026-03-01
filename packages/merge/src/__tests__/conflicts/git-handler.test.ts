@@ -65,7 +65,7 @@ describe('GitCheckHandler', () => {
     }
   });
 
-  it('returns NO_UNMERGED_FILES when no conflicts found', async () => {
+  it('returns success with empty affectedFiles when no conflicts found', async () => {
     vi.mocked(gitStatusUnmerged).mockResolvedValue({
       ok: true,
       data: [],
@@ -77,10 +77,33 @@ describe('GitCheckHandler', () => {
       failingCommitSha: 'def456',
     });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe('NO_UNMERGED_FILES');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.affectedFiles).toHaveLength(0);
+      expect(result.data.priority).toBe('standard');
+      expect(result.data.taskDirective).toContain('No merge conflicts');
     }
+  });
+
+  // Regression test: ensure no-conflict result would cause CLI to exit 0
+  // Previously, no conflicts returned success: false, causing CI to fail
+  // even when there were no actual merge conflicts.
+  it('regression: no conflicts produces exit code 0 (success: true)', async () => {
+    vi.mocked(gitStatusUnmerged).mockResolvedValue({
+      ok: true,
+      data: [],
+    });
+
+    const result = await handler.execute({
+      repo: 'owner/repo',
+      pullRequestNumber: 1,
+      failingCommitSha: 'abc',
+    });
+
+    // The CLI does: process.exit(result.success ? 0 : 1)
+    // This MUST be 0 when there are no conflicts
+    const exitCode = result.success ? 0 : 1;
+    expect(exitCode).toBe(0);
   });
 
   it('returns GIT_STATUS_FAILED on git error', async () => {
