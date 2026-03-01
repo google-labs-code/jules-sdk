@@ -32,6 +32,11 @@ export default defineTool({
         description:
           'Automatically create a PR on completion. Defaults to true.',
       },
+      title: {
+        type: 'string',
+        description:
+          'A short, descriptive title for the session (e.g. "Fix login button bug"). Strongly recommended. Displayed in the Jules UI to identify the session. If omitted, the session will have no title.',
+      },
     },
     required: ['prompt'],
   },
@@ -42,6 +47,7 @@ export default defineTool({
       branch: args.branch,
       interactive: args.interactive,
       autoPr: args.autoPr,
+      title: args.title,
     });
     return toMcpResponse(`Session created. ID: ${result.id}`);
   },

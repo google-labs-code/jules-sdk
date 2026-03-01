@@ -183,6 +183,8 @@ export interface CreateSessionOptions {
   branch?: string;
   interactive?: boolean;
   autoPr?: boolean;
+  /** A short, descriptive title for the session. Displayed in the Jules UI. */
+  title?: string;
 }
 
 export interface CreateSessionResult {
