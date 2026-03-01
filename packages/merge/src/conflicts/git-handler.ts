@@ -33,13 +33,13 @@ export class GitCheckHandler implements GitCheckSpec {
 
       const unmergedFiles = statusResult.data;
 
-      // 2. No conflicts
+      // 2. No conflicts — this is the happy path
       if (unmergedFiles.length === 0) {
-        return fail(
-          'NO_UNMERGED_FILES',
-          'No unmerged files found. The merge conflict may have already been resolved.',
-          false,
-        );
+        return ok({
+          taskDirective: 'No merge conflicts detected.',
+          priority: 'standard' as const,
+          affectedFiles: [],
+        });
       }
 
       // 3. Read files and extract conflict markers
