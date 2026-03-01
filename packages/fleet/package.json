@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-fleet",
-  "version": "0.0.1-experimental.8",
+  "version": "0.0.1-experimental.9",
   "type": "module",
   "description": "Fleet orchestration tools for Jules — analyze, dispatch, merge, init, configure",
   "repository": {
@@ -30,7 +30,7 @@
     "build:js": "bun run build.ts",
     "build:types": "tsc",
     "build": "bun run build:js && bun run build:types",
-    "prepublishOnly": "bun run build && vitest run",
+    "prepublishOnly": "node ../../scripts/check-workspace-refs.mjs && bun run build && vitest run",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
   },
@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
-    "@google/jules-merge": "workspace:*",
+    "@google/jules-merge": "^0.0.2",
     "@google/jules-sdk": "^0.1.0",
     "@octokit/auth-app": "^8.2.0",
     "citty": "^0.1.6",
