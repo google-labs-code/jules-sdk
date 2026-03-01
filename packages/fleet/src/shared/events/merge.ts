@@ -29,6 +29,7 @@ export type MergeEvent =
   | { type: 'merge:pr:merged'; prNumber: number }
   | { type: 'merge:pr:skipped'; prNumber: number; reason: string }
   | { type: 'merge:conflict:detected'; prNumber: number }
+  | { type: 'merge:conflict:escalated'; prNumber: number; sessionId: string; failureCount: number }
   | { type: 'merge:redispatch:start'; oldPr: number }
   | { type: 'merge:redispatch:done'; oldPr: number; sessionId: string }
   | {

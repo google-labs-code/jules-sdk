@@ -27,6 +27,7 @@ import { updateBranch } from './ops/update-branch.js';
 import { waitForCI } from './ops/wait-for-ci.js';
 import { squashMerge } from './ops/squash-merge.js';
 import { redispatch } from './ops/redispatch.js';
+import { ConflictEscalationHandler } from './escalation/handler.js';
 
 export interface MergeHandlerDeps {
   octokit: Octokit;
@@ -162,6 +163,37 @@ export class MergeHandler implements MergeSpec {
           if (ciResult === 'none') {
             // No CI checks — proceed
           } else if (ciResult === 'fail') {
+            // Check if this is an exhausted conflict — escalate if re-dispatch is on
+            if (input.reDispatch) {
+              const escalation = new ConflictEscalationHandler(
+                this.octokit,
+                async () => {
+                  const { jules } = await import('@google/jules-sdk');
+                  return jules;
+                },
+              );
+              const escResult = await escalation.execute({
+                owner: input.owner,
+                repo: input.repo,
+                prNumber: currentPr.number,
+                baseBranch: input.baseBranch,
+                failureThreshold: 3,
+              });
+              if (escResult.success) {
+                this.emit({
+                  type: 'merge:conflict:escalated',
+                  prNumber: currentPr.number,
+                  sessionId: escResult.data.sessionId,
+                  failureCount: escResult.data.failureCount,
+                });
+                redispatched.push({
+                  oldPr: currentPr.number,
+                  sessionId: escResult.data.sessionId,
+                });
+                break;
+              }
+              // BELOW_THRESHOLD or other non-fatal — fall through to skip
+            }
             this.emit({
               type: 'merge:pr:skipped',
               prNumber: currentPr.number,
