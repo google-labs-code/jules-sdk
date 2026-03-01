@@ -49,7 +49,8 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
-    "@google/jules-sdk": "^0.0.6",
+    "@google/jules-merge": "workspace:*",
+    "@google/jules-sdk": "^0.1.0",
     "@octokit/auth-app": "^8.2.0",
     "citty": "^0.1.6",
     "glob": "^13.0.6",

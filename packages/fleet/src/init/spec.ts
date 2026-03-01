@@ -30,6 +30,8 @@ export const InitInputSchema = z.object({
   baseBranch: z.string().default('main'),
   /** Whether to overwrite existing workflow files */
   overwrite: z.boolean().default(false),
+  /** Feature flags — which workflows to install. Defaults to all enabled. */
+  features: z.record(z.string(), z.boolean()).optional(),
 });
 
 export type InitInput = z.infer<typeof InitInputSchema>;

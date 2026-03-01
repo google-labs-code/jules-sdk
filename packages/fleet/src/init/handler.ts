@@ -16,6 +16,7 @@ import type { Octokit } from 'octokit';
 import type { InitInput, InitResult, InitSpec } from './spec.js';
 import { ok, fail } from '../shared/result/index.js';
 import { WORKFLOW_TEMPLATES } from './templates.js';
+import { FeatureReconcileHandler } from './features/handler.js';
 import { EXAMPLE_GOAL } from './templates/example-goal.js';
 import type { LabelConfigurator } from './types.js';
 import type { FleetEmitter } from '../shared/events.js';
@@ -66,8 +67,28 @@ export class InitHandler implements InitSpec {
         emit: this.emit,
       };
 
-      // 2. Commit workflow templates + example goal
-      const filesResult = await commitFiles(ctx, WORKFLOW_TEMPLATES, EXAMPLE_GOAL, overwrite);
+      // 2. Resolve which templates to commit
+      let templates = WORKFLOW_TEMPLATES;
+      if (input.features) {
+        const reconciler = new FeatureReconcileHandler(this.octokit);
+        const featureResult = await reconciler.execute({
+          owner,
+          repo,
+          desired: input.features as Record<string, boolean>,
+        });
+        if (!featureResult.success) {
+          return fail(
+            'UNKNOWN_ERROR',
+            featureResult.error.message,
+            featureResult.error.recoverable,
+            featureResult.error.suggestion,
+          );
+        }
+        templates = featureResult.data.toAdd;
+      }
+
+      // 3. Commit workflow templates + example goal
+      const filesResult = await commitFiles(ctx, templates, EXAMPLE_GOAL, overwrite);
       if (isCommitResult(filesResult)) return filesResult;
       const filesCreated = filesResult;
 
