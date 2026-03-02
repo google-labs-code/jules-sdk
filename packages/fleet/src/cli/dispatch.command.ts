@@ -19,6 +19,7 @@ import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
 import { createRenderer, createEmitter } from '../shared/ui/index.js';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
+import { jules } from '@google/jules-sdk';
 
 export default defineCommand({
   meta: {
@@ -62,8 +63,6 @@ export default defineCommand({
       baseBranch: process.env.FLEET_BASE_BRANCH || 'main',
     });
 
-    // Lazy-import Jules SDK — composition root wires real dispatcher
-    const { jules } = await import('@google/jules-sdk');
     const dispatcher: SessionDispatcher = {
       async dispatch(options) {
         return jules.session({

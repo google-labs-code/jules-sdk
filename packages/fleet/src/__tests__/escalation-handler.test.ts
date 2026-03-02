@@ -56,7 +56,7 @@ function createMockOctokit(overrides: {
 function createMockJulesFactory(sessionId = 'session-123') {
   const mockSession = vi.fn().mockResolvedValue({ id: sessionId });
   return {
-    factory: vi.fn().mockResolvedValue({ session: mockSession }),
+    factory: { session: mockSession } as any,
     mockSession,
   };
 }
@@ -232,8 +232,8 @@ describe('ConflictEscalationHandler', () => {
           makeWorkflowRun('failure', '2026-03-01T00:00:00Z'),
         ],
       });
-      const factory = vi.fn().mockRejectedValue(new Error('Invalid API key'));
-      const handler = new ConflictEscalationHandler(octokit, factory);
+      const julesObj = { session: vi.fn().mockRejectedValue(new Error('Invalid API key')) } as any;
+      const handler = new ConflictEscalationHandler(octokit, julesObj);
 
       const result = await handler.execute(baseInput);
 

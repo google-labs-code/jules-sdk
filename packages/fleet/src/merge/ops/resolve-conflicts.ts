@@ -15,6 +15,7 @@
 import type { Octokit } from 'octokit';
 import type { PR } from '../../shared/schemas/pr.js';
 import type { FleetEmitter } from '../../shared/events.js';
+import type { jules as JulesClient } from '@google/jules-sdk';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export async function batchResolveConflicts(
   octokit: Octokit,
   input: BatchResolveInput,
   emit: FleetEmitter,
-  julesProvider: () => Promise<typeof import('@google/jules-sdk')['jules']>,
+  jules: typeof JulesClient,
 ): Promise<BatchResolveResult> {
   const { owner, repo, baseBranch, conflictingPRs, sharedFiles, recentlyMerged } = input;
 
@@ -77,7 +78,6 @@ export async function batchResolveConflicts(
   // 3. Dispatch a single Jules session
   let sessionId: string;
   try {
-    const jules = await julesProvider();
     const session = await jules.session({
       prompt,
       source: {

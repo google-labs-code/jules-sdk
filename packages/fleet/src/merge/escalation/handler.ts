@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type { Octokit } from 'octokit';
+import { jules as JulesClient } from '@google/jules-sdk';
 import type {
   ConflictEscalationSpec,
   ConflictEscalationInput,
@@ -32,19 +33,10 @@ interface ConflictOutput {
   rawOutput: string;
 }
 
-type JulesSessionFactory = () => Promise<{
-  session: (opts: {
-    prompt: string;
-    source: { github: string; baseBranch: string };
-    requireApproval: boolean;
-    autoPr: boolean;
-  }) => Promise<{ id: string }>;
-}>;
-
 export class ConflictEscalationHandler implements ConflictEscalationSpec {
   constructor(
     private octokit: Octokit,
-    private julesFactory: JulesSessionFactory,
+    private jules: typeof JulesClient,
   ) {}
 
   async execute(input: ConflictEscalationInput): Promise<ConflictEscalationResult> {
@@ -256,8 +248,7 @@ export class ConflictEscalationHandler implements ConflictEscalationSpec {
 
     const prompt = contextLines.join('\n');
 
-    const jules = await this.julesFactory();
-    const session = await jules.session({
+    const session = await this.jules.session({
       prompt,
       source: {
         github: `${input.owner}/${input.repo}`,

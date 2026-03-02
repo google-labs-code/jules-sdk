@@ -15,6 +15,7 @@
 import type { Octokit } from 'octokit';
 import type { PR } from '../../shared/schemas/pr.js';
 import type { FleetEmitter } from '../../shared/events.js';
+import { jules } from '@google/jules-sdk';
 
 /**
  * Closes a conflicting PR and re-dispatches via Jules SDK.
@@ -55,7 +56,6 @@ export async function redispatch(
     const contextBlock = buildRedispatchContext(oldPr, recentlyMerged, prDiff);
     const enrichedPrompt = `${contextBlock}\n\n---\n\n${oldPr.body ?? ''}`;
 
-    const { jules } = await import('@google/jules-sdk');
     const session = await jules.session({
       prompt: enrichedPrompt,
       source: {
