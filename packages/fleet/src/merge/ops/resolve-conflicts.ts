@@ -16,6 +16,8 @@ import type { Octokit } from 'octokit';
 import type { PR } from '../../shared/schemas/pr.js';
 import type { FleetEmitter } from '../../shared/events.js';
 import type { jules as JulesClient } from '@google/jules-sdk';
+import { getConflictDetails } from './get-conflict-details.js';
+import { getClosingIssueRefs } from './extract-issue-refs.js';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -72,8 +74,17 @@ export async function batchResolveConflicts(
   // 1. Fetch diffs for all conflicting PRs (non-fatal per-PR)
   const diffs = await fetchAllDiffs(octokit, owner, repo, conflictingPRs);
 
+  // 1b. Fetch base branch content for conflicting files (non-fatal)
+  const conflictDetails = await getConflictDetails(octokit, owner, repo, sharedFiles, baseBranch);
+
+  // 1c. Fetch closing issue refs from all PRs via GraphQL
+  const issueRefArrays = await Promise.all(
+    conflictingPRs.map((pr) => getClosingIssueRefs(octokit, owner, repo, pr.number)),
+  );
+  const allIssueRefs = [...new Set(issueRefArrays.flat())].sort((a, b) => a - b);
+
   // 2. Build the combined prompt
-  const prompt = buildBatchPrompt(input, diffs);
+  const prompt = buildBatchPrompt(input, diffs, conflictDetails, allIssueRefs);
 
   // 3. Dispatch a single Jules session
   let sessionId: string;
@@ -160,6 +171,8 @@ async function fetchAllDiffs(
 export function buildBatchPrompt(
   input: BatchResolveInput,
   diffs: Map<number, string>,
+  conflictDetails = '',
+  issueRefs: number[] = [],
 ): string {
   const { conflictingPRs, sharedFiles, recentlyMerged, owner, repo } = input;
   const lines: string[] = [
@@ -178,6 +191,12 @@ export function buildBatchPrompt(
   }
   lines.push('');
 
+  // Conflict details (base branch state)
+  if (conflictDetails) {
+    lines.push(conflictDetails);
+    lines.push('');
+  }
+
   // Recently merged context
   if (recentlyMerged.length > 0) {
     lines.push('## Recently Merged PRs');
@@ -193,7 +212,7 @@ export function buildBatchPrompt(
   for (const pr of conflictingPRs) {
     lines.push(`### PR #${pr.number}`);
     if (pr.body) {
-      lines.push(pr.body.split('\n')[0]); // First line of body as summary
+      lines.push(pr.body);
     }
     const diff = diffs.get(pr.number);
     if (diff) {
@@ -205,6 +224,17 @@ export function buildBatchPrompt(
     lines.push('');
   }
 
+  // Issue reference instructions
+  if (issueRefs.length > 0) {
+    lines.push('');
+    lines.push('## Issue References');
+    lines.push('Your new PR body MUST include the following to close the tracked issues:');
+    for (const ref of issueRefs) {
+      lines.push(`- Fixes #${ref}`);
+    }
+  }
+
+  lines.push('');
   lines.push('## Instructions');
   lines.push('Create ONE PR that incorporates ALL changes from the listed PRs above,');
   lines.push('resolved against the current state of the base branch.');
@@ -225,13 +255,14 @@ async function commentOnPRs(
   sessionId: string,
 ): Promise<void> {
   const prList = prs.map((p) => `#${p.number}`).join(', ');
+  const sessionLink = `https://jules.google.com/sessions/${sessionId}`;
   const body = [
     '🔄 **Batch conflict resolution in progress**',
     '',
     `This PR is part of a batch being resolved together: ${prList}`,
     `A Jules session has been dispatched to create a combined PR that resolves all conflicts.`,
     '',
-    `Session ID: \`${sessionId}\``,
+    `**Session:** [${sessionId}](${sessionLink})`,
   ].join('\n');
 
   await Promise.all(
