@@ -23,7 +23,8 @@
     "build:types": "tsc --emitDeclarationOnly --outDir dist",
     "build": "bun run build:js && bun run build:types",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build && vitest run"
   },
   "repository": {
     "type": "git",
