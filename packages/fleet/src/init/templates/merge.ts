@@ -44,8 +44,8 @@ on:
         description: 'Fleet run ID (required for fleet-run mode)'
         type: string
         default: ''
-      re_dispatch:
-        description: 'Auto re-dispatch on merge conflict'
+      redispatch:
+        description: 'Enable smart conflict resolution'
         type: boolean
         default: true
 
@@ -67,8 +67,8 @@ jobs:
           node-version: '22'
       - run: |
           REDISPATCH_FLAG=""
-          if [ "\${{ inputs.re_dispatch }}" = "true" ]; then
-            REDISPATCH_FLAG="--re-dispatch"
+          if [ "\${{ inputs.redispatch }}" = "true" ]; then
+            REDISPATCH_FLAG="--redispatch"
           fi
           npx @google/jules-fleet merge \\\\
             --mode \${{ inputs.mode || 'label' }} \\\\

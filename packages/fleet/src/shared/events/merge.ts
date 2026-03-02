@@ -32,6 +32,9 @@ export type MergeEvent =
   | { type: 'merge:conflict:escalated'; prNumber: number; sessionId: string; failureCount: number }
   | { type: 'merge:redispatch:start'; oldPr: number }
   | { type: 'merge:redispatch:done'; oldPr: number; sessionId: string }
+  | { type: 'merge:plan:computed'; independent: number[]; conflictGroups: number[][] }
+  | { type: 'merge:batch-resolve:start'; prNumbers: number[]; sharedFiles: string[] }
+  | { type: 'merge:batch-resolve:done'; sessionId: string; prNumbers: number[] }
   | {
       type: 'merge:done';
       merged: number[];
