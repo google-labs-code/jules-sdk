@@ -22,6 +22,7 @@ import { runInitWizard, validateHeadlessInputs } from '../init/wizard/index.js';
 import type { InitArgs } from '../init/wizard/types.js';
 import { uploadSecret } from '../init/ops/upload-secrets.js';
 import { WORKFLOW_TEMPLATES } from '../init/templates.js';
+import { parseFeatureFlags } from '../init/wizard/parse-features.js';
 
 export default defineCommand({
   meta: {
@@ -64,6 +65,22 @@ export default defineCommand({
       type: 'boolean',
       description: 'Upload secrets to GitHub Actions (default: true in interactive, false in non-interactive)',
     },
+    analyze: {
+      type: 'string',
+      description: 'Enable/disable the analyze workflow (omit value to enable, =disable to remove)',
+    },
+    dispatch: {
+      type: 'string',
+      description: 'Enable/disable the dispatch workflow',
+    },
+    'auto-merge': {
+      type: 'string',
+      description: 'Enable/disable the auto-merge workflow',
+    },
+    'conflict-detection': {
+      type: 'string',
+      description: 'Enable/disable the conflict-detection workflow',
+    },
   },
   async run({ args }) {
     const nonInteractive = args['non-interactive'] || !isInteractive();
@@ -91,6 +108,10 @@ export default defineCommand({
 
     const { owner, repo, baseBranch, secretsToUpload, dryRun, overwrite } = inputs as Exclude<typeof inputs, { success: false }>;
 
+    // ── Parse feature flags ──
+    const wizardResult = inputs as Exclude<typeof inputs, { success: false }>;
+    const features = wizardResult.features ?? parseFeatureFlags(args as unknown as InitArgs);
+
     renderer.start(`Fleet Init — ${owner}/${repo}`);
 
     // ── Dry run: list files and exit ──
@@ -109,6 +130,7 @@ export default defineCommand({
       repoName: repo,
       baseBranch,
       overwrite,
+      features,
     });
 
     const octokit = createFleetOctokit();

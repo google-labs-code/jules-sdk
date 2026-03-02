@@ -38,4 +38,9 @@ export interface InitArgs {
   'app-id'?: string;
   'installation-id'?: string;
   'upload-secrets'?: boolean;
+  /** Per-feature flags: present/'' = enable, 'disable' = remove, undefined = no change */
+  analyze?: string;
+  dispatch?: string;
+  'auto-merge'?: string;
+  'conflict-detection'?: string;
 }

@@ -17,6 +17,7 @@ import { getGitRepoInfo } from '../../shared/auth/git.js';
 import type { FleetEmitter } from '../../shared/events.js';
 import { WORKFLOW_TEMPLATES } from '../templates.js';
 import type { InitArgs, InitWizardResult } from './types.js';
+import { parseFeatureFlags } from './parse-features.js';
 
 /**
  * Validate all required inputs from flags + env vars in non-interactive mode.
@@ -108,5 +109,5 @@ export async function validateHeadlessInputs(
     emit({ type: 'init:dry-run', files });
   }
 
-  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite: false };
+  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite: false, features: parseFeatureFlags(args) };
 }
