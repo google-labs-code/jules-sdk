@@ -26,6 +26,8 @@ export interface InitWizardResult {
   overwrite: boolean;
   /** Feature toggles — which workflows to install */
   features?: Record<string, boolean>;
+  /** Pipeline cadence in minutes (default 360 = 6h) */
+  intervalMinutes: number;
 }
 
 /** Parsed args from citty */
@@ -43,4 +45,6 @@ export interface InitArgs {
   dispatch?: string;
   'auto-merge'?: string;
   'conflict-detection'?: string;
+  /** Pipeline cadence in minutes */
+  interval?: string;
 }

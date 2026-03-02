@@ -21,7 +21,7 @@ import { createRenderer, createEmitter, isInteractive } from '../shared/ui/index
 import { runInitWizard, validateHeadlessInputs } from '../init/wizard/index.js';
 import type { InitArgs } from '../init/wizard/types.js';
 import { uploadSecret } from '../init/ops/upload-secrets.js';
-import { WORKFLOW_TEMPLATES } from '../init/templates.js';
+import { WORKFLOW_TEMPLATES, buildWorkflowTemplates } from '../init/templates.js';
 import { parseFeatureFlags } from '../init/wizard/parse-features.js';
 
 export default defineCommand({
@@ -81,6 +81,11 @@ export default defineCommand({
       type: 'string',
       description: 'Enable/disable the conflict-detection workflow',
     },
+    interval: {
+      type: 'string',
+      description: 'Pipeline cadence in minutes (default: 360 = every 6 hours)',
+      default: '360',
+    },
   },
   async run({ args }) {
     const nonInteractive = args['non-interactive'] || !isInteractive();
@@ -111,12 +116,12 @@ export default defineCommand({
     // ── Parse feature flags ──
     const wizardResult = inputs as Exclude<typeof inputs, { success: false }>;
     const features = wizardResult.features ?? parseFeatureFlags(args as unknown as InitArgs);
-
+    const intervalMinutes = wizardResult.intervalMinutes ?? 360;
     renderer.start(`Fleet Init — ${owner}/${repo}`);
 
     // ── Dry run: list files and exit ──
     if (dryRun) {
-      const files = WORKFLOW_TEMPLATES.map((t) => t.repoPath);
+      const files = buildWorkflowTemplates(intervalMinutes).map((t) => t.repoPath);
       files.push('.fleet/goals/example.md');
       emit({ type: 'init:dry-run', files });
       renderer.end(`Dry run complete. ${files.length} files would be created.`);
@@ -131,6 +136,7 @@ export default defineCommand({
       baseBranch,
       overwrite,
       features,
+      intervalMinutes,
     });
 
     const octokit = createFleetOctokit();

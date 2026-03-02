@@ -15,7 +15,7 @@
 import { fail } from '../../shared/result/index.js';
 import { getGitRepoInfo } from '../../shared/auth/git.js';
 import type { FleetEmitter } from '../../shared/events.js';
-import { WORKFLOW_TEMPLATES } from '../templates.js';
+import { buildWorkflowTemplates } from '../templates.js';
 import type { InitArgs, InitWizardResult } from './types.js';
 import { parseFeatureFlags } from './parse-features.js';
 
@@ -82,6 +82,17 @@ export async function validateHeadlessInputs(
     });
   }
 
+  // ── Interval ──
+  const rawInterval = args.interval ? parseInt(args.interval, 10) : 360;
+  if (isNaN(rawInterval) || rawInterval < 5) {
+    return fail(
+      'UNKNOWN_ERROR',
+      `Interval must be a number ≥ 5 minutes (GitHub Actions minimum). Got: ${args.interval ?? rawInterval}`,
+      true,
+    );
+  }
+  const intervalMinutes = rawInterval;
+
   const baseBranch = args.base ?? 'main';
   const dryRun = args['dry-run'] ?? false;
 
@@ -90,10 +101,10 @@ export async function validateHeadlessInputs(
 
   // ── Dry run ──
   if (dryRun) {
-    const files = WORKFLOW_TEMPLATES.map((t) => t.repoPath);
+    const files = buildWorkflowTemplates(intervalMinutes).map((t) => t.repoPath);
     files.push('.fleet/goals/example.md');
     emit({ type: 'init:dry-run', files });
   }
 
-  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite: false, features: parseFeatureFlags(args) };
+  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite: false, features: parseFeatureFlags(args), intervalMinutes };
 }

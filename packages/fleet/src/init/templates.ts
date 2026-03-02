@@ -18,20 +18,30 @@
  */
 
 export type { WorkflowTemplate } from './templates/types.js';
-export { FLEET_ANALYZE_TEMPLATE } from './templates/analyze.js';
-export { FLEET_DISPATCH_TEMPLATE } from './templates/dispatch.js';
-export { FLEET_MERGE_TEMPLATE } from './templates/merge.js';
+export { buildAnalyzeTemplate, FLEET_ANALYZE_TEMPLATE } from './templates/analyze.js';
+export { buildDispatchTemplate, FLEET_DISPATCH_TEMPLATE } from './templates/dispatch.js';
+export { buildMergeTemplate, FLEET_MERGE_TEMPLATE } from './templates/merge.js';
 export { CONFLICT_DETECTION_TEMPLATE } from './templates/conflict-detection.js';
+export { buildCron, mergeInterval, dispatchOffset } from './templates/cron.js';
 
-import { FLEET_ANALYZE_TEMPLATE } from './templates/analyze.js';
-import { FLEET_DISPATCH_TEMPLATE } from './templates/dispatch.js';
-import { FLEET_MERGE_TEMPLATE } from './templates/merge.js';
+import { buildAnalyzeTemplate } from './templates/analyze.js';
+import { buildDispatchTemplate } from './templates/dispatch.js';
+import { buildMergeTemplate } from './templates/merge.js';
 import { CONFLICT_DETECTION_TEMPLATE } from './templates/conflict-detection.js';
 import type { WorkflowTemplate } from './templates/types.js';
 
-export const WORKFLOW_TEMPLATES: readonly WorkflowTemplate[] = [
-  FLEET_ANALYZE_TEMPLATE,
-  FLEET_DISPATCH_TEMPLATE,
-  FLEET_MERGE_TEMPLATE,
-  CONFLICT_DETECTION_TEMPLATE,
-];
+/**
+ * Build all workflow templates with a configurable interval.
+ * @param intervalMinutes - Pipeline cadence in minutes (default: 360 = 6 hours)
+ */
+export function buildWorkflowTemplates(intervalMinutes = 360): readonly WorkflowTemplate[] {
+  return [
+    buildAnalyzeTemplate(intervalMinutes),
+    buildDispatchTemplate(intervalMinutes),
+    buildMergeTemplate(intervalMinutes),
+    CONFLICT_DETECTION_TEMPLATE,
+  ];
+}
+
+/** Default templates at 6-hour interval */
+export const WORKFLOW_TEMPLATES: readonly WorkflowTemplate[] = buildWorkflowTemplates(360);

@@ -32,6 +32,8 @@ export const InitInputSchema = z.object({
   overwrite: z.boolean().default(false),
   /** Feature flags — which workflows to install. Defaults to all enabled. */
   features: z.record(z.string(), z.boolean()).optional(),
+  /** Pipeline cadence in minutes (min 5 per GitHub Actions, default 360 = 6h) */
+  intervalMinutes: z.number().min(5).default(360),
 });
 
 export type InitInput = z.infer<typeof InitInputSchema>;
