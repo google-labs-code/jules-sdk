@@ -23,6 +23,22 @@ import type { FleetEmitter } from '../shared/events.js';
 import { createBranch, isBranchResult } from './ops/create-branch.js';
 import { commitFiles, isCommitResult } from './ops/commit-files.js';
 import { createInitPR, isPRResult } from './ops/create-pr.js';
+import { execSync } from 'node:child_process';
+
+/**
+ * Read the local git author from `git config`.
+ * Returns "Name <email>" for Co-authored-by trailers, or undefined on failure.
+ */
+function getLocalGitAuthor(): string | undefined {
+  try {
+    const name = execSync('git config user.name', { encoding: 'utf-8' }).trim();
+    const email = execSync('git config user.email', { encoding: 'utf-8' }).trim();
+    if (name && email) return `${name} <${email}>`;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export interface InitHandlerDeps {
   octokit: Octokit;
@@ -59,12 +75,17 @@ export class InitHandler implements InitSpec {
       if (isBranchResult(branchResult)) return branchResult;
       const { branchName } = branchResult;
 
+      // App auth commits are authored by the bot — attribute the human who ran the command.
+      // PAT auth commits are already authored by the user, so no co-author needed.
+      const isAppAuth = !!(process.env.FLEET_APP_ID || process.env.GITHUB_APP_ID);
+
       const ctx = {
         octokit: this.octokit,
         owner,
         repo,
         branchName,
         emit: this.emit,
+        coAuthor: isAppAuth ? getLocalGitAuthor() : undefined,
       };
 
       // 2. Resolve which templates to commit

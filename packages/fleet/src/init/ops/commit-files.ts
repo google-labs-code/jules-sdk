@@ -29,6 +29,10 @@ export async function commitFiles(
 ): Promise<string[] | InitResult> {
   const filesCreated: string[] = [];
 
+  /** Append Co-authored-by trailer when available */
+  const msg = (base: string) =>
+    ctx.coAuthor ? `${base}\n\nCo-authored-by: ${ctx.coAuthor}` : base;
+
   // Commit workflow templates
   for (const tmpl of templates) {
     try {
@@ -36,7 +40,7 @@ export async function commitFiles(
         owner: ctx.owner,
         repo: ctx.repo,
         path: tmpl.repoPath,
-        message: `chore: add ${tmpl.repoPath}`,
+        message: msg(`chore: add ${tmpl.repoPath}`),
         content: Buffer.from(tmpl.content).toString('base64'),
         branch: ctx.branchName,
       });
@@ -61,7 +65,7 @@ export async function commitFiles(
             owner: ctx.owner,
             repo: ctx.repo,
             path: tmpl.repoPath,
-            message: `chore: update ${tmpl.repoPath}`,
+            message: msg(`chore: update ${tmpl.repoPath}`),
             content: Buffer.from(tmpl.content).toString('base64'),
             branch: ctx.branchName,
             sha,
@@ -93,7 +97,7 @@ export async function commitFiles(
       owner: ctx.owner,
       repo: ctx.repo,
       path: '.fleet/goals/example.md',
-      message: 'chore: add example fleet goal',
+      message: msg('chore: add example fleet goal'),
       content: Buffer.from(exampleGoal).toString('base64'),
       branch: ctx.branchName,
     });

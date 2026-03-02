@@ -29,6 +29,7 @@ export type AuthDetectInput = z.infer<typeof AuthDetectInputSchema>;
 export const AuthDetectErrorCode = z.enum([
   'NO_CREDENTIALS_FOUND',
   'HEALTH_CHECK_FAILED',
+  'REPO_NOT_FOUND',
   'UNKNOWN_ERROR',
 ]);
 export type AuthDetectErrorCode = z.infer<typeof AuthDetectErrorCode>;

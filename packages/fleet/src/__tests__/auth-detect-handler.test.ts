@@ -29,6 +29,11 @@ vi.mock('octokit', () => ({
           data: { login: 'testuser' },
         }),
       },
+      apps: {
+        getAuthenticated: vi.fn().mockResolvedValue({
+          data: { id: 12345, name: 'test-app' },
+        }),
+      },
     },
   })),
 }));
@@ -199,15 +204,19 @@ describe('AuthDetectHandler', () => {
   });
 
   describe('health check failures', () => {
-    it('returns HEALTH_CHECK_FAILED on 401', async () => {
+    it('returns HEALTH_CHECK_FAILED on 401 (auth fails)', async () => {
       process.env.GITHUB_TOKEN = 'ghp_expired';
       const { Octokit } = await import('octokit');
       vi.mocked(Octokit).mockImplementation(() => ({
         rest: {
           repos: {
-            get: vi.fn().mockRejectedValue(Object.assign(new Error('Bad credentials'), { status: 401 })),
+            get: vi.fn(),
           },
-          users: { getAuthenticated: vi.fn() },
+          users: {
+            getAuthenticated: vi.fn().mockRejectedValue(
+              Object.assign(new Error('Bad credentials'), { status: 401 }),
+            ),
+          },
         },
       }) as any);
 
@@ -221,25 +230,32 @@ describe('AuthDetectHandler', () => {
       }
     });
 
-    it('returns HEALTH_CHECK_FAILED on 404', async () => {
+    it('returns REPO_NOT_FOUND on 404 (auth valid, repo missing)', async () => {
       process.env.GITHUB_TOKEN = 'ghp_valid';
       const { Octokit } = await import('octokit');
       vi.mocked(Octokit).mockImplementation(() => ({
         rest: {
           repos: {
-            get: vi.fn().mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 })),
+            get: vi.fn().mockRejectedValue(
+              Object.assign(new Error('Not Found'), { status: 404 }),
+            ),
           },
-          users: { getAuthenticated: vi.fn() },
+          users: {
+            getAuthenticated: vi.fn().mockResolvedValue({
+              data: { login: 'testuser' },
+            }),
+          },
         },
       }) as any);
 
       const handler = new AuthDetectHandler();
-      const result = await handler.execute({ owner: 'owner', repo: 'repo' });
+      const result = await handler.execute({ owner: 'badowner', repo: 'repo' });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.code).toBe('HEALTH_CHECK_FAILED');
+        expect(result.error.code).toBe('REPO_NOT_FOUND');
         expect(result.error.details?.httpStatus).toBe(404);
-        expect(result.error.suggestion).toContain('not found');
+        expect(result.error.message).toContain('Authenticated as testuser');
+        expect(result.error.suggestion).toContain('credentials are valid');
       }
     });
   });

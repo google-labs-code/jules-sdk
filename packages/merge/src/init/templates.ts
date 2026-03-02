@@ -50,13 +50,18 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git fetch origin \${{ github.event.pull_request.base.ref }}
-          git merge origin/\${{ github.event.pull_request.base.ref }} --no-commit --no-ff || true
+          git merge origin/\${{ github.event.pull_request.base.ref }} --no-commit --no-ff
 
       - name: Check for conflicts
+        if: steps.merge.outcome == 'failure'
         run: |
           npx @google/jules-merge check-conflicts \\
             --repo \${{ github.repository }} \\
             --pr \${{ github.event.pull_request.number }} \\
             --sha \${{ github.event.pull_request.head.sha }}
+
+      - name: No conflicts
+        if: steps.merge.outcome == 'success'
+        run: echo "✅ No merge conflicts detected"
 `;
 }
