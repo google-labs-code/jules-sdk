@@ -32,4 +32,6 @@ export interface InitContext {
   repo: string;
   branchName: string;
   emit: FleetEmitter;
+  /** Optional co-author for commit attribution (from local git config) */
+  coAuthor?: string;
 }
