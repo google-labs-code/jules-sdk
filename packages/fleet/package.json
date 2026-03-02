@@ -1,6 +1,6 @@
 {
   "name": "@google/jules-fleet",
-  "version": "0.0.1-experimental.13",
+  "version": "0.0.1-experimental.16",
   "type": "module",
   "description": "Fleet orchestration tools for Jules — analyze, dispatch, merge, init, configure",
   "repository": {
