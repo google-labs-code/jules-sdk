@@ -70,6 +70,22 @@ export function renderMergeEvent(event: MergeEvent, ctx: RenderContext): void {
     case 'merge:conflict:detected':
       ctx.stopSpinner(`Conflict detected on PR #${event.prNumber}`);
       break;
+    case 'merge:conflict:escalated':
+      ctx.info(`  ↳ Escalated PR #${event.prNumber} → session ${event.sessionId} (${event.failureCount} consecutive failures)`);
+      break;
+    case 'merge:plan:computed': {
+      const groupDesc = event.conflictGroups.length > 0
+        ? `, ${event.conflictGroups.length} conflict group(s)`
+        : '';
+      ctx.info(`Plan: ${event.independent.length} independent${groupDesc}`);
+      break;
+    }
+    case 'merge:batch-resolve:start':
+      ctx.startSpinner(`Batch resolving ${event.prNumbers.map(n => `#${n}`).join(', ')}…`);
+      break;
+    case 'merge:batch-resolve:done':
+      ctx.stopSpinner(`Batch resolved ${event.prNumbers.map(n => `#${n}`).join(', ')} → session ${event.sessionId}`);
+      break;
     case 'merge:redispatch:start':
       ctx.startSpinner(`Re-dispatching PR #${event.oldPr}…`);
       break;

@@ -16,6 +16,7 @@ import type { Octokit } from 'octokit';
 import type { PR } from '../../shared/schemas/pr.js';
 import type { FleetEmitter } from '../../shared/events.js';
 import { jules } from '@google/jules-sdk';
+import { getClosingIssueRefs } from './extract-issue-refs.js';
 
 /**
  * Closes a conflicting PR and re-dispatches via Jules SDK.
@@ -49,11 +50,12 @@ export async function redispatch(
   // Re-dispatch via Jules SDK
   try {
     // Gather context: recently merged PRs and the closed PR's diff
-    const [recentlyMerged, prDiff] = await Promise.all([
+    const [recentlyMerged, prDiff, issueRefs] = await Promise.all([
       getRecentlyMergedPRs(octokit, owner, repo, baseBranch),
       getClosedPRDiff(octokit, owner, repo, oldPr.number),
+      getClosingIssueRefs(octokit, owner, repo, oldPr.number),
     ]);
-    const contextBlock = buildRedispatchContext(oldPr, recentlyMerged, prDiff);
+    const contextBlock = buildRedispatchContext(oldPr, recentlyMerged, prDiff, issueRefs);
     const enrichedPrompt = `${contextBlock}\n\n---\n\n${oldPr.body ?? ''}`;
 
     const session = await jules.session({
@@ -155,6 +157,7 @@ function buildRedispatchContext(
   oldPr: PR,
   recentlyMerged: MergedPRSummary[],
   prDiff: string,
+  issueRefs: number[] = [],
 ): string {
   const lines: string[] = [
     '⚠️ RE-DISPATCH CONTEXT',
@@ -183,6 +186,15 @@ function buildRedispatchContext(
     lines.push('```diff');
     lines.push(prDiff);
     lines.push('```');
+  }
+
+  if (issueRefs.length > 0) {
+    lines.push('');
+    lines.push('## Issue References');
+    lines.push('IMPORTANT: Your new PR body MUST include the following to close the tracked issues:');
+    for (const ref of issueRefs) {
+      lines.push(`- Fixes #${ref}`);
+    }
   }
 
   return lines.join('\n');
