@@ -157,39 +157,67 @@ export class AuthDetectHandler implements AuthDetectSpec {
     owner: string,
     repo: string,
   ): Promise<{ ok: true; identity: string } | { ok: false; result: AuthDetectResult }> {
+    let octokit: Octokit;
+    let identity: string;
+
+    // ── Step 1: Verify auth credentials work (independent of repo) ──
     try {
-      const octokit = method === 'app'
+      octokit = method === 'app'
         ? this.createAppOctokit()
         : new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-      // Check repo access — this validates both auth AND permissions
-      const { data: repoData } = await octokit.rest.repos.get({ owner, repo });
-
-      // Get identity
-      let identity: string;
       if (method === 'token') {
         const { data: user } = await octokit.rest.users.getAuthenticated();
         identity = user.login;
       } else {
-        identity = `app with access to ${repoData.full_name}`;
+        // For app auth, getting authenticated app verifies the JWT/credentials
+        const { data: app } = await octokit.rest.apps.getAuthenticated();
+        identity = (app as any).name ?? `app:${(app as any).id}`;
       }
-
-      return { ok: true, identity };
     } catch (error: any) {
       const status = error?.status;
       const message = error instanceof Error ? error.message : String(error);
 
-      let suggestion: string;
-      if (status === 401) {
-        suggestion = method === 'token'
-          ? 'Token is invalid or expired. Run `gh auth login` or set a new GITHUB_TOKEN.'
-          : 'App credentials are invalid. Check FLEET_APP_ID, FLEET_APP_PRIVATE_KEY, and FLEET_APP_INSTALLATION_ID.';
-      } else if (status === 403) {
-        suggestion = 'Token lacks required permissions. Ensure the token has `repo` scope.';
-      } else if (status === 404) {
-        suggestion = `Repository ${owner}/${repo} not found, or token lacks access. Check repo name and token scopes.`;
-      } else {
-        suggestion = `Unexpected error (HTTP ${status ?? 'unknown'}): ${message}`;
+      const suggestion = method === 'token'
+        ? 'Token is invalid or expired. Run `gh auth login` or set a new GITHUB_TOKEN.'
+        : 'App credentials are invalid. Check FLEET_APP_ID, FLEET_APP_PRIVATE_KEY, and FLEET_APP_INSTALLATION_ID.';
+
+      return {
+        ok: false,
+        result: {
+          success: false,
+          error: {
+            code: 'HEALTH_CHECK_FAILED',
+            message: `Auth verification failed for ${method}: ${message}`,
+            suggestion,
+            recoverable: true,
+            details: { httpStatus: status, repoAccess: false },
+          },
+        },
+      };
+    }
+
+    // ── Step 2: Verify repo access (auth is already confirmed valid) ──
+    try {
+      await octokit.rest.repos.get({ owner, repo });
+    } catch (error: any) {
+      const status = error?.status;
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (status === 404 || status === 403) {
+        return {
+          ok: false,
+          result: {
+            success: false,
+            error: {
+              code: 'REPO_NOT_FOUND',
+              message: `Authenticated as ${identity}, but ${owner}/${repo} was not found or is not accessible.`,
+              suggestion: `Check the repo name — did you mean a different owner? Your credentials are valid.`,
+              recoverable: true,
+              details: { httpStatus: status, repoAccess: false },
+            },
+          },
+        };
       }
 
       return {
@@ -198,17 +226,16 @@ export class AuthDetectHandler implements AuthDetectSpec {
           success: false,
           error: {
             code: 'HEALTH_CHECK_FAILED',
-            message: `Auth health check failed for ${method} auth: ${message}`,
-            suggestion,
+            message: `Repo access check failed: ${message}`,
+            suggestion: `Unexpected error (HTTP ${status ?? 'unknown'}): ${message}`,
             recoverable: true,
-            details: {
-              httpStatus: status,
-              repoAccess: false,
-            },
+            details: { httpStatus: status, repoAccess: false },
           },
         },
       };
     }
+
+    return { ok: true, identity };
   }
 
   private createAppOctokit(): Octokit {

@@ -127,8 +127,35 @@ export async function runInitWizard(
         authMethod = chosen;
       }
     }
+  } else if (detectResult.error.code === 'REPO_NOT_FOUND') {
+    // Auth is valid but repo doesn't exist — fix repo name, not credentials
+    p.log.warn(detectResult.error.message);
+    p.log.info(`Your credentials are valid — the repo name may be wrong.`);
+
+    const fixedRepo = await p.text({
+      message: 'Enter the correct repository (owner/repo):',
+      initialValue: `${owner}/${repo}`,
+      validate: (v) => !v?.includes('/') ? 'Format: owner/repo' : undefined,
+    });
+    if (p.isCancel(fixedRepo)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+
+    const [fixedOwner, fixedRepoName] = fixedRepo.split('/');
+
+    // Re-run detection with corrected repo
+    const retryResult = await detector.execute({
+      owner: fixedOwner,
+      repo: fixedRepoName,
+      preferredMethod: args.auth === 'token' || args.auth === 'app' ? args.auth : undefined,
+    });
+
+    if (retryResult.success) {
+      authMethod = retryResult.data.method;
+      p.log.success(`✓ Authenticated as ${retryResult.data.identity} with access to ${fixedOwner}/${fixedRepoName}`);
+    } else {
+      return fail('UNKNOWN_ERROR', retryResult.error.message, retryResult.error.recoverable);
+    }
   } else {
-    // Detection failed — show why and fall through to manual flow
+    // Auth detection failed — show why and fall through to manual flow
     if (detectResult.error.code === 'HEALTH_CHECK_FAILED') {
       p.log.warn(`Auth check failed: ${detectResult.error.message}`);
       if (detectResult.error.suggestion) {
