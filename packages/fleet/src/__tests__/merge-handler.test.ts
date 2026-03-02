@@ -46,7 +46,8 @@ const baseInput: MergeInput = {
   mode: 'label',
   baseBranch: 'main',
   admin: false,
-  reDispatch: false,
+  redispatch: false,
+
   maxCIWaitSeconds: 1,
   maxRetries: 2,
   pollTimeoutSeconds: 1,
@@ -261,7 +262,7 @@ describe('MergeHandler (Logic Tests)', () => {
     const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
-    // Without re-dispatch, should return conflict error (not MERGE_FAILED)
+    // Without redispatch, should return conflict error (not MERGE_FAILED)
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe('CONFLICT_RETRIES_EXHAUSTED');
@@ -271,7 +272,7 @@ describe('MergeHandler (Logic Tests)', () => {
     expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
   });
 
-  it('re-dispatches first (only) PR on conflict when reDispatch is enabled', async () => {
+  it('handles conflict via batch path when redispatch is enabled', async () => {
     const conflictError = new Error('Conflict') as any;
     conflictError.status = 422;
 
@@ -280,40 +281,56 @@ describe('MergeHandler (Logic Tests)', () => {
         list: vi.fn().mockResolvedValue({
           data: [makePR(28, ['fleet-merge-ready'])],
         }),
-        get: vi.fn().mockResolvedValue({
-          data: { head: { sha: 'abc123' }, mergeable: false },
+        get: vi.fn().mockImplementation(({ mediaType }: any) => {
+          if (mediaType?.format === 'diff') {
+            return { data: 'diff content' };
+          }
+          return { data: { head: { sha: 'abc123' }, mergeable: false } };
         }),
-        // Close old PR during redispatch
         update: vi.fn().mockResolvedValue({ data: {} }),
-        // updateBranch always returns conflict (simulates persistent conflict)
         updateBranch: vi.fn().mockRejectedValue(conflictError),
         merge: vi.fn(),
+        listFiles: vi.fn().mockResolvedValue({
+          data: [{ filename: 'src/client.py' }],
+        }),
       },
       checks: {
         listForRef: vi.fn().mockResolvedValue({
           data: { check_runs: [] },
         }),
       },
+      issues: {
+        createComment: vi.fn().mockResolvedValue({ data: {} }),
+      },
     });
+
+    // Mock the jules import for batch resolve
+    vi.doMock('@google/jules-sdk', () => ({
+      jules: {
+        session: vi.fn().mockResolvedValue({ id: 'batch-session-28' }),
+      },
+    }));
 
     const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute({
       ...baseInput,
-      reDispatch: true,
-      maxRetries: 0, // Exhaust immediately after first conflict to avoid infinite loop
+      redispatch: true,
+      maxRetries: 0,
     });
 
-    // updateBranch should have been called for the first PR
+    // updateBranch should have been called
     expect(octokit.rest.pulls.updateBranch).toHaveBeenCalledWith(
       expect.objectContaining({ pull_number: 28 }),
     );
     // Merge should NOT have been attempted
     expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
-    // Should fail after exhausting retries
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe('CONFLICT_RETRIES_EXHAUSTED');
+    // With batch path, result is success with the PR in skipped/redispatched
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skipped).toContain(28);
     }
+
+    vi.doUnmock('@google/jules-sdk');
   });
 
   it('treats 422 "already up to date" as success, not conflict', async () => {
@@ -379,7 +396,7 @@ describe('MergeHandler (Logic Tests)', () => {
     const handler = new MergeHandler({ octokit, sleep: noopSleep });
     const result = await handler.execute(baseInput);
 
-    // Should still be treated as a conflict (reDispatch is off by default)
+    // Should still be treated as a conflict (redispatch is off by default)
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe('CONFLICT_RETRIES_EXHAUSTED');
@@ -387,5 +404,222 @@ describe('MergeHandler (Logic Tests)', () => {
     }
     // Merge should NOT have been attempted
     expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+  });
+});
+
+describe('MergeHandler (Batch Mode Tests)', () => {
+  const batchInput: MergeInput = {
+    ...baseInput,
+    redispatch: true,
+    maxRetries: 0,
+  };
+
+  it('emits merge:plan:computed when batch mode is enabled', async () => {
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [
+            makePR(1, ['fleet-merge-ready']),
+            makePR(2, ['fleet-merge-ready']),
+          ],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'abc123' } },
+        }),
+        merge: vi.fn().mockResolvedValue({ data: {} }),
+        updateBranch: vi.fn().mockResolvedValue({ data: {} }),
+        listFiles: vi.fn().mockImplementation(({ pull_number }: any) => {
+          if (pull_number === 1) return { data: [{ filename: 'a.py' }] };
+          return { data: [{ filename: 'b.py' }] };
+        }),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({ data: { check_runs: [] } }),
+      },
+    });
+
+    const events: any[] = [];
+    const handler = new MergeHandler({
+      octokit,
+      sleep: noopSleep,
+      emit: (e: any) => events.push(e),
+    });
+    await handler.execute(batchInput);
+
+    const planEvent = events.find((e) => e.type === 'merge:plan:computed');
+    expect(planEvent).toBeDefined();
+    expect(planEvent.independent.sort()).toEqual([1, 2]);
+    expect(planEvent.conflictGroups).toEqual([]);
+  });
+
+  it('merges independent PRs before conflict groups', async () => {
+    const mergeOrder: number[] = [];
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [
+            makePR(1, ['fleet-merge-ready']),
+            makePR(2, ['fleet-merge-ready']),
+            makePR(3, ['fleet-merge-ready']),
+          ],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'abc123' }, mergeable: false },
+        }),
+        merge: vi.fn().mockImplementation(({ pull_number }: any) => {
+          mergeOrder.push(pull_number);
+          return { data: {} };
+        }),
+        update: vi.fn().mockResolvedValue({ data: {} }),
+        updateBranch: vi.fn().mockResolvedValue({ data: {} }),
+        listFiles: vi.fn().mockImplementation(({ pull_number }: any) => {
+          if (pull_number === 1) return { data: [{ filename: 'isolated.md' }] };
+          if (pull_number === 2) return { data: [{ filename: 'shared.py' }] };
+          return { data: [{ filename: 'shared.py' }] };
+        }),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({ data: { check_runs: [] } }),
+      },
+      issues: {
+        createComment: vi.fn().mockResolvedValue({ data: {} }),
+      },
+    });
+
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
+    const result = await handler.execute(batchInput);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // PR 1 is independent and should be merged first
+      expect(result.data.merged[0]).toBe(1);
+    }
+  });
+
+  it('given PRs ordered [A(3 files), B(1 file), C(2 files)] independent, merges B→C→A', async () => {
+    const mergeOrder: number[] = [];
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [
+            makePR(1, ['fleet-merge-ready']),
+            makePR(2, ['fleet-merge-ready']),
+            makePR(3, ['fleet-merge-ready']),
+          ],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'abc123' } },
+        }),
+        merge: vi.fn().mockImplementation(({ pull_number }: any) => {
+          mergeOrder.push(pull_number);
+          return { data: {} };
+        }),
+        updateBranch: vi.fn().mockResolvedValue({ data: {} }),
+        listFiles: vi.fn().mockImplementation(({ pull_number }: any) => {
+          if (pull_number === 1) return { data: [{ filename: 'a.py' }, { filename: 'b.py' }, { filename: 'c.py' }] };
+          if (pull_number === 2) return { data: [{ filename: 'd.py' }] };
+          return { data: [{ filename: 'e.py' }, { filename: 'f.py' }] };
+        }),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({ data: { check_runs: [] } }),
+      },
+    });
+
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
+    const result = await handler.execute(batchInput);
+
+    expect(result.success).toBe(true);
+    // B(1 file) → C(2 files) → A(3 files)
+    expect(mergeOrder).toEqual([2, 3, 1]);
+  });
+
+  it('falls back to sequential merge when planMergeOrder API fails', async () => {
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [makePR(42, ['fleet-merge-ready'])],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'abc123' } },
+        }),
+        merge: vi.fn().mockResolvedValue({ data: {} }),
+        updateBranch: vi.fn().mockResolvedValue({ data: {} }),
+        // listFiles throws — planning phase fails
+        listFiles: vi.fn().mockRejectedValue(new Error('API rate limit')),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({ data: { check_runs: [] } }),
+      },
+    });
+
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
+    const result = await handler.execute(batchInput);
+
+    // Should still work via fallback sequential path
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.merged).toEqual([42]);
+    }
+  });
+
+  it('batch resolves conflict group when first PR in group cannot merge', async () => {
+    const conflictError = new Error('Conflict') as any;
+    conflictError.status = 422;
+
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [
+            makePR(1, ['fleet-merge-ready']),
+            makePR(2, ['fleet-merge-ready']),
+          ],
+        }),
+        get: vi.fn().mockImplementation(({ pull_number, mediaType }: any) => {
+          if (mediaType?.format === 'diff') {
+            return { data: `diff for PR #${pull_number}` };
+          }
+          return { data: { head: { sha: 'abc' }, mergeable: false } };
+        }),
+        merge: vi.fn(),
+        update: vi.fn().mockResolvedValue({ data: {} }),
+        updateBranch: vi.fn().mockRejectedValue(conflictError),
+        listFiles: vi.fn().mockImplementation(({ pull_number }: any) => {
+          return { data: [{ filename: 'shared.py' }] };
+        }),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({ data: { check_runs: [] } }),
+      },
+      issues: {
+        createComment: vi.fn().mockResolvedValue({ data: {} }),
+      },
+    });
+
+    const events: any[] = [];
+    const handler = new MergeHandler({
+      octokit,
+      sleep: noopSleep,
+      emit: (e: any) => events.push(e),
+    });
+
+    // Mock the jules import for batch resolve
+    vi.doMock('@google/jules-sdk', () => ({
+      jules: {
+        session: vi.fn().mockResolvedValue({ id: 'batch-session-1' }),
+      },
+    }));
+
+    const result = await handler.execute(batchInput);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Both PRs should be in the skipped/redispatched lists
+      expect(result.data.merged).toHaveLength(0);
+      expect(result.data.skipped).toContain(1);
+      expect(result.data.skipped).toContain(2);
+    }
+
+    vi.doUnmock('@google/jules-sdk');
   });
 });
