@@ -73,8 +73,6 @@ export async function validateHeadlessInputs(
     );
   }
 
-  emit({ type: 'init:auth:detected', method: authMethod });
-
   // ── Jules API Key ──
   if (!process.env.JULES_API_KEY) {
     emit({
