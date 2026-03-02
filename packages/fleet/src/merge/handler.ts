@@ -98,6 +98,7 @@ export class MergeHandler implements MergeSpec {
             input.repo,
             currentPr.number,
             this.emit,
+            this.sleep,
           );
 
           if (!updateResult.ok && updateResult.conflict) {
