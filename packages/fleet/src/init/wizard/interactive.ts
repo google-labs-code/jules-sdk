@@ -19,6 +19,22 @@ import type { FleetEmitter } from '../../shared/events.js';
 import { WORKFLOW_TEMPLATES } from '../templates.js';
 import { createFleetOctokit } from '../../shared/auth/octokit.js';
 import type { InitArgs, InitWizardResult } from './types.js';
+import { parseFeatureFlags } from './parse-features.js';
+
+/**
+ * Prompts user to choose auth method. Returns null if cancelled.
+ */
+async function promptAuthMethod(): Promise<'token' | 'app' | null> {
+  const authChoice = await p.select({
+    message: 'How will Fleet authenticate with GitHub?',
+    options: [
+      { value: 'token' as const, label: 'Personal Access Token (GITHUB_TOKEN)' },
+      { value: 'app' as const, label: 'GitHub App (recommended for orgs)' },
+    ],
+  });
+  if (p.isCancel(authChoice)) return null;
+  return authChoice;
+}
 
 /**
  * Collect all init inputs via interactive wizard prompts.
@@ -77,11 +93,31 @@ export async function runInitWizard(
   if (args.auth === 'token' || args.auth === 'app') {
     authMethod = args.auth;
   } else if (hasApp) {
-    authMethod = 'app';
-    p.log.success('GitHub App credentials detected');
+    const useApp = await p.confirm({
+      message: 'GitHub App credentials detected in environment. Use these?',
+      initialValue: true,
+    });
+    if (p.isCancel(useApp)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    if (useApp) {
+      authMethod = 'app';
+    } else {
+      const chosen = await promptAuthMethod();
+      if (!chosen) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      authMethod = chosen;
+    }
   } else if (hasToken) {
-    authMethod = 'token';
-    p.log.success('GITHUB_TOKEN detected');
+    const useToken = await p.confirm({
+      message: 'GITHUB_TOKEN detected in environment. Use this?',
+      initialValue: true,
+    });
+    if (p.isCancel(useToken)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    if (useToken) {
+      authMethod = 'token';
+    } else {
+      const chosen = await promptAuthMethod();
+      if (!chosen) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      authMethod = chosen;
+    }
   } else {
     const authChoice = await p.select({
       message: 'How will Fleet authenticate with GitHub?',
@@ -231,9 +267,11 @@ export async function runInitWizard(
   // ── Step 6b: Check for existing workflow files ──
   let overwrite = false;
   if (!dryRun) {
+    const features = parseFeatureFlags(args);
+    const templatesToCheck = features ? WORKFLOW_TEMPLATES : WORKFLOW_TEMPLATES;
     const octokit = createFleetOctokit();
     const existingFiles: string[] = [];
-    for (const tmpl of WORKFLOW_TEMPLATES) {
+    for (const tmpl of templatesToCheck) {
       try {
         await octokit.rest.repos.getContent({ owner, repo, path: tmpl.repoPath });
         existingFiles.push(tmpl.repoPath);
@@ -283,5 +321,5 @@ export async function runInitWizard(
     }
   }
 
-  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite };
+  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite, features: parseFeatureFlags(args) };
 }
