@@ -66,6 +66,51 @@ The interactive wizard will:
 
 If workflow files already exist (re-initialization), the wizard prompts to overwrite them with the latest templates.
 
+## Pipeline Cadence
+
+Fleet runs on a configurable schedule. The `--interval` flag (in minutes) controls how often the analyze → dispatch → merge pipeline runs.
+
+### Presets
+
+| Preset | Interval | What it means |
+|---|---|---|
+| Every 30 minutes | `--interval 30` | High velocity — fast signal, more API and Actions usage |
+| Every hour | `--interval 60` | Balanced — good signal, moderate usage |
+| **Every 6 hours** (default) | `--interval 360` | Standard — reliable daily cadence |
+| Every 12 hours | `--interval 720` | Conservative — twice daily |
+| Every 24 hours | `--interval 1440` | Minimal — once daily |
+
+The interactive wizard presents these as options with a "Custom" choice for any value ≥ 5 minutes.
+
+### How interval affects workflows
+
+The three scheduled workflows are staggered automatically:
+
+- **Analyze** runs at the base interval — scans goals and creates issues
+- **Dispatch** runs offset by half the interval — picks up new issues between analyze runs
+- **Merge** runs at half the main interval — keeps the merge queue moving
+
+Conflict detection is PR-triggered (not scheduled) and is unaffected by the interval setting.
+
+### Choosing the right interval
+
+**Faster intervals** (30min–1h):
+- PRs land quickly, feedback loops are tight
+- Higher GitHub API usage and Actions minutes consumption
+- Best for active development sprints or small repos
+
+**Slower intervals** (12h–24h):
+- Lower API and Actions cost
+- PRs queue up and feedback is delayed
+- Best for maintenance repos or cost-sensitive environments
+
+**Recommended by team size:**
+- Solo / small team → 60–360 minutes
+- Medium team (5–15) → 360 minutes (default)
+- Large org / many repos → 720–1440 minutes
+
+> **Note:** GitHub Actions enforces a 5-minute minimum for scheduled workflows. Intervals below 5 minutes will be rejected.
+
 ## CLI Reference
 
 ### `jules-fleet init`
@@ -78,6 +123,7 @@ jules-fleet init [options]
 Options:
   --repo <owner/repo>    Repository (auto-detected from git remote)
   --base <branch>        Base branch for the PR (default: main)
+  --interval <minutes>   Pipeline cadence in minutes (default: 360)
   --non-interactive      Disable wizard prompts — all inputs via flags/env vars
   --dry-run              Show what would be created without making changes
   --upload-secrets       Upload secrets to GitHub Actions (default: true)

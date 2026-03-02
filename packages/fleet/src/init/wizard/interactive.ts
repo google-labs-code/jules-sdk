@@ -16,7 +16,7 @@ import * as p from '@clack/prompts';
 import { fail } from '../../shared/result/index.js';
 import { getGitRepoInfo } from '../../shared/auth/git.js';
 import type { FleetEmitter } from '../../shared/events.js';
-import { WORKFLOW_TEMPLATES } from '../templates.js';
+import { WORKFLOW_TEMPLATES, buildWorkflowTemplates } from '../templates.js';
 import { createFleetOctokit } from '../../shared/auth/octokit.js';
 import type { InitArgs, InitWizardResult } from './types.js';
 import { parseFeatureFlags } from './parse-features.js';
@@ -298,11 +298,48 @@ export async function runInitWizard(
   // ── Step 6: Dry run? ──
   const dryRun = args['dry-run'] ?? false;
 
-  // ── Step 6b: Check for existing workflow files ──
+  // ── Step 6b: Pipeline cadence ──
+  let intervalMinutes = 360;
+  if (!args.interval) {
+    const cadenceChoice = await p.select({
+      message: 'How often should Fleet run?',
+      options: [
+        { value: 30, label: 'Every 30 minutes', hint: 'High velocity — fast signal, more API/Actions usage' },
+        { value: 60, label: 'Every hour', hint: 'Balanced — good signal, moderate usage' },
+        { value: 360, label: 'Every 6 hours', hint: 'Standard (default) — reliable daily cadence' },
+        { value: 720, label: 'Every 12 hours', hint: 'Conservative — twice daily' },
+        { value: 1440, label: 'Every 24 hours', hint: 'Minimal — once daily' },
+        { value: -1, label: 'Custom', hint: 'Enter interval in minutes' },
+      ],
+      initialValue: 360,
+    });
+    if (p.isCancel(cadenceChoice)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+
+    if (cadenceChoice === -1) {
+      const custom = await p.text({
+        message: 'Enter interval in minutes (minimum 5):',
+        initialValue: '360',
+        validate: (v) => {
+          const n = parseInt(v ?? '', 10);
+          if (isNaN(n) || n < 5) return 'Must be a number ≥ 5 (GitHub Actions minimum)';
+          return undefined;
+        },
+      });
+      if (p.isCancel(custom)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      intervalMinutes = parseInt(custom, 10);
+    } else {
+      intervalMinutes = cadenceChoice;
+    }
+  } else {
+    intervalMinutes = parseInt(args.interval, 10) || 360;
+  }
+
+  // ── Step 6c: Check for existing workflow files ──
   let overwrite = false;
   if (!dryRun) {
     const features = parseFeatureFlags(args);
-    const templatesToCheck = features ? WORKFLOW_TEMPLATES : WORKFLOW_TEMPLATES;
+
+    const templatesToCheck = buildWorkflowTemplates(intervalMinutes);
     const octokit = createFleetOctokit();
     const existingFiles: string[] = [];
     for (const tmpl of templatesToCheck) {
@@ -329,7 +366,7 @@ export async function runInitWizard(
 
   // ── Step 7: Confirmation ──
   if (!dryRun) {
-    const files = WORKFLOW_TEMPLATES.map((t) => t.repoPath);
+    const files = buildWorkflowTemplates(intervalMinutes).map((t) => t.repoPath);
     files.push('.fleet/goals/example.md');
 
     p.log.info([
@@ -355,5 +392,5 @@ export async function runInitWizard(
     }
   }
 
-  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite, features: parseFeatureFlags(args) };
+  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite, features: parseFeatureFlags(args), intervalMinutes };
 }

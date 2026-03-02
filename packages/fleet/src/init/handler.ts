@@ -15,7 +15,7 @@
 import type { Octokit } from 'octokit';
 import type { InitInput, InitResult, InitSpec } from './spec.js';
 import { ok, fail } from '../shared/result/index.js';
-import { WORKFLOW_TEMPLATES } from './templates.js';
+import { buildWorkflowTemplates } from './templates.js';
 import { FeatureReconcileHandler } from './features/handler.js';
 import { EXAMPLE_GOAL } from './templates/example-goal.js';
 import type { LabelConfigurator } from './types.js';
@@ -89,7 +89,7 @@ export class InitHandler implements InitSpec {
       };
 
       // 2. Resolve which templates to commit
-      let templates = WORKFLOW_TEMPLATES;
+      let templates = buildWorkflowTemplates(input.intervalMinutes);
       if (input.features) {
         const reconciler = new FeatureReconcileHandler(this.octokit);
         const featureResult = await reconciler.execute({
