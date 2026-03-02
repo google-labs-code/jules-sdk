@@ -246,7 +246,7 @@ describe('MergeHandler (Logic Tests)', () => {
           data: [makePR(28, ['fleet-merge-ready'])],
         }),
         get: vi.fn().mockResolvedValue({
-          data: { head: { sha: 'abc123' } },
+          data: { head: { sha: 'abc123' }, mergeable: false },
         }),
         merge: vi.fn(),
         updateBranch: vi.fn().mockRejectedValue(conflictError),
@@ -281,7 +281,7 @@ describe('MergeHandler (Logic Tests)', () => {
           data: [makePR(28, ['fleet-merge-ready'])],
         }),
         get: vi.fn().mockResolvedValue({
-          data: { head: { sha: 'abc123' } },
+          data: { head: { sha: 'abc123' }, mergeable: false },
         }),
         // Close old PR during redispatch
         update: vi.fn().mockResolvedValue({ data: {} }),
@@ -315,5 +315,77 @@ describe('MergeHandler (Logic Tests)', () => {
       expect(result.error.code).toBe('CONFLICT_RETRIES_EXHAUSTED');
     }
   });
-});
 
+  it('treats 422 "already up to date" as success, not conflict', async () => {
+    const alreadyUpToDateError = new Error('Validation Failed') as any;
+    alreadyUpToDateError.status = 422;
+
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [makePR(46, ['fleet-merge-ready'])],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'sha-46' }, mergeable: true },
+        }),
+        merge: vi.fn().mockResolvedValue({ data: {} }),
+        updateBranch: vi.fn().mockRejectedValue(alreadyUpToDateError),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({
+          data: { check_runs: [] },
+        }),
+      },
+    });
+
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
+    const result = await handler.execute(baseInput);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // PR should have been merged, not skipped or redispatched
+      expect(result.data.merged).toEqual([46]);
+      expect(result.data.skipped).toHaveLength(0);
+      expect(result.data.redispatched).toHaveLength(0);
+    }
+    // Merge SHOULD have been called
+    expect(octokit.rest.pulls.merge).toHaveBeenCalledWith(
+      expect.objectContaining({ pull_number: 46 }),
+    );
+  });
+
+  it('still detects real 422 merge conflicts', async () => {
+    const conflictError = new Error('Validation Failed') as any;
+    conflictError.status = 422;
+
+    const octokit = createMockOctokit({
+      pulls: {
+        list: vi.fn().mockResolvedValue({
+          data: [makePR(47, ['fleet-merge-ready'])],
+        }),
+        get: vi.fn().mockResolvedValue({
+          data: { head: { sha: 'sha-47' }, mergeable: false },
+        }),
+        merge: vi.fn(),
+        updateBranch: vi.fn().mockRejectedValue(conflictError),
+      },
+      checks: {
+        listForRef: vi.fn().mockResolvedValue({
+          data: { check_runs: [] },
+        }),
+      },
+    });
+
+    const handler = new MergeHandler({ octokit, sleep: noopSleep });
+    const result = await handler.execute(baseInput);
+
+    // Should still be treated as a conflict (reDispatch is off by default)
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('CONFLICT_RETRIES_EXHAUSTED');
+      expect(result.error.message).toContain('PR #47');
+    }
+    // Merge should NOT have been attempted
+    expect(octokit.rest.pulls.merge).not.toHaveBeenCalled();
+  });
+});
