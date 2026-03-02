@@ -85,40 +85,57 @@ export async function runInitWizard(
   const baseBranch = args.base ?? 'main';
 
   // ── Step 3: Authentication ──
-  const hasToken = !!process.env.GITHUB_TOKEN;
-  const hasApp = !!(process.env.GITHUB_APP_ID && (process.env.GITHUB_APP_PRIVATE_KEY_BASE64 || process.env.GITHUB_APP_PRIVATE_KEY) && process.env.GITHUB_APP_INSTALLATION_ID);
+  const { AuthDetectHandler } = await import('../auth-detect/handler.js');
+  const detector = new AuthDetectHandler();
+
+  const detectResult = await detector.execute({
+    owner,
+    repo,
+    preferredMethod: args.auth === 'token' || args.auth === 'app' ? args.auth : undefined,
+  });
 
   let authMethod: 'token' | 'app';
 
-  if (args.auth === 'token' || args.auth === 'app') {
-    authMethod = args.auth;
-  } else if (hasApp) {
-    const useApp = await p.confirm({
-      message: 'GitHub App credentials detected in environment. Use these?',
-      initialValue: true,
-    });
-    if (p.isCancel(useApp)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-    if (useApp) {
-      authMethod = 'app';
+  if (detectResult.success) {
+    const { method, source, identity, alternatives } = detectResult.data;
+
+    // If both methods found and no preference, ask which to use
+    if (alternatives && alternatives.length > 1) {
+      const choice = await p.select({
+        message: `Multiple auth methods detected. Which to use?`,
+        options: alternatives.map(a => ({
+          value: a.method,
+          label: a.method === 'app'
+            ? `GitHub App (from ${a.source})`
+            : `Personal Access Token (from ${a.source})`,
+        })),
+      });
+      if (p.isCancel(choice)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      authMethod = choice;
     } else {
-      const chosen = await promptAuthMethod();
-      if (!chosen) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-      authMethod = chosen;
-    }
-  } else if (hasToken) {
-    const useToken = await p.confirm({
-      message: 'GITHUB_TOKEN detected in environment. Use this?',
-      initialValue: true,
-    });
-    if (p.isCancel(useToken)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-    if (useToken) {
-      authMethod = 'token';
-    } else {
-      const chosen = await promptAuthMethod();
-      if (!chosen) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-      authMethod = chosen;
+      // Single method detected — confirm
+      const useDetected = await p.confirm({
+        message: `Authenticated as ${identity} via ${source} (${method}). Use this?`,
+        initialValue: true,
+      });
+      if (p.isCancel(useDetected)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (useDetected) {
+        authMethod = method;
+      } else {
+        const chosen = await promptAuthMethod();
+        if (!chosen) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+        authMethod = chosen;
+      }
     }
   } else {
+    // Detection failed — show why and fall through to manual flow
+    if (detectResult.error.code === 'HEALTH_CHECK_FAILED') {
+      p.log.warn(`Auth check failed: ${detectResult.error.message}`);
+      if (detectResult.error.suggestion) {
+        p.log.info(detectResult.error.suggestion);
+      }
+    }
+
     const authChoice = await p.select({
       message: 'How will Fleet authenticate with GitHub?',
       options: [
@@ -131,19 +148,16 @@ export async function runInitWizard(
 
     // Prompt for credentials
     if (authMethod === 'token') {
-      if (!hasToken) {
-        const token = await p.password({
-          message: 'Paste your GitHub token:',
-        });
-        if (p.isCancel(token)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-        process.env.GITHUB_TOKEN = token;
-      }
+      const token = await p.password({
+        message: 'Paste your GitHub token:',
+      });
+      if (p.isCancel(token)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      process.env.GITHUB_TOKEN = token;
     } else {
       // ── GitHub App: slug → key file → auto-detect ──
       const { resolvePrivateKeyFromInput } = await import('../../shared/auth/resolve-key-input.js');
       const { resolveInstallation } = await import('../../shared/auth/resolve-installation.js');
 
-      // 1. App slug
       const slug = await p.text({
         message: 'What is your GitHub App slug? (from the URL: github.com/settings/apps/<slug>)',
         validate: (v) => !v?.trim() ? 'App slug is required' : undefined,
@@ -152,7 +166,6 @@ export async function runInitWizard(
 
       p.log.info(`Download your private key from: https://github.com/settings/apps/${slug}`);
 
-      // 2. Private key (file path, PEM, or base64)
       const keyInput = await p.text({
         message: 'Path to your private key (.pem file), or paste the key directly:',
         validate: (v) => !v?.trim() ? 'Private key is required' : undefined,
@@ -170,17 +183,12 @@ export async function runInitWizard(
         );
       }
 
-      // 3. Auto-detect App ID and Installation ID
       const s = p.spinner();
       s.start(`Authenticating as "${slug}" and finding installation for ${owner}/${repo}...`);
 
       try {
-        // We need the app ID — get it from the API using the slug
-        // First, authenticate as the app to discover its ID
         const { Octokit } = await import('octokit');
-        const { createAppAuth } = await import('@octokit/auth-app');
 
-        // Use slug to look up the app's ID via the public endpoint
         const tempOctokit = new Octokit();
         const { data: appData } = await tempOctokit.rest.apps.getBySlug({ app_slug: slug });
         if (!appData) {
@@ -193,7 +201,6 @@ export async function runInitWizard(
         s.stop(`Authenticated as "${resolved.appName}" (ID: ${resolved.appId})`);
         p.log.success(`Found installation for ${resolved.accountLogin} (ID: ${resolved.installationId})`);
 
-        // Set env vars for downstream use
         process.env.GITHUB_APP_ID = appId;
         process.env.GITHUB_APP_INSTALLATION_ID = String(resolved.installationId);
         process.env.GITHUB_APP_PRIVATE_KEY = privateKeyPem;

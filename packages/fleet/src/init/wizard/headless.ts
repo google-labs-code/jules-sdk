@@ -47,40 +47,28 @@ export async function validateHeadlessInputs(
   }
 
   // ── Authentication ──
-  const hasToken = !!process.env.GITHUB_TOKEN;
-  const hasApp = !!(
-    (args['app-id'] || process.env.GITHUB_APP_ID) &&
-    (process.env.GITHUB_APP_PRIVATE_KEY_BASE64 || process.env.GITHUB_APP_PRIVATE_KEY) &&
-    (args['installation-id'] || process.env.GITHUB_APP_INSTALLATION_ID)
-  );
+  // Apply CLI overrides to env before detection
+  if (args['app-id']) process.env.GITHUB_APP_ID = args['app-id'];
+  if (args['installation-id']) process.env.GITHUB_APP_INSTALLATION_ID = args['installation-id'];
+
+  const { AuthDetectHandler } = await import('../auth-detect/handler.js');
+  const detector = new AuthDetectHandler();
+  const detectResult = await detector.execute({
+    owner,
+    repo,
+    preferredMethod: args.auth === 'token' || args.auth === 'app' ? args.auth : undefined,
+  });
 
   let authMethod: 'token' | 'app';
-
-  if (args.auth === 'app' || (!args.auth && hasApp)) {
-    authMethod = 'app';
-    if (args['app-id']) process.env.GITHUB_APP_ID = args['app-id'];
-    if (args['installation-id']) process.env.GITHUB_APP_INSTALLATION_ID = args['installation-id'];
-    if (!hasApp) {
-      const missing: string[] = [];
-      if (!process.env.GITHUB_APP_ID && !args['app-id']) missing.push('GITHUB_APP_ID (env) or --app-id');
-      if (!process.env.GITHUB_APP_PRIVATE_KEY_BASE64 && !process.env.GITHUB_APP_PRIVATE_KEY) {
-        missing.push('GITHUB_APP_PRIVATE_KEY_BASE64 (env)');
-      }
-      if (!process.env.GITHUB_APP_INSTALLATION_ID && !args['installation-id']) {
-        missing.push('GITHUB_APP_INSTALLATION_ID (env) or --installation-id');
-      }
-      return fail(
-        'UNKNOWN_ERROR',
-        `Missing GitHub App credentials: ${missing.join(', ')}.\nOr run without --non-interactive for guided setup.`,
-        true,
-      );
-    }
-  } else if (args.auth === 'token' || (!args.auth && hasToken)) {
-    authMethod = 'token';
+  if (detectResult.success) {
+    authMethod = detectResult.data.method;
+    emit({ type: 'init:auth:detected', method: authMethod });
   } else {
+    const errMsg = detectResult.error.message;
+    const suggestion = detectResult.error.suggestion ?? 'Or run without --non-interactive for guided setup.';
     return fail(
       'UNKNOWN_ERROR',
-      'Missing GitHub authentication.\nSet GITHUB_TOKEN or GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_BASE64 + GITHUB_APP_INSTALLATION_ID.\nOr run without --non-interactive for guided setup.',
+      `${errMsg}\n${suggestion}`,
       true,
     );
   }

@@ -25,6 +25,14 @@ vi.mock('../shared/auth/git.js', () => ({
   }),
 }));
 
+// Mock AuthDetectHandler to avoid real network calls
+const mockExecute = vi.fn();
+vi.mock('../init/auth-detect/handler.js', () => ({
+  AuthDetectHandler: vi.fn().mockImplementation(() => ({
+    execute: mockExecute,
+  })),
+}));
+
 describe('validateHeadlessInputs (Non-Interactive Mode)', () => {
   const originalEnv = { ...process.env };
 
@@ -37,6 +45,12 @@ describe('validateHeadlessInputs (Non-Interactive Mode)', () => {
     delete process.env.GITHUB_APP_INSTALLATION_ID;
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.JULES_API_KEY;
+
+    // Default: AuthDetectHandler returns successful token auth
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { method: 'token', source: 'env', identity: 'testuser' },
+    });
   });
 
   afterEach(() => {
@@ -82,6 +96,15 @@ describe('validateHeadlessInputs (Non-Interactive Mode)', () => {
   });
 
   it('fails when no auth is configured', async () => {
+    mockExecute.mockResolvedValue({
+      success: false,
+      error: {
+        code: 'NO_CREDENTIALS_FOUND',
+        message: 'No credentials found.',
+        suggestion: 'Set GITHUB_TOKEN or install GitHub CLI (gh auth login).',
+        recoverable: true,
+      },
+    });
     const events: FleetEvent[] = [];
     const result = await validateHeadlessInputs(
       { repo: 'o/r' },
@@ -92,8 +115,7 @@ describe('validateHeadlessInputs (Non-Interactive Mode)', () => {
     if ('success' in result) {
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.message).toContain('Missing GitHub authentication');
-        expect(result.error.message).toContain('--non-interactive');
+        expect(result.error.message).toContain('No credentials found');
       }
     }
   });
@@ -117,6 +139,10 @@ describe('validateHeadlessInputs (Non-Interactive Mode)', () => {
   });
 
   it('detects GitHub App auth from env vars', async () => {
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { method: 'app', source: 'env', identity: 'fleet-app' },
+    });
     process.env.GITHUB_APP_ID = '123';
     process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = 'key';
     process.env.GITHUB_APP_INSTALLATION_ID = '456';
@@ -132,6 +158,10 @@ describe('validateHeadlessInputs (Non-Interactive Mode)', () => {
   });
 
   it('--app-id flag overrides GITHUB_APP_ID env var', async () => {
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { method: 'app', source: 'env', identity: 'fleet-app' },
+    });
     process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = 'key';
     process.env.GITHUB_APP_INSTALLATION_ID = '456';
     const events: FleetEvent[] = [];
