@@ -84,9 +84,7 @@ function createMockJulesProvider(sessionId = 'session-123', shouldFail = false) 
   });
 
   return {
-    provider: vi.fn().mockResolvedValue({
-      session: sessionFn,
-    }) as any,
+    provider: { session: sessionFn } as any,
     sessionFn,
   };
 }

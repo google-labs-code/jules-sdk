@@ -21,6 +21,7 @@ import type {
 import type { PR } from '../shared/schemas/pr.js';
 import type { FleetEmitter } from '../shared/events.js';
 import { ok, fail } from '../shared/result/index.js';
+import { jules } from '@google/jules-sdk';
 import { selectByLabel } from './select/by-label.js';
 import { selectByFleetRun } from './select/by-fleet-run.js';
 import { updateBranch } from './ops/update-branch.js';
@@ -111,49 +112,38 @@ export class MergeHandler implements MergeSpec {
             await this.sleep(5_000);
           }
 
-          // 2b. Handle conflict groups with batch resolution
+          // 2b. Handle conflict groups — try each PR individually first
           for (const group of plan.conflictGroups) {
-            // Try merging the first PR in the group (least overlapping)
-            const firstPR = group.prs[0];
-            const firstResult = await this.mergeSinglePR(firstPR, input);
+            const failedPRs: PR[] = [];
 
-            if (firstResult.merged) {
-              merged.push(firstPR.number);
-              await this.sleep(5_000);
-
-              // Re-check remaining PRs in the group
-              const remaining = group.prs.slice(1);
-              for (const pr of remaining) {
-                const result = await this.mergeSinglePR(pr, input);
-                if (result.merged) {
-                  merged.push(pr.number);
-                } else {
-                  // If it conflicts, add to batch for resolution
-                  skipped.push(pr.number);
-                }
-                await this.sleep(5_000);
+            for (const pr of group.prs) {
+              const result = await this.mergeSinglePR(pr, input);
+              if (result.merged) {
+                merged.push(pr.number);
+              } else {
+                failedPRs.push(pr);
               }
-            } else {
-              // First PR in group couldn't merge — batch resolve the whole group
+              await this.sleep(5_000);
+            }
+
+            // Batch resolve only the PRs that actually conflicted
+            if (failedPRs.length > 0) {
               const resolveResult = await batchResolveConflicts(
                 this.octokit,
                 {
                   owner: input.owner,
                   repo: input.repo,
                   baseBranch: input.baseBranch,
-                  conflictingPRs: group.prs,
+                  conflictingPRs: failedPRs,
                   sharedFiles: group.sharedFiles,
                   recentlyMerged: merged,
                 },
                 this.emit,
-                async () => {
-                  const { jules } = await import('@google/jules-sdk');
-                  return jules;
-                },
+                jules,
               );
 
               if (resolveResult.success) {
-                for (const pr of group.prs) {
+                for (const pr of failedPRs) {
                   redispatched.push({
                     oldPr: pr.number,
                     sessionId: resolveResult.sessionId,
@@ -162,7 +152,7 @@ export class MergeHandler implements MergeSpec {
                 }
               } else {
                 // Fall back to per-PR redispatch
-                for (const pr of group.prs) {
+                for (const pr of failedPRs) {
                   await redispatch(
                     this.octokit,
                     input.owner,
@@ -278,10 +268,7 @@ export class MergeHandler implements MergeSpec {
             if (input.redispatch) {
               const escalation = new ConflictEscalationHandler(
                 this.octokit,
-                async () => {
-                  const { jules } = await import('@google/jules-sdk');
-                  return jules;
-                },
+                jules,
               );
               const escResult = await escalation.execute({
                 owner: input.owner,
