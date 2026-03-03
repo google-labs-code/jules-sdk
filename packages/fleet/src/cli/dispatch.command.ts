@@ -30,8 +30,8 @@ export default defineCommand({
   args: {
     milestone: {
       type: 'string',
-      description: 'Milestone ID to scope dispatch',
-      required: true,
+      description: 'Milestone ID to scope dispatch (omit to dispatch all)',
+      required: false,
     },
     owner: {
       type: 'string',
@@ -54,14 +54,26 @@ export default defineCommand({
       repo = repo || repoInfo.repo;
     }
 
-    renderer.start(`Fleet Dispatch — Milestone ${args.milestone}`);
+    const octokit = createFleetOctokit();
 
-    const input = DispatchInputSchema.parse({
-      milestone: args.milestone,
-      owner,
-      repo,
-      baseBranch: process.env.FLEET_BASE_BRANCH || 'main',
-    });
+    // Resolve milestone(s): specific one or auto-discover all
+    let milestones: string[];
+    if (args.milestone) {
+      milestones = [args.milestone];
+    } else {
+      renderer.start('Fleet Dispatch — Discovering milestones');
+      const { data } = await octokit.rest.issues.listMilestones({
+        owner: owner!,
+        repo: repo!,
+        state: 'open',
+      });
+      milestones = data.map((m) => String(m.number));
+      if (milestones.length === 0) {
+        renderer.end('No open milestones found — nothing to dispatch.');
+        return;
+      }
+      renderer.start(`Fleet Dispatch — ${milestones.length} milestone(s): ${milestones.join(', ')}`);
+    }
 
     const dispatcher: SessionDispatcher = {
       async dispatch(options) {
@@ -74,17 +86,34 @@ export default defineCommand({
       },
     };
 
-    const octokit = createFleetOctokit();
     const emit = createEmitter(renderer);
     const handler = new DispatchHandler({ octokit, dispatcher, emit });
-    const result = await handler.execute(input);
 
-    if (!result.success) {
-      renderer.error(result.error.message);
-      process.exit(1);
+    let totalDispatched = 0;
+    let totalSkipped = 0;
+
+    for (const milestone of milestones) {
+      renderer.start(`Fleet Dispatch — Milestone ${milestone}`);
+
+      const input = DispatchInputSchema.parse({
+        milestone,
+        owner,
+        repo,
+        baseBranch: process.env.FLEET_BASE_BRANCH || 'main',
+      });
+
+      const result = await handler.execute(input);
+
+      if (!result.success) {
+        renderer.error(`Milestone ${milestone}: ${result.error.message}`);
+        continue;
+      }
+
+      totalDispatched += result.data.dispatched.length;
+      totalSkipped += result.data.skipped;
     }
 
-    const { dispatched, skipped } = result.data;
-    renderer.end(`${dispatched.length} dispatched, ${skipped} skipped.`);
+    renderer.end(`${totalDispatched} dispatched, ${totalSkipped} skipped across ${milestones.length} milestone(s).`);
   },
 });
+

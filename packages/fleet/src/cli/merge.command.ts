@@ -18,6 +18,8 @@ import { MergeHandler } from '../merge/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
 import { createRenderer, createEmitter } from '../shared/ui/index.js';
+import { jules } from '@google/jules-sdk';
+import type { SessionDispatcher } from '../shared/session-dispatcher.js';
 
 export default defineCommand({
   meta: {
@@ -85,7 +87,24 @@ export default defineCommand({
 
     const octokit = createFleetOctokit();
     const emit = createEmitter(renderer);
-    const handler = new MergeHandler({ octokit, emit });
+
+    // Build dispatcher — enables conflict notification before redispatch
+    const dispatcher: SessionDispatcher = {
+      async dispatch(options) {
+        return jules.session({
+          prompt: options.prompt,
+          source: options.source,
+          requireApproval: options.requireApproval,
+          autoPr: options.autoPr,
+        });
+      },
+      async sendMessage(sessionId, message) {
+        const session = jules.session(sessionId);
+        await session.send(message);
+      },
+    };
+
+    const handler = new MergeHandler({ octokit, emit, dispatcher });
     const result = await handler.execute(input);
 
     if (!result.success) {

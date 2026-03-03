@@ -36,6 +36,7 @@ function createMockOctokit() {
 function createMockDispatcher(): SessionDispatcher {
   return {
     dispatch: vi.fn().mockResolvedValue({ id: 'session-triage-1' }),
+    sendMessage: vi.fn().mockResolvedValue(undefined),
   };
 }
 
