@@ -377,6 +377,24 @@ export class MergeHandler implements MergeSpec {
     );
 
     if (!updateResult.ok && updateResult.conflict) {
+      // If redispatch is enabled, close the PR and re-dispatch via Jules
+      if (input.redispatch) {
+        const result = await redispatch(
+          this.octokit,
+          input.owner,
+          input.repo,
+          pr,
+          input.baseBranch,
+          input.pollTimeoutSeconds,
+          this.emit,
+          this.sleep,
+        );
+        return {
+          merged: false,
+          redispatched: true,
+          sessionId: result?.number?.toString(),
+        };
+      }
       return { merged: false };
     }
 
