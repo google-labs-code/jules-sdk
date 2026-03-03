@@ -203,6 +203,56 @@ export async function select<T extends JulesDomain>(
   if (query.from === 'sessions') {
     const where = query.where as WhereClause<'sessions'> | undefined;
 
+    const whereRecord = where as Record<string, FilterOp<unknown>> | undefined;
+    const dotFilters = whereRecord
+      ? Object.entries(whereRecord).filter(([k]) => isDotPath(k))
+      : [];
+    const dotWhere =
+      dotFilters.length > 0 ? Object.fromEntries(dotFilters) : undefined;
+
+    let chunk: any[] = [];
+    const CHUNK_SIZE = 50;
+
+    const processChunk = async () => {
+      if (chunk.length === 0) return;
+
+      // PASS 2: Hydration (Heavy Data) - Parallelized
+      const hydrated = await pMap(
+        chunk,
+        async (entry) => {
+          const cached = await storage.get(entry.id);
+          return { entry, cached };
+        },
+        { concurrency: 10 },
+      );
+
+      for (const { cached } of hydrated) {
+        if (results.length >= limit) break;
+        if (!cached) continue;
+
+        if (dotWhere && !matchWhere(cached.resource, dotWhere)) continue;
+
+        const item = applyProjection(
+          cached.resource,
+          query.select as string[] | undefined,
+          'sessions',
+        );
+
+        // Preserve sorting metadata from original document
+        const resourceRecord = cached.resource as unknown as Record<
+          string,
+          unknown
+        >;
+        item._sortKey = {
+          createTime: resourceRecord.createTime,
+          id: resourceRecord.id,
+        };
+
+        results.push(item);
+      }
+      chunk = [];
+    };
+
     // PASS 1: Index Scan (Metadata Only)
     for await (const entry of storage.scanIndex()) {
       if (results.length >= limit) break;
@@ -220,41 +270,19 @@ export async function select<T extends JulesDomain>(
       )
         continue;
 
-      // PASS 2: Hydration (Heavy Data)
-      const cached = await storage.get(entry.id);
-      if (!cached) continue;
+      chunk.push(entry);
 
-      // Check dot-notation filters against full document
-      const whereRecord = where as
-        | Record<string, FilterOp<unknown>>
-        | undefined;
-      const dotFilters = whereRecord
-        ? Object.entries(whereRecord).filter(([k]) => isDotPath(k))
-        : [];
-
-      if (dotFilters.length > 0) {
-        const dotWhere = Object.fromEntries(dotFilters);
-        if (!matchWhere(cached.resource, dotWhere)) continue;
+      // Process chunk if it reaches CHUNK_SIZE or if we have enough items for the limit without dot filters
+      if (
+        chunk.length >= CHUNK_SIZE ||
+        (!dotWhere && chunk.length >= limit - results.length)
+      ) {
+        await processChunk();
       }
-
-      const item = applyProjection(
-        cached.resource,
-        query.select as string[] | undefined,
-        'sessions',
-      );
-
-      // Preserve sorting metadata from original document
-      const resourceRecord = cached.resource as unknown as Record<
-        string,
-        unknown
-      >;
-      item._sortKey = {
-        createTime: resourceRecord.createTime,
-        id: resourceRecord.id,
-      };
-
-      results.push(item);
     }
+
+    // Process any remaining items
+    await processChunk();
 
     // PASS 3: Virtual Join (Include Activities)
     if (query.include && 'activities' in query.include) {
