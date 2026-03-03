@@ -32,7 +32,7 @@ import {
   GeneratedFile,
   SessionOutcome,
   GeneratedFiles,
-  ChangeSet,
+  ChangeSetArtifact,
   ToJSONOptions,
 } from './types.js';
 
@@ -58,7 +58,7 @@ export class SessionSnapshotImpl implements SessionSnapshot {
   readonly timeline: readonly TimelineEntry[];
   readonly insights: SessionInsights;
   readonly generatedFiles: GeneratedFiles;
-  readonly changeSet: () => ChangeSet | undefined;
+  readonly changeSet: () => ChangeSetArtifact | undefined;
 
   constructor(options: SessionSnapshotOptions) {
     const { session, activities = [] } = options.data;

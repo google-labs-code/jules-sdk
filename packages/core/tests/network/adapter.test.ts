@@ -22,11 +22,9 @@ import { ApiClient } from '../../src/api.js';
 const mockRequest = vi.fn();
 vi.mock('../../src/api.js', () => {
   return {
-    ApiClient: vi.fn().mockImplementation(() => {
-      return {
-        request: mockRequest,
-      };
-    }),
+    ApiClient: class {
+      request = mockRequest;
+    }
   };
 });
 

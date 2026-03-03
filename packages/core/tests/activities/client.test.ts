@@ -68,7 +68,8 @@ describe('DefaultActivityClient', () => {
       listActivities: vi.fn().mockResolvedValue({ activities: [] }),
       fetchActivity: vi.fn().mockResolvedValue(undefined),
     };
-    client = new DefaultActivityClient(storageMock, networkMock);
+    const platformMock = {} as any;
+    client = new DefaultActivityClient(storageMock, networkMock, platformMock);
   });
 
   describe('history()', () => {
