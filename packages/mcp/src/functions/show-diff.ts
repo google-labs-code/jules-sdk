@@ -48,8 +48,7 @@ export async function showDiff(
   await session.activities.hydrate();
   const snapshot = await session.snapshot();
 
-  // FIX: Ensure activities is always an array
-  const activities = snapshot.activities ?? [];
+  const activities = snapshot.activities;
 
   let changeSet: ChangeSetArtifact | undefined;
 

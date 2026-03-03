@@ -417,7 +417,7 @@ export async function getSessionChangedFiles(
   const isBusy = isBusyState(snapshot.state);
 
   if (isBusy) {
-    return aggregateFromActivities(snapshot.activities ?? []);
+    return aggregateFromActivities(snapshot.activities);
   }
 
   // Stable: use outcome changeSet

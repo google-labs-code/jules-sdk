@@ -409,8 +409,10 @@ export class SessionClientImpl implements SessionClient {
     const includeActivities = options?.activities ?? true;
     const [info, activities] = await Promise.all([
       this.info(),
-      includeActivities ? collectAsync(this.history()) : [],
+      includeActivities ? collectAsync(this.history()) : Promise.resolve([]),
     ]);
-    return new SessionSnapshotImpl({ data: { session: info, activities } });
+    return new SessionSnapshotImpl({
+      data: { session: info, activities: activities ?? [] },
+    });
   }
 }
