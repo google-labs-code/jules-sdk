@@ -27,8 +27,12 @@ export default defineCommand({
   args: {
     resource: {
       type: 'positional',
-      description: 'Resource to configure (labels)',
+      description: 'Resource to configure (labels | milestones)',
       required: true,
+    },
+    title: {
+      type: 'string',
+      description: 'Milestone title (required if resource is milestones)',
     },
     delete: {
       type: 'boolean',
@@ -59,11 +63,31 @@ export default defineCommand({
     const action = args.delete ? 'delete' : 'create';
     renderer.start(`Fleet Configure — ${args.resource} (${action})`);
 
+    let milestone = args.title;
+    if (args.resource === 'milestones' && !milestone) {
+        // Read it from goal file frontmatter if missing
+        const fs = await import('fs');
+        const path = await import('path');
+        const goalsDir = '.fleet/goals';
+        if (fs.existsSync(goalsDir)) {
+            const files = fs.readdirSync(goalsDir).filter(f => f.endsWith('.md'));
+            if (files.length > 0) {
+                const firstGoalPath = path.join(goalsDir, files[0]);
+                const content = fs.readFileSync(firstGoalPath, 'utf-8');
+                const match = content.match(/^milestone:\s*(.+)$/m);
+                if (match) {
+                    milestone = match[1].trim();
+                }
+            }
+        }
+    }
+
     const input = ConfigureInputSchema.parse({
       resource: args.resource,
       action,
       owner,
       repo,
+      milestone,
     });
 
     const octokit = createFleetOctokit();

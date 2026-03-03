@@ -190,6 +190,7 @@ export class AnalyzeHandler implements AnalyzeSpec {
       milestoneTitle: ctx.milestone?.title,
       milestoneId,
       preamble,
+      goalFile: isBuiltIn ? undefined : goalFile,
     });
 
     this.emit({ type: 'analyze:session:dispatching', goal: displayName });

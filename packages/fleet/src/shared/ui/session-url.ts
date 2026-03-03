@@ -18,7 +18,7 @@ const JULES_BASE_URL = 'https://jules.google.com';
  * Build a Jules session URL from a session ID.
  */
 export function sessionUrl(sessionId: string): string {
-  return `${JULES_BASE_URL}/sessions/${sessionId}`;
+  return `${JULES_BASE_URL}/session/${sessionId}`;
 }
 
 /**
