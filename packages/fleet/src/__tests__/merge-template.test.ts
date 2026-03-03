@@ -29,8 +29,9 @@ describe('buildMergeTemplate', () => {
     expect(() => yaml.parse(template.content)).not.toThrow();
   });
 
-  it('references @google/jules-fleet merge', () => {
-    expect(template.content).toContain('@google/jules-fleet merge');
+  it('references jules-fleet merge command', () => {
+    expect(template.content).toContain('jules-fleet merge');
+    expect(template.content).toContain('--package=@google/jules-fleet');
   });
 
   it('has the correct permissions', () => {
