@@ -31,11 +31,15 @@ import { redispatch } from './ops/redispatch.js';
 import { planMergeOrder } from './ops/plan-merge-order.js';
 import { batchResolveConflicts } from './ops/resolve-conflicts.js';
 import { ConflictEscalationHandler } from './escalation/handler.js';
+import { ConflictResolutionHandler } from './conflict-resolution/handler.js';
+import type { SessionDispatcher } from '../shared/session-dispatcher.js';
 
 export interface MergeHandlerDeps {
   octokit: Octokit;
   emit?: FleetEmitter;
   sleep?: (ms: number) => Promise<void>;
+  /** Optional — enables conflict notification before redispatch */
+  dispatcher?: SessionDispatcher;
 }
 
 /** Default delay helper */
@@ -51,11 +55,13 @@ export class MergeHandler implements MergeSpec {
   private octokit: Octokit;
   private emit: FleetEmitter;
   private sleep: (ms: number) => Promise<void>;
+  private dispatcher?: SessionDispatcher;
 
   constructor(deps: MergeHandlerDeps) {
     this.octokit = deps.octokit;
     this.emit = deps.emit ?? (() => { });
     this.sleep = deps.sleep ?? defaultSleep;
+    this.dispatcher = deps.dispatcher;
   }
 
   async execute(input: MergeInput): Promise<MergeResult> {
@@ -103,6 +109,9 @@ export class MergeHandler implements MergeSpec {
             const result = await this.mergeSinglePR(pr, input);
             if (result.merged) {
               merged.push(pr.number);
+            } else if (result.notified) {
+              // Session was notified — skip, cron will retry
+              skipped.push(pr.number);
             } else if (result.redispatched) {
               redispatched.push({ oldPr: pr.number, sessionId: result.sessionId });
               skipped.push(pr.number);
@@ -359,6 +368,7 @@ export class MergeHandler implements MergeSpec {
   ): Promise<{
     merged: boolean;
     redispatched?: boolean;
+    notified?: boolean;
     sessionId?: string;
   }> {
     this.emit({
@@ -377,7 +387,51 @@ export class MergeHandler implements MergeSpec {
     );
 
     if (!updateResult.ok && updateResult.conflict) {
-      this.emit({ type: 'merge:conflict:detected', prNumber: pr.number });
+      // If redispatch is enabled, close the PR and re-dispatch via Jules
+      if (input.redispatch) {
+        // Try conflict notification first (if dispatcher is available)
+        if (this.dispatcher) {
+          const notifyResult = await new ConflictResolutionHandler({
+            octokit: this.octokit,
+            dispatcher: this.dispatcher,
+            emit: this.emit,
+          }).execute({
+            owner: input.owner,
+            repo: input.repo,
+            baseBranch: input.baseBranch,
+            conflictingPR: {
+              number: pr.number,
+              branchName: pr.headRef,
+              body: pr.body ?? undefined,
+            },
+            conflictingFiles: await this.getPRFiles(input.owner, input.repo, pr.number),
+            peerPRs: [],
+            maxNotifications: 3,
+          });
+
+          if (notifyResult.success) {
+            // Session was notified — skip this PR, cron will retry
+            return { merged: false, notified: true, sessionId: notifyResult.data.sessionId };
+          }
+          // Notification failed (fallbackToRedispatch) — fall through to redispatch
+        }
+
+        const result = await redispatch(
+          this.octokit,
+          input.owner,
+          input.repo,
+          pr,
+          input.baseBranch,
+          input.pollTimeoutSeconds,
+          this.emit,
+          this.sleep,
+        );
+        return {
+          merged: false,
+          redispatched: true,
+          sessionId: result?.number?.toString(),
+        };
+      }
       return { merged: false };
     }
 
@@ -438,5 +492,25 @@ export class MergeHandler implements MergeSpec {
       input.repo,
       input.baseBranch,
     );
+  }
+
+  /**
+   * Fetches the list of files changed by a PR.
+   */
+  private async getPRFiles(
+    owner: string,
+    repo: string,
+    prNumber: number,
+  ): Promise<string[]> {
+    try {
+      const { data: files } = await this.octokit.rest.pulls.listFiles({
+        owner,
+        repo,
+        pull_number: prNumber,
+      });
+      return files.map((f: any) => f.filename);
+    } catch {
+      return []; // Non-fatal
+    }
   }
 }

@@ -22,6 +22,8 @@ export interface AnalyzerPromptOptions {
   milestoneId?: string;
   /** Repo-wide preamble from .fleet/config.yml, prepended to goal body */
   preamble?: string;
+  /** The filename of the goal */
+  goalFile?: string;
 }
 
 // ── Prompt Constants ────────────────────────────────────────────────
@@ -150,6 +152,7 @@ export function buildAnalyzerPrompt(options: AnalyzerPromptOptions): string {
     prContext,
     milestoneTitle,
     preamble,
+    goalFile,
   } = options;
 
   // Prepend repo-wide preamble to goal instructions if provided
@@ -186,6 +189,10 @@ npx @google/jules-fleet signal create \\\
   --tag fleet \\\
   --body-file [path_to_markdown_file]${milestoneFlag}
 \`\`\``;
+
+  const goalReference = goalFile
+    ? `\n### Goal Reference\nThis issue was generated from \`${goalFile}\`. The worker agent should read this file for full context including verification commands, constraints, and structural guidance.`
+    : '';
 
   return [
     SYSTEM_PREAMBLE,
@@ -233,6 +240,6 @@ npx @google/jules-fleet signal create \\\
     `**Required Issue Body Format:**`,
     `The issue body MUST follow this exact markdown structure to ensure the worker agent and the Orchestrator function correctly:`,
     '',
-    ISSUE_BODY_TEMPLATE,
+    ISSUE_BODY_TEMPLATE.replace('### Objective', `${goalReference ? goalReference.trim() + '\n\n' : ''}### Objective`),
   ].join('\n');
 }

@@ -27,6 +27,12 @@ export function renderConfigureEvent(event: ConfigureEvent, ctx: RenderContext):
     case 'configure:label:exists':
       ctx.warn(`  ⊘ Label "${event.name}" already exists`);
       break;
+    case 'configure:milestone:created':
+      ctx.info(`  ✓ Milestone "${event.name}" created`);
+      break;
+    case 'configure:milestone:exists':
+      ctx.warn(`  ⊘ Milestone "${event.name}" already exists`);
+      break;
     case 'configure:secret:uploading':
       ctx.startSpinner(`Uploading secret ${event.name}…`);
       break;

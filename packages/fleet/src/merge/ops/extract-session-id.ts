@@ -12,13 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/** Configure domain events */
-export type ConfigureEvent =
-  | { type: 'configure:start'; resource: string; owner: string; repo: string }
-  | { type: 'configure:label:created'; name: string }
-  | { type: 'configure:label:exists'; name: string }
-  | { type: 'configure:milestone:created'; name: string }
-  | { type: 'configure:milestone:exists'; name: string }
-  | { type: 'configure:secret:uploading'; name: string }
-  | { type: 'configure:secret:uploaded'; name: string }
-  | { type: 'configure:done' };
+/**
+ * Extracts the Jules session ID from a branch name.
+ *
+ * Jules-created branches follow the pattern: `<description>-<sessionId>`
+ * where the session ID is a long trailing numeric segment (10+ digits).
+ *
+ * Examples:
+ *   fix-65-66-resolve-conflicts-15481661885092594092 → "15481661885092594092"
+ *   fix-3-api-2184426524618245113 → "2184426524618245113"
+ *   feat/my-feature → null
+ */
+export function extractSessionId(branchName: string): string | null {
+  const match = branchName.match(/-(\d{10,})$/);
+  return match ? match[1] : null;
+}

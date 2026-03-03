@@ -5,7 +5,7 @@ name: Fleet Analyze
 
 on:
   schedule:
-    - cron: '0 5 * * *' # Daily at 5am UTC — edit to your preference
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       goal:
@@ -32,7 +32,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npx @google/jules-fleet analyze --goal "${{ inputs.goal }}" --milestone "${{ inputs.milestone }}"
+      - run: npx -y --package=@google/jules-fleet jules-fleet analyze --goal "${{ inputs.goal }}" --milestone "${{ inputs.milestone }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_APP_ID: ${{ secrets.FLEET_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.FLEET_APP_INSTALLATION_ID }}

@@ -47,4 +47,6 @@ export interface InitArgs {
   'conflict-detection'?: string;
   /** Pipeline cadence in minutes */
   interval?: string;
+  /** Whether to overwrite existing workflow files */
+  overwrite?: boolean;
 }
