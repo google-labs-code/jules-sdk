@@ -55,7 +55,7 @@ const MAX_DIFF_LENGTH = 8_000;
 
 /**
  * Resolves a batch of conflicting PRs by dispatching a single Jules session
- * with all their diffs and context. Does NOT close the original PRs.
+ * with all their diffs and context. Closes original PRs after dispatch.
  */
 export async function batchResolveConflicts(
   octokit: Octokit,
@@ -111,6 +111,21 @@ export async function batchResolveConflicts(
 
   // 4. Comment on each original PR (non-fatal)
   await commentOnPRs(octokit, owner, repo, conflictingPRs, sessionId);
+
+  // 5. Close original PRs to prevent repeated redispatch on next cron run
+  for (const pr of conflictingPRs) {
+    try {
+      await octokit.rest.pulls.update({
+        owner,
+        repo,
+        pull_number: pr.number,
+        state: 'closed',
+        body: `${pr.body ?? ''}\n\n---\n⚠️ Closed by fleet-merge: batch conflict resolution dispatched (session ${sessionId}).`,
+      });
+    } catch {
+      // Non-fatal — continue
+    }
+  }
 
   emit({
     type: 'merge:batch-resolve:done',
