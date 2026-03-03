@@ -5,7 +5,10 @@ name: Fleet Merge
 
 on:
   schedule:
-    - cron: '0 */4 * * *' # Every 4 hours — edit to your preference
+    - cron: '*/30 * * * *'
+  workflow_run:
+    workflows: ['Conflict Detection']
+    types: [completed]
   workflow_dispatch:
     inputs:
       mode:
@@ -19,8 +22,8 @@ on:
         description: 'Fleet run ID (required for fleet-run mode)'
         type: string
         default: ''
-      re_dispatch:
-        description: 'Auto re-dispatch on merge conflict'
+      redispatch:
+        description: 'Enable smart conflict resolution'
         type: boolean
         default: true
 
@@ -42,13 +45,16 @@ jobs:
           node-version: '22'
       - run: |
           REDISPATCH_FLAG=""
-          if [ "${{ inputs.re_dispatch }}" = "true" ]; then
-            REDISPATCH_FLAG="--re-dispatch"
+          if [ "${{ inputs.redispatch }}" = "true" ]; then
+            REDISPATCH_FLAG="--redispatch"
           fi
-          npx @google/jules-fleet merge \
-            --mode ${{ inputs.mode || 'label' }} \
-            --run-id "${{ inputs.fleet_run_id }}" \
+          npx @google/jules-fleet merge \\
+            --mode ${{ inputs.mode || 'label' }} \\
+            --run-id "${{ inputs.fleet_run_id }}" \\
             $REDISPATCH_FLAG
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_APP_ID: ${{ secrets.FLEET_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.FLEET_APP_INSTALLATION_ID }}
