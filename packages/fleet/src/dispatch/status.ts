@@ -76,7 +76,7 @@ export async function getDispatchStatus(
 
     let dispatchEvent: DispatchEvent | null = null;
     if (dispatchComment?.body) {
-      const sessionMatch = dispatchComment.body.match(/Session:\s*`([^`]+)`/);
+      const sessionMatch = dispatchComment.body.match(/Session:\s*\[?`([^`]+)`\]?/);
       dispatchEvent = {
         sessionId: sessionMatch?.[1] ?? 'unknown',
         timestamp: dispatchComment.created_at,
