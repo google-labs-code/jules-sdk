@@ -35,6 +35,7 @@ function createMockOctokit() {
 function createMockDispatcher(): SessionDispatcher {
   return {
     dispatch: vi.fn().mockResolvedValue({ id: 'session-abc' }),
+    sendMessage: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -114,6 +115,7 @@ describe('AnalyzeHandler', () => {
   it('handles dispatcher failure gracefully', async () => {
     const failingDispatcher: SessionDispatcher = {
       dispatch: vi.fn().mockRejectedValue(new Error('Jules API down')),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
     };
 
     const { mkdtempSync, writeFileSync } = await import('fs');

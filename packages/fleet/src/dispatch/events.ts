@@ -33,10 +33,16 @@ export async function recordDispatch(
   sessionId: string,
 ): Promise<DispatchRecord> {
   const timestamp = new Date().toISOString();
+  const readableTime = new Date().toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+    timeZone: 'UTC', timeZoneName: 'short',
+  });
+  const sessionLink = `https://jules.google.com/session/${sessionId}`;
   const body = [
     `🤖 **Fleet Dispatch Event**`,
-    `Session: \`${sessionId}\``,
-    `Timestamp: ${timestamp}`,
+    `Session: [\`${sessionId}\`](${sessionLink})`,
+    `Timestamp: ${readableTime}`,
   ].join('\n');
 
   const { data: comment } = await octokit.rest.issues.createComment({

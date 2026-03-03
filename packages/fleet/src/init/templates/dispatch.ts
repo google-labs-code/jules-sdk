@@ -31,17 +31,39 @@ on:
   workflow_dispatch:
     inputs:
       milestone:
-        description: 'Milestone ID to dispatch'
+        description: 'Milestone ID to dispatch (leave empty to dispatch all)'
         type: string
-        required: true
+        required: false
 
 concurrency:
   group: fleet-dispatch
   cancel-in-progress: false
 
 jobs:
-  dispatch:
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      milestones: \${{ steps.list.outputs.milestones }}
+    steps:
+      - name: Resolve milestones
+        id: list
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          INPUT_MILESTONE: \${{ inputs.milestone }}
+        run: |
+          if [ -n "$INPUT_MILESTONE" ]; then
+            echo "milestones=[\\"$INPUT_MILESTONE\\"]" >> "$GITHUB_OUTPUT"
+          else
+            milestones=$(gh api repos/\${{ github.repository }}/milestones --jq '[.[].number | tostring]')
+            echo "milestones=$milestones" >> "$GITHUB_OUTPUT"
+          fi
+
+  dispatch:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        milestone: \${{ fromJSON(needs.discover.outputs.milestones) }}
     permissions:
       contents: read
       issues: write
@@ -50,7 +72,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npx @google/jules-fleet dispatch --milestone \${{ inputs.milestone }}
+      - run: npx -y --package=@google/jules-fleet jules-fleet dispatch --milestone \${{ matrix.milestone }}
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: \${{ secrets.JULES_API_KEY }}

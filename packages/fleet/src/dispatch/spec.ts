@@ -17,8 +17,8 @@ import { z } from 'zod';
 // ── INPUT ───────────────────────────────────────────────────────────
 
 export const DispatchInputSchema = z.object({
-  /** Milestone ID to scope dispatch */
-  milestone: z.string().min(1),
+  /** Milestone ID to scope dispatch (omit to dispatch all milestones) */
+  milestone: z.string().min(1).optional(),
   /** Repository owner */
   owner: z.string().min(1),
   /** Repository name */
