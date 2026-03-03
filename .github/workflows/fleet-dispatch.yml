@@ -5,13 +5,13 @@ name: Fleet Dispatch
 
 on:
   schedule:
-    - cron: '0 6 * * *' # Daily at 6am UTC — edit to your preference
+    - cron: '0 3-23/6 * * *'
   workflow_dispatch:
     inputs:
       milestone:
-        description: 'Milestone ID to dispatch'
+        description: 'Milestone ID to dispatch (leave empty to dispatch all)'
         type: string
-        required: true
+        required: false
 
 concurrency:
   group: fleet-dispatch
@@ -28,7 +28,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npx @google/jules-fleet dispatch --milestone ${{ inputs.milestone }}
+      - run: |
+          npm install --prefix /tmp/fleet @google/jules-fleet
+          /tmp/fleet/node_modules/.bin/jules-fleet dispatch --milestone ${{ inputs.milestone }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_APP_ID: ${{ secrets.FLEET_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.FLEET_APP_INSTALLATION_ID }}

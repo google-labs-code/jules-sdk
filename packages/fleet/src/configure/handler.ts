@@ -58,6 +58,18 @@ export class ConfigureHandler implements ConfigureSpec {
         return result;
       }
 
+      if (input.resource === 'milestones') {
+        if (!input.milestone) {
+          return fail('UNKNOWN_ERROR', 'Milestone title is required', false);
+        }
+        const result = input.action === 'create'
+          ? await this.createMilestones(input.owner, input.repo, input.milestone)
+          : fail('UNKNOWN_ERROR', 'Deleting milestones is not supported', false);
+
+        this.emit({ type: 'configure:done' });
+        return result;
+      }
+
       return fail(
         'UNKNOWN_ERROR',
         `Unknown resource: ${input.resource}`,
@@ -147,5 +159,37 @@ export class ConfigureHandler implements ConfigureSpec {
     }
 
     return ok({ created: [], deleted, skipped });
+  }
+
+  private async createMilestones(
+    owner: string,
+    repo: string,
+    title: string,
+  ): Promise<ConfigureResult> {
+    try {
+      await this.octokit.rest.issues.createMilestone({
+        owner,
+        repo,
+        title,
+      });
+      this.emit({ type: 'configure:milestone:created', name: title });
+      return ok({ created: [title], deleted: [], skipped: [] });
+    } catch (error: unknown) {
+      const status =
+        error && typeof error === 'object' && 'status' in error
+          ? (error as { status: number }).status
+          : 0;
+      if (status === 422) {
+        // Already exists
+        this.emit({ type: 'configure:milestone:exists', name: title });
+        return ok({ created: [], deleted: [], skipped: [title] });
+      } else {
+        return fail(
+          'GITHUB_API_ERROR',
+          `Failed to create milestone "${title}": ${error instanceof Error ? error.message : error}`,
+          true,
+        );
+      }
+    }
   }
 }

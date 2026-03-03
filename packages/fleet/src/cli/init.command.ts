@@ -86,6 +86,11 @@ export default defineCommand({
       description: 'Pipeline cadence in minutes (default: 360 = every 6 hours)',
       default: '360',
     },
+    overwrite: {
+      type: 'boolean',
+      description: 'Overwrite existing workflow files (default: false)',
+      default: false,
+    },
   },
   async run({ args }) {
     const nonInteractive = args['non-interactive'] || !isInteractive();

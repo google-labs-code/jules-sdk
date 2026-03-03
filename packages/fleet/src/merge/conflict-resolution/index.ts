@@ -12,13 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/** Configure domain events */
-export type ConfigureEvent =
-  | { type: 'configure:start'; resource: string; owner: string; repo: string }
-  | { type: 'configure:label:created'; name: string }
-  | { type: 'configure:label:exists'; name: string }
-  | { type: 'configure:milestone:created'; name: string }
-  | { type: 'configure:milestone:exists'; name: string }
-  | { type: 'configure:secret:uploading'; name: string }
-  | { type: 'configure:secret:uploaded'; name: string }
-  | { type: 'configure:done' };
+export { ConflictResolutionHandler } from './handler.js';
+export type {
+  ConflictResolutionInput,
+  ConflictResolutionResult,
+  ConflictResolutionSuccess,
+  ConflictResolutionFailure,
+  ConflictResolutionErrorCode,
+  ConflictResolutionSpec,
+} from './spec.js';
+export {
+  ConflictResolutionInputSchema,
+  ConflictResolutionErrorCode as ConflictResolutionErrorCodeEnum,
+  CONFLICT_NOTIFICATION_TAG,
+  CONFLICT_NOTIFICATION_HEADER,
+} from './spec.js';
+export { buildConflictPrompt } from './build-prompt.js';
