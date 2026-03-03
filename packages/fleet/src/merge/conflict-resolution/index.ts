@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/**
- * Abstraction over Jules SDK session creation.
- * Handlers accept this interface via constructor instead of importing
- * @google/jules-sdk directly, enabling testing and decoupling.
- */
-export interface SessionDispatcher {
-  dispatch(options: {
-    prompt: string;
-    source?: { github: string; baseBranch: string };
-    requireApproval?: boolean;
-    autoPr?: boolean;
-  }): Promise<{ id: string }>;
-
-  /** Send a message to a session (fire-and-forget). Wakes completed sessions. */
-  sendMessage?(sessionId: string, prompt: string): Promise<void>;
-}
+export { ConflictResolutionHandler } from './handler.js';
+export type {
+  ConflictResolutionInput,
+  ConflictResolutionResult,
+  ConflictResolutionSuccess,
+  ConflictResolutionFailure,
+  ConflictResolutionErrorCode,
+  ConflictResolutionSpec,
+} from './spec.js';
+export {
+  ConflictResolutionInputSchema,
+  ConflictResolutionErrorCode as ConflictResolutionErrorCodeEnum,
+  CONFLICT_NOTIFICATION_TAG,
+  CONFLICT_NOTIFICATION_HEADER,
+} from './spec.js';
+export { buildConflictPrompt } from './build-prompt.js';

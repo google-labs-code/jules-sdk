@@ -55,6 +55,7 @@ function createMockOctokit(overrides: {
 function createMockDispatcher(): SessionDispatcher & { dispatch: ReturnType<typeof vi.fn> } {
   return {
     dispatch: vi.fn().mockResolvedValue({ id: 'session-xyz' }),
+    sendMessage: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -68,6 +69,7 @@ describe('DispatchHandler', () => {
 
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',
@@ -99,6 +101,7 @@ describe('DispatchHandler', () => {
 
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',
@@ -142,6 +145,7 @@ describe('DispatchHandler', () => {
 
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',
@@ -181,11 +185,13 @@ describe('DispatchHandler', () => {
       dispatch: vi.fn()
         .mockRejectedValueOnce(new Error('API error'))
         .mockResolvedValueOnce({ id: 'session-ok' }),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
     };
 
     const handler = new DispatchHandler({ octokit, dispatcher });
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',

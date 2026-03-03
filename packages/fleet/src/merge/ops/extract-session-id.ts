@@ -13,18 +13,17 @@
 // limitations under the License.
 
 /**
- * Abstraction over Jules SDK session creation.
- * Handlers accept this interface via constructor instead of importing
- * @google/jules-sdk directly, enabling testing and decoupling.
+ * Extracts the Jules session ID from a branch name.
+ *
+ * Jules-created branches follow the pattern: `<description>-<sessionId>`
+ * where the session ID is a long trailing numeric segment (10+ digits).
+ *
+ * Examples:
+ *   fix-65-66-resolve-conflicts-15481661885092594092 → "15481661885092594092"
+ *   fix-3-api-2184426524618245113 → "2184426524618245113"
+ *   feat/my-feature → null
  */
-export interface SessionDispatcher {
-  dispatch(options: {
-    prompt: string;
-    source?: { github: string; baseBranch: string };
-    requireApproval?: boolean;
-    autoPr?: boolean;
-  }): Promise<{ id: string }>;
-
-  /** Send a message to a session (fire-and-forget). Wakes completed sessions. */
-  sendMessage?(sessionId: string, prompt: string): Promise<void>;
+export function extractSessionId(branchName: string): string | null {
+  const match = branchName.match(/-(\d{10,})$/);
+  return match ? match[1] : null;
 }
