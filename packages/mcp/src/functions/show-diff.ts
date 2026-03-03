@@ -81,11 +81,7 @@ export async function showDiff(
     }
   } else {
     // Get the changeSet from the snapshot (session outcome)
-    // FIX: Defensive check for changeSet being a function
-    changeSet =
-      typeof snapshot.changeSet === 'function'
-        ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
-        : undefined;
+    changeSet = snapshot.changeSet();
   }
 
   if (!changeSet) {

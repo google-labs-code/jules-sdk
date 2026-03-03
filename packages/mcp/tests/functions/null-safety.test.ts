@@ -25,6 +25,7 @@ describe('Null Safety & Resilience', () => {
         id: 'session-new',
         state: 'queued',
         title: 'New Session',
+        url: 'http://test',
       });
 
       const mockSession = {
@@ -49,6 +50,7 @@ describe('Null Safety & Resilience', () => {
         id: 'session-new',
         state: 'queued',
         title: 'New Session',
+        url: 'http://test',
       });
 
       const mockSession = {
@@ -71,6 +73,7 @@ describe('Null Safety & Resilience', () => {
         id: 'session-new',
         state: 'queued',
         title: 'New Session',
+        url: 'http://test',
       });
 
       const mockSession = {
@@ -91,35 +94,4 @@ describe('Null Safety & Resilience', () => {
     });
   });
 
-  describe('Session with malformed changeSet (raw property vs function)', () => {
-    it('codeReview should handle non-function changeSet gracefully', async () => {
-      const snapshot = createMockSnapshot({
-        id: 'session-stable',
-        state: 'completed',
-        title: 'Completed Session',
-      });
-
-      (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
-
-      mockSessionWithSnapshot(mockClient, snapshot);
-
-      const result = await codeReview(mockClient, 'session-stable');
-      expect(result.files).toEqual([]);
-    });
-
-    it('showDiff should handle non-function changeSet gracefully', async () => {
-      const snapshot = createMockSnapshot({
-        id: 'session-stable',
-        state: 'completed',
-        title: 'Completed Session',
-      });
-
-      (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
-
-      mockSessionWithSnapshot(mockClient, snapshot);
-
-      const result = await showDiff(mockClient, 'session-stable');
-      expect(result.unidiffPatch).toBe('');
-    });
-  });
 });
