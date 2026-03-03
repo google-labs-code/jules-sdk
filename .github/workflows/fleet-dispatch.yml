@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       milestone:
-        description: 'Milestone ID to dispatch'
+        description: 'Milestone ID to dispatch (leave empty to dispatch all)'
         type: string
-        required: true
+        required: false
 
 concurrency:
   group: fleet-dispatch
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npx -y --package=@google/jules-fleet jules-fleet dispatch --milestone ${{ inputs.milestone }}
+      - run: npx -y --prefix /tmp/fleet --package=@google/jules-fleet jules-fleet dispatch --milestone ${{ inputs.milestone }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
