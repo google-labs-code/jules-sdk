@@ -44,9 +44,9 @@ jobs:
         with:
           node-version: '22'
       - run: |
-          REDISPATCH_FLAG=""
-          if [ "${{ inputs.redispatch }}" = "true" ]; then
-            REDISPATCH_FLAG="--redispatch"
+          REDISPATCH_FLAG="--redispatch"
+          if [ "${{ inputs.redispatch }}" = "false" ]; then
+            REDISPATCH_FLAG=""
           fi
           npx @google/jules-fleet merge \\
             --mode ${{ inputs.mode || 'label' }} \\
