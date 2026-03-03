@@ -4,11 +4,11 @@
 name: Fleet Merge
 
 on:
-  # schedule:
-    # - cron: '*/30 * * * *'
-  # workflow_run:
-    # workflows: ['Conflict Detection']
-    # types: [completed]
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_run:
+    workflows: ['Conflict Detection']
+    types: [completed]
   workflow_dispatch:
     inputs:
       mode:
