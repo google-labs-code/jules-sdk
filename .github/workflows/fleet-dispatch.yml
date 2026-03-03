@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npx @google/jules-fleet dispatch --milestone ${{ inputs.milestone }}
+      - run: npx -y --package=@google/jules-fleet jules-fleet dispatch --milestone ${{ inputs.milestone }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}

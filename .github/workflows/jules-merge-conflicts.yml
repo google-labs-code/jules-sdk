@@ -30,10 +30,7 @@ jobs:
       - name: Check for conflicts
         if: steps.merge.outcome == 'failure'
         run: |
-          npx @google/jules-merge check-conflicts \
-            --repo ${{ github.repository }} \
-            --pr ${{ github.event.pull_request.number }} \
-            --sha ${{ github.event.pull_request.head.sha }}
+          npx -y --package=@google/jules-merge jules-merge check-conflicts --repo ${{ github.repository }} --pr ${{ github.event.pull_request.number }} --sha ${{ github.event.pull_request.head.sha }}
 
       - name: No conflicts
         if: steps.merge.outcome == 'success'
