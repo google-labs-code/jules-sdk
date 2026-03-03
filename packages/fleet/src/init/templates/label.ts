@@ -48,9 +48,9 @@ jobs:
           echo "Found linked issue: #$ISSUE_NUMBER"
 
           # Check if the linked issue has the 'fleet' label
-          ISSUE_LABELS=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')
+          HAS_FLEET=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "fleet")')
 
-          if echo "$ISSUE_LABELS" | grep -q '^fleet$'; then
+          if [ "$HAS_FLEET" = "true" ]; then
             echo "Linked issue has 'fleet' label. Applying 'fleet-merge-ready' to PR."
             gh pr edit "$PR_URL" --add-label "fleet-merge-ready"
 
