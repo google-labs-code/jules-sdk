@@ -48,7 +48,7 @@ export class DispatchHandler implements DispatchSpec {
 
   async execute(input: DispatchInput): Promise<DispatchResult> {
     try {
-      this.emit({ type: 'dispatch:start', milestone: input.milestone });
+      this.emit({ type: 'dispatch:start', milestone: input.milestone ?? 'all' });
       this.emit({ type: 'dispatch:scanning' });
 
       // Load verification commands from goal files
