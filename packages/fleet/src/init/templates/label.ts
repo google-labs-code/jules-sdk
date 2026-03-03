@@ -31,11 +31,11 @@ jobs:
   label_pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
       - name: Check linked issue and apply label/milestone
         env:
           GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           PR_URL: \${{ github.event.pull_request.html_url }}
+          REPO: \${{ github.repository }}
         run: |
           # Use GitHub's own closing keyword resolution to find linked issues
           ISSUE_NUMBER=$(gh pr view "$PR_URL" --json closingIssuesReferences --jq '.closingIssuesReferences[0].number // empty')
@@ -48,14 +48,14 @@ jobs:
           echo "Found linked issue: #$ISSUE_NUMBER"
 
           # Check if the linked issue has the 'fleet' label
-          ISSUE_LABELS=$(gh issue view "$ISSUE_NUMBER" --json labels --jq '.labels[].name')
+          ISSUE_LABELS=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')
 
           if echo "$ISSUE_LABELS" | grep -q '^fleet$'; then
             echo "Linked issue has 'fleet' label. Applying 'fleet-merge-ready' to PR."
             gh pr edit "$PR_URL" --add-label "fleet-merge-ready"
 
             # Check if linked issue has a milestone and copy it
-            MILESTONE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json milestone --jq '.milestone.title // empty')
+            MILESTONE_TITLE=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json milestone --jq '.milestone.title // empty')
             if [ -n "$MILESTONE_TITLE" ]; then
               echo "Applying milestone '$MILESTONE_TITLE' to PR."
               gh pr edit "$PR_URL" --milestone "$MILESTONE_TITLE"
