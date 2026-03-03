@@ -22,6 +22,7 @@ import { getDispatchStatus } from './status.js';
 import { recordDispatch } from './events.js';
 import { parseGoalFile } from '../analyze/goals.js';
 import { globSync } from 'glob';
+import { existsSync, readFileSync } from 'node:fs';
 
 export interface DispatchHandlerDeps {
   octokit: Octokit;
@@ -102,7 +103,7 @@ export class DispatchHandler implements DispatchSpec {
           title: issue.title,
         });
 
-        const workerPrompt = buildWorkerPrompt(issue, verificationCommands);
+        const workerPrompt = buildWorkerPrompt(issue, verificationCommands, input.milestone);
 
         try {
           const session = await this.dispatcher.dispatch({
@@ -200,14 +201,47 @@ function loadVerificationCommands(goalsDir: string): string[] {
 function buildWorkerPrompt(
   issue: { number: number; title: string; body: string },
   verificationCommands: string[],
+  milestone?: string,
 ): string {
   const lines = [
     `Fix Issue #${issue.number}: ${issue.title}`,
     '',
     `IMPORTANT: Your PR title MUST start with "Fixes #${issue.number}" and your PR description MUST include "Fixes #${issue.number}" on its own line so the issue is auto-closed on merge.`,
-    '',
-    'You are an autonomous execution agent. Implement the fix described below exactly as specified.',
+    `After creating your PR, apply the label "fleet-merge-ready" to it so the automated merge pipeline can find it.`,
   ];
+
+  if (milestone) {
+    lines.push(`Also set the PR's milestone to "${milestone}" to keep it grouped with the originating issue.`);
+  }
+
+  lines.push('');
+  lines.push('You are an autonomous execution agent. Implement the fix described below exactly as specified.');
+
+  lines.push('');
+  lines.push('**If you encounter a bug in the SDK or existing code that blocks your task:**');
+  lines.push('Report it by running `npx @google/jules-fleet signal create` with the details, then continue your work using a workaround. Keep your PR focused on the task at hand — a separate agent will pick up the bug fix to avoid mixed-concern PRs and merge conflicts.');
+
+  // Parse Goal Reference
+  const goalRefMatch = issue.body.match(/### Goal Reference\nThis issue was generated from `([^`]+)`/);
+  if (goalRefMatch && goalRefMatch[1]) {
+    const goalFile = goalRefMatch[1];
+    try {
+      if (existsSync(goalFile)) {
+        const goalContent = readFileSync(goalFile, 'utf-8');
+        lines.push('');
+        lines.push('## Original Goal Context');
+        lines.push(`The following is the full context from \`${goalFile}\` which generated this issue. Use it for structural guidance and constraints:`);
+        lines.push('');
+        lines.push('```markdown');
+        lines.push(goalContent);
+        lines.push('```');
+      }
+    } catch (e) {
+      // Ignore read errors
+    }
+  }
+
+  lines.push('');
 
   if (verificationCommands.length > 0) {
     lines.push('');

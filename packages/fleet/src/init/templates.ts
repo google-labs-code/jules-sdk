@@ -22,12 +22,14 @@ export { buildAnalyzeTemplate, FLEET_ANALYZE_TEMPLATE } from './templates/analyz
 export { buildDispatchTemplate, FLEET_DISPATCH_TEMPLATE } from './templates/dispatch.js';
 export { buildMergeTemplate, FLEET_MERGE_TEMPLATE } from './templates/merge.js';
 export { CONFLICT_DETECTION_TEMPLATE } from './templates/conflict-detection.js';
+export { FLEET_LABEL_TEMPLATE } from './templates/label.js';
 export { buildCron, mergeInterval, dispatchOffset } from './templates/cron.js';
 
 import { buildAnalyzeTemplate } from './templates/analyze.js';
 import { buildDispatchTemplate } from './templates/dispatch.js';
 import { buildMergeTemplate } from './templates/merge.js';
 import { CONFLICT_DETECTION_TEMPLATE } from './templates/conflict-detection.js';
+import { FLEET_LABEL_TEMPLATE } from './templates/label.js';
 import type { WorkflowTemplate } from './templates/types.js';
 
 /**
@@ -40,6 +42,7 @@ export function buildWorkflowTemplates(intervalMinutes = 360): readonly Workflow
     buildDispatchTemplate(intervalMinutes),
     buildMergeTemplate(intervalMinutes),
     CONFLICT_DETECTION_TEMPLATE,
+    FLEET_LABEL_TEMPLATE,
   ];
 }
 

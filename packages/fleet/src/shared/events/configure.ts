@@ -17,6 +17,8 @@ export type ConfigureEvent =
   | { type: 'configure:start'; resource: string; owner: string; repo: string }
   | { type: 'configure:label:created'; name: string }
   | { type: 'configure:label:exists'; name: string }
+  | { type: 'configure:milestone:created'; name: string }
+  | { type: 'configure:milestone:exists'; name: string }
   | { type: 'configure:secret:uploading'; name: string }
   | { type: 'configure:secret:uploaded'; name: string }
   | { type: 'configure:done' };
