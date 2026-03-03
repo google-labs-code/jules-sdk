@@ -270,7 +270,7 @@ async function commentOnPRs(
   sessionId: string,
 ): Promise<void> {
   const prList = prs.map((p) => `#${p.number}`).join(', ');
-  const sessionLink = `https://jules.google.com/sessions/${sessionId}`;
+  const sessionLink = `https://jules.google.com/session/${sessionId}`;
   const body = [
     '🔄 **Batch conflict resolution in progress**',
     '',
