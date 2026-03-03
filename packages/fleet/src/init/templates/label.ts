@@ -31,6 +31,7 @@ jobs:
   label_pr:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Check linked issue and apply label/milestone
         env:
           GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
