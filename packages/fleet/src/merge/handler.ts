@@ -377,7 +377,6 @@ export class MergeHandler implements MergeSpec {
     );
 
     if (!updateResult.ok && updateResult.conflict) {
-      this.emit({ type: 'merge:conflict:detected', prNumber: pr.number });
       return { merged: false };
     }
 
