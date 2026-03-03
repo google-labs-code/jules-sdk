@@ -85,7 +85,7 @@ export async function showDiff(
     changeSet =
       typeof snapshot.changeSet === 'function'
         ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
-        : undefined;
+        : (snapshot.changeSet as ChangeSetArtifact | undefined);
   }
 
   if (!changeSet) {

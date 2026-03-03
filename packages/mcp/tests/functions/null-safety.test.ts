@@ -22,7 +22,7 @@ describe('Null Safety & Resilience', () => {
   describe('Session with undefined activities (new/empty sessions)', () => {
     it('getSessionState should handle undefined activities gracefully', async () => {
       const snapshot = createMockSnapshot({
-        id: 'session-new',
+        id: 'session-new', url: '',
         state: 'queued',
         title: 'New Session',
       });
@@ -46,7 +46,7 @@ describe('Null Safety & Resilience', () => {
 
     it('codeReview should return empty files list when activities are undefined', async () => {
       const snapshot = createMockSnapshot({
-        id: 'session-new',
+        id: 'session-new', url: '',
         state: 'queued',
         title: 'New Session',
       });
@@ -68,7 +68,7 @@ describe('Null Safety & Resilience', () => {
 
     it('showDiff should return empty patch when activities are undefined and activityId is provided', async () => {
       const snapshot = createMockSnapshot({
-        id: 'session-new',
+        id: 'session-new', url: '',
         state: 'queued',
         title: 'New Session',
       });
@@ -94,12 +94,12 @@ describe('Null Safety & Resilience', () => {
   describe('Session with malformed changeSet (raw property vs function)', () => {
     it('codeReview should handle non-function changeSet gracefully', async () => {
       const snapshot = createMockSnapshot({
-        id: 'session-stable',
+        id: 'session-stable', url: '',
         state: 'completed',
         title: 'Completed Session',
       });
 
-      (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
+      (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' }, parsed: () => ({ files: [], summary: { totalFiles: 0, created: 0, modified: 0, deleted: 0 } }) };
 
       mockSessionWithSnapshot(mockClient, snapshot);
 
@@ -109,12 +109,12 @@ describe('Null Safety & Resilience', () => {
 
     it('showDiff should handle non-function changeSet gracefully', async () => {
       const snapshot = createMockSnapshot({
-        id: 'session-stable',
+        id: 'session-stable', url: '',
         state: 'completed',
         title: 'Completed Session',
       });
 
-      (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
+      (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' }, parsed: () => ({ files: [], summary: { totalFiles: 0, created: 0, modified: 0, deleted: 0 } }) };
 
       mockSessionWithSnapshot(mockClient, snapshot);
 

@@ -377,7 +377,7 @@ export async function codeReview(
     const changeSet =
       typeof snapshot.changeSet === 'function'
         ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
-        : undefined;
+        : (snapshot.changeSet as ChangeSetArtifact | undefined);
 
     // Try to get activity IDs by also aggregating from activities
     const activityFiles = aggregateFromActivities(activities);
