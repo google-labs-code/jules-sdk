@@ -78,7 +78,7 @@ describe('DefaultActivityClient.history()', () => {
     const storage = createMockStorage(cachedActivities);
     // Network returns empty since all activities are already cached
     const network = createMockNetwork([]);
-    const client = new DefaultActivityClient(storage, network);
+    const client = new DefaultActivityClient(storage, network, {} as any);
 
     const result: Activity[] = [];
     for await (const act of client.history()) {
@@ -102,7 +102,7 @@ describe('DefaultActivityClient.history()', () => {
 
     const storage = createMockStorage([]); // Empty cache
     const network = createMockNetwork([networkActivities]);
-    const client = new DefaultActivityClient(storage, network);
+    const client = new DefaultActivityClient(storage, network, {} as any);
 
     const result: Activity[] = [];
     for await (const act of client.history()) {
@@ -121,7 +121,7 @@ describe('DefaultActivityClient.history()', () => {
 
     const storage = createMockStorage([]);
     const network = createMockNetwork([page1, page2, page3]);
-    const client = new DefaultActivityClient(storage, network);
+    const client = new DefaultActivityClient(storage, network, {} as any);
 
     const result: Activity[] = [];
     for await (const act of client.history()) {
@@ -140,7 +140,7 @@ describe('DefaultActivityClient.history()', () => {
 
     const storage = createMockStorage([]);
     const network = createMockNetwork([activities]);
-    const client = new DefaultActivityClient(storage, network);
+    const client = new DefaultActivityClient(storage, network, {} as any);
 
     const yielded: string[] = [];
     for await (const act of client.history()) {
@@ -163,7 +163,7 @@ describe('DefaultActivityClient.hydrate()', () => {
 
     const storage = createMockStorage([]);
     const network = createMockNetwork([activities]);
-    const client = new DefaultActivityClient(storage, network);
+    const client = new DefaultActivityClient(storage, network, {} as any);
 
     const count = await client.hydrate();
 
@@ -183,7 +183,7 @@ describe('DefaultActivityClient.hydrate()', () => {
 
     const storage = createMockStorage([existing]);
     const network = createMockNetwork([[existing, newActivity]]);
-    const client = new DefaultActivityClient(storage, network);
+    const client = new DefaultActivityClient(storage, network, {} as any);
 
     const count = await client.hydrate();
 

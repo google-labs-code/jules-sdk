@@ -99,7 +99,11 @@ export class SessionClientImpl implements SessionClient {
       platform,
     );
 
-    this._activities = new DefaultActivityClient(activityStorage, network);
+    this._activities = new DefaultActivityClient(
+      activityStorage,
+      network,
+      platform,
+    );
   }
 
   // Private helper wrapper to enforce resume context

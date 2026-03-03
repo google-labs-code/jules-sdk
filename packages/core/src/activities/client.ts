@@ -23,6 +23,7 @@ import { Activity, Artifact } from '../types.js';
 import { ActivityStorage } from '../storage/types.js';
 import { ActivityClient, ListOptions, SelectOptions } from './types.js';
 import { isSessionFrozen } from '../utils/page-token.js';
+import { Platform } from '../platform/types.js';
 
 /**
  * Creates a filter string for the Jules API to fetch activities
@@ -57,6 +58,7 @@ export class DefaultActivityClient implements ActivityClient {
   constructor(
     private storage: ActivityStorage,
     private network: NetworkClient,
+    private platform: Platform,
   ) {}
 
   /**
@@ -98,12 +100,8 @@ export class DefaultActivityClient implements ActivityClient {
           const rawBashOutput = (artifact as any).bashOutput || artifact;
           return new BashArtifact(rawBashOutput);
         case 'media':
-          // TODO: MediaArtifact requires the platform object for some methods.
-          // However, for local cache re-hydration, we don't have access to it here.
-          // For now, we accept this limitation as the primary bug is with ChangeSetArtifact.
-          // A future refactor could pass the platform object down.
           const rawMedia = (artifact as any).media || artifact;
-          return new MediaArtifact(rawMedia, {} as any, activity.id);
+          return new MediaArtifact(rawMedia, this.platform, activity.id);
         default:
           // If we don't recognize the type, return it as-is.
           return artifact as Artifact;
