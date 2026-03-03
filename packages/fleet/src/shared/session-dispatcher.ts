@@ -24,4 +24,7 @@ export interface SessionDispatcher {
     requireApproval?: boolean;
     autoPr?: boolean;
   }): Promise<{ id: string }>;
+
+  /** Send a message to a session (fire-and-forget). Wakes completed sessions. */
+  sendMessage?(sessionId: string, prompt: string): Promise<void>;
 }

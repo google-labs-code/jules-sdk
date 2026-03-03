@@ -19,7 +19,7 @@ import { z } from 'zod';
 export const ConfigureAction = z.enum(['create', 'delete']);
 export type ConfigureAction = z.infer<typeof ConfigureAction>;
 
-export const ConfigureResource = z.enum(['labels']);
+export const ConfigureResource = z.enum(['labels', 'milestones']);
 export type ConfigureResource = z.infer<typeof ConfigureResource>;
 
 export const ConfigureInputSchema = z.object({
@@ -31,6 +31,8 @@ export const ConfigureInputSchema = z.object({
   owner: z.string().min(1),
   /** Repository name */
   repo: z.string().min(1),
+  /** Milestone title */
+  milestone: z.string().optional(),
 });
 
 export type ConfigureInput = z.infer<typeof ConfigureInputSchema>;

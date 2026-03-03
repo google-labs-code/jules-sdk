@@ -67,7 +67,9 @@ describe('InitHandler', () => {
     const handler = new InitHandler({ octokit, emit: (e) => events.push(e) });
 
     const result = await handler.execute(baseInput);
-
+    if (!result.success) {
+      console.log(result.error);
+    }
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.prUrl).toBe('https://github.com/o/r/pull/1');
@@ -143,6 +145,7 @@ describe('InitHandler', () => {
       .mockRejectedValueOnce(Object.assign(new Error('exists'), { status: 422 })) // dispatch.yml — exists
       .mockResolvedValueOnce({ data: {} }) // merge.yml — new
       .mockResolvedValueOnce({ data: {} }) // conflict-detection.yml — new
+      .mockResolvedValueOnce({ data: {} }) // fleet-label.yml — new
       .mockResolvedValueOnce({ data: {} }); // example.md — new
 
     const octokit = {
@@ -168,7 +171,7 @@ describe('InitHandler', () => {
     // Should succeed — some files were created
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.filesCreated.length).toBe(4); // analyze + merge + conflict-detection + example
+      expect(result.data.filesCreated.length).toBe(5); // analyze + merge + conflict-detection + label + example
     }
 
     // Should have both committed and skipped events
