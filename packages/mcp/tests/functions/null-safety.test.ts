@@ -19,18 +19,19 @@ describe('Null Safety & Resilience', () => {
     vi.restoreAllMocks();
   });
 
-  describe('Session with undefined activities (new/empty sessions)', () => {
-    it('getSessionState should handle undefined activities gracefully', async () => {
+  describe('Session with empty activities (new/empty sessions)', () => {
+    it('getSessionState should handle empty activities gracefully', async () => {
       const snapshot = createMockSnapshot({
         id: 'session-new',
         state: 'queued',
         title: 'New Session',
+        url: 'https://jules.app/sessions/session-new',
       });
 
       const mockSession = {
         snapshot: vi.fn().mockResolvedValue({
           ...snapshot,
-          activities: undefined,
+          activities: [],
         }),
         activities: {
           hydrate: vi.fn().mockResolvedValue(0),
@@ -44,17 +45,18 @@ describe('Null Safety & Resilience', () => {
       expect(result.lastActivity).toBeUndefined();
     });
 
-    it('codeReview should return empty files list when activities are undefined', async () => {
+    it('codeReview should return empty files list when activities are empty', async () => {
       const snapshot = createMockSnapshot({
         id: 'session-new',
         state: 'queued',
         title: 'New Session',
+        url: 'https://jules.app/sessions/session-new',
       });
 
       const mockSession = {
         snapshot: vi.fn().mockResolvedValue({
           ...snapshot,
-          activities: undefined,
+          activities: [],
         }),
         activities: {
           hydrate: vi.fn().mockResolvedValue(0),
@@ -66,17 +68,18 @@ describe('Null Safety & Resilience', () => {
       expect(result.files).toEqual([]);
     });
 
-    it('showDiff should return empty patch when activities are undefined and activityId is provided', async () => {
+    it('showDiff should return empty patch when activities are empty and activityId is provided', async () => {
       const snapshot = createMockSnapshot({
         id: 'session-new',
         state: 'queued',
         title: 'New Session',
+        url: 'https://jules.app/sessions/session-new',
       });
 
       const mockSession = {
         snapshot: vi.fn().mockResolvedValue({
           ...snapshot,
-          activities: undefined,
+          activities: [],
         }),
         activities: {
           hydrate: vi.fn().mockResolvedValue(0),
@@ -97,6 +100,7 @@ describe('Null Safety & Resilience', () => {
         id: 'session-stable',
         state: 'completed',
         title: 'Completed Session',
+        url: 'https://jules.app/sessions/session-stable',
       });
 
       (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
@@ -112,6 +116,7 @@ describe('Null Safety & Resilience', () => {
         id: 'session-stable',
         state: 'completed',
         title: 'Completed Session',
+        url: 'https://jules.app/sessions/session-stable',
       });
 
       (snapshot as any).changeSet = { gitPatch: { unidiffPatch: '' } };
