@@ -22,6 +22,7 @@ import { getDispatchStatus } from './status.js';
 import { recordDispatch } from './events.js';
 import { parseGoalFile } from '../analyze/goals.js';
 import { globSync } from 'glob';
+import { existsSync, readFileSync } from 'node:fs';
 
 export interface DispatchHandlerDeps {
   octokit: Octokit;
@@ -225,9 +226,8 @@ function buildWorkerPrompt(
   if (goalRefMatch && goalRefMatch[1]) {
     const goalFile = goalRefMatch[1];
     try {
-      const fs = require('fs');
-      if (fs.existsSync(goalFile)) {
-        const goalContent = fs.readFileSync(goalFile, 'utf-8');
+      if (existsSync(goalFile)) {
+        const goalContent = readFileSync(goalFile, 'utf-8');
         lines.push('');
         lines.push('## Original Goal Context');
         lines.push(`The following is the full context from \`${goalFile}\` which generated this issue. Use it for structural guidance and constraints:`);

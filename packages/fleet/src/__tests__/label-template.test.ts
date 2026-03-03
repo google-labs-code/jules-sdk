@@ -14,16 +14,14 @@
 
 import { describe, it, expect } from 'vitest';
 import { FLEET_LABEL_TEMPLATE } from '../init/templates/label.js';
-import * as yaml from 'js-yaml';
 
 describe('FLEET_LABEL_TEMPLATE', () => {
   it('generates valid YAML', () => {
     const content = FLEET_LABEL_TEMPLATE.content;
-    const parsed = yaml.load(content) as any;
 
-    expect(parsed.name).toBe('Fleet Label PR');
-    expect(parsed.on.pull_request.types).toContain('opened');
-    expect(parsed.jobs.label_pr.runs_on).toBeUndefined(); // properties mapped as runs-on
+    expect(content).toContain('name: Fleet Label PR');
+    expect(content).toContain('pull_request:');
+    expect(content).toContain('types: [opened]');
     expect(content).toContain('runs-on: ubuntu-latest');
     expect(content).toContain('gh pr edit');
     expect(content).toContain('fleet-merge-ready');

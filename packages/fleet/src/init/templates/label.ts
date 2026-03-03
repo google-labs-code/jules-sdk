@@ -38,7 +38,7 @@ jobs:
           PR_BODY: \${{ github.event.pull_request.body }}
         run: |
           # Extract issue number from "Fixes #XX" in the PR body
-          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -m 1 -oP 'Fixes #\K\d+')
+          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -m 1 -oP 'Fixes #\K\d+' || true)
 
           if [ -z "$ISSUE_NUMBER" ]; then
             echo "No 'Fixes #XX' found in PR body. Exiting."

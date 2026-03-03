@@ -65,18 +65,19 @@ export default defineCommand({
 
     let milestone = args.title;
     if (args.resource === 'milestones' && !milestone) {
-        // Fallback to reading from the first .fleet/goals/*.md frontmatter?
-        // Let's just require it for now to avoid complexity or import globSync.
-        // The issue specifies "read it from goal file frontmatter if missing",
-        // Let's implement reading from `.fleet/goals/*.md` using glob
-        const { globSync } = await import('glob');
+        // Read it from goal file frontmatter if missing
         const fs = await import('fs');
-        const goals = globSync('.fleet/goals/*.md');
-        if (goals.length > 0) {
-            const content = fs.readFileSync(goals[0], 'utf-8');
-            const match = content.match(/^milestone:\s*(.+)$/m);
-            if (match) {
-                milestone = match[1].trim();
+        const path = await import('path');
+        const goalsDir = '.fleet/goals';
+        if (fs.existsSync(goalsDir)) {
+            const files = fs.readdirSync(goalsDir).filter(f => f.endsWith('.md'));
+            if (files.length > 0) {
+                const firstGoalPath = path.join(goalsDir, files[0]);
+                const content = fs.readFileSync(firstGoalPath, 'utf-8');
+                const match = content.match(/^milestone:\s*(.+)$/m);
+                if (match) {
+                    milestone = match[1].trim();
+                }
             }
         }
     }
