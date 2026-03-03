@@ -48,7 +48,8 @@ jobs:
           if [ "${{ inputs.redispatch }}" = "false" ]; then
             REDISPATCH_FLAG=""
           fi
-          npx -y --prefix /tmp/fleet --package=@google/jules-fleet jules-fleet merge --mode ${{ inputs.mode || 'label' }} --run-id "${{ inputs.fleet_run_id }}" $REDISPATCH_FLAG
+          npm install --prefix /tmp/fleet @google/jules-fleet
+          /tmp/fleet/node_modules/.bin/jules-fleet merge --mode ${{ inputs.mode || 'label' }} --run-id "${{ inputs.fleet_run_id }}" $REDISPATCH_FLAG
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
