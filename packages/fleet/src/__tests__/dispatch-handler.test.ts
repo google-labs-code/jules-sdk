@@ -55,6 +55,7 @@ function createMockOctokit(overrides: {
 function createMockDispatcher(): SessionDispatcher & { dispatch: ReturnType<typeof vi.fn> } {
   return {
     dispatch: vi.fn().mockResolvedValue({ id: 'session-xyz' }),
+    sendMessage: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -68,6 +69,7 @@ describe('DispatchHandler', () => {
 
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',
@@ -99,6 +101,7 @@ describe('DispatchHandler', () => {
 
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',
@@ -109,6 +112,10 @@ describe('DispatchHandler', () => {
       expect(result.data.dispatched).toHaveLength(1);
       expect(result.data.dispatched[0].issueNumber).toBe(10);
       expect(result.data.dispatched[0].sessionId).toBe('session-xyz');
+      const promptArg = (dispatcher.dispatch as ReturnType<typeof vi.fn>).mock.calls[0][0].prompt;
+      expect(promptArg).toContain('fleet-merge-ready');
+      expect(promptArg).toContain('milestone to "1"');
+      expect(promptArg).toContain('npx @google/jules-fleet signal create');
     }
     expect(dispatcher.dispatch).toHaveBeenCalledOnce();
   });
@@ -138,6 +145,7 @@ describe('DispatchHandler', () => {
 
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',
@@ -177,11 +185,13 @@ describe('DispatchHandler', () => {
       dispatch: vi.fn()
         .mockRejectedValueOnce(new Error('API error'))
         .mockResolvedValueOnce({ id: 'session-ok' }),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
     };
 
     const handler = new DispatchHandler({ octokit, dispatcher });
     const result = await handler.execute({
       milestone: '1',
+      goalsDir: '.fleet/goals',
       owner: 'o',
       repo: 'r',
       baseBranch: 'main',
