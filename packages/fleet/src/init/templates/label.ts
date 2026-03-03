@@ -35,13 +35,12 @@ jobs:
         env:
           GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           PR_URL: \${{ github.event.pull_request.html_url }}
-          PR_BODY: \${{ github.event.pull_request.body }}
         run: |
-          # Extract issue number from "Fixes #XX" in the PR body
-          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -m 1 -oP 'Fixes #\K\d+' || true)
+          # Use GitHub's own closing keyword resolution to find linked issues
+          ISSUE_NUMBER=$(gh pr view "$PR_URL" --json closingIssuesReferences --jq '.closingIssuesReferences[0].number // empty')
 
           if [ -z "$ISSUE_NUMBER" ]; then
-            echo "No 'Fixes #XX' found in PR body. Exiting."
+            echo "No closing issue reference found on this PR. Exiting."
             exit 0
           fi
 
@@ -55,10 +54,10 @@ jobs:
             gh pr edit "$PR_URL" --add-label "fleet-merge-ready"
 
             # Check if linked issue has a milestone and copy it
-            MILESTONE_ID=$(gh issue view "$ISSUE_NUMBER" --json milestone --jq '.milestone.title // empty')
-            if [ -n "$MILESTONE_ID" ]; then
-              echo "Applying milestone '$MILESTONE_ID' to PR."
-              gh pr edit "$PR_URL" --milestone "$MILESTONE_ID"
+            MILESTONE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json milestone --jq '.milestone.title // empty')
+            if [ -n "$MILESTONE_TITLE" ]; then
+              echo "Applying milestone '$MILESTONE_TITLE' to PR."
+              gh pr edit "$PR_URL" --milestone "$MILESTONE_TITLE"
             fi
           else
             echo "Linked issue does not have 'fleet' label. Ignoring."

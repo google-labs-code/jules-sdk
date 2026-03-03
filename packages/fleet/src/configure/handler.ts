@@ -172,7 +172,7 @@ export class ConfigureHandler implements ConfigureSpec {
         repo,
         title,
       });
-      // this.emit({ type: 'configure:milestone:created', name: title });
+      this.emit({ type: 'configure:milestone:created', name: title });
       return ok({ created: [title], deleted: [], skipped: [] });
     } catch (error: unknown) {
       const status =
@@ -181,7 +181,7 @@ export class ConfigureHandler implements ConfigureSpec {
           : 0;
       if (status === 422) {
         // Already exists
-        // this.emit({ type: 'configure:milestone:exists', name: title });
+        this.emit({ type: 'configure:milestone:exists', name: title });
         return ok({ created: [], deleted: [], skipped: [title] });
       } else {
         return fail(
