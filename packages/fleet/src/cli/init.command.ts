@@ -126,7 +126,7 @@ export default defineCommand({
 
     // ── Dry run: list files and exit ──
     if (dryRun) {
-      const files = buildWorkflowTemplates(intervalMinutes).map((t) => t.repoPath);
+      const files = buildWorkflowTemplates(intervalMinutes, wizardResult.authMethod).map((t) => t.repoPath);
       files.push('.fleet/goals/example.md');
       emit({ type: 'init:dry-run', files });
       renderer.end(`Dry run complete. ${files.length} files would be created.`);
@@ -142,6 +142,7 @@ export default defineCommand({
       overwrite,
       features,
       intervalMinutes,
+      auth: wizardResult.authMethod,
     });
 
     const octokit = createFleetOctokit();

@@ -21,10 +21,14 @@ describe('FLEET_LABEL_TEMPLATE', () => {
 
     expect(content).toContain('name: Fleet Label PR');
     expect(content).toContain('pull_request:');
-    expect(content).toContain('types: [opened]');
     expect(content).toContain('runs-on: ubuntu-latest');
     expect(content).toContain('gh pr edit');
     expect(content).toContain('fleet-merge-ready');
     expect(content).toContain('gh issue view "$ISSUE_NUMBER"');
+  });
+
+  it('triggers on opened, edited, and synchronize', () => {
+    const content = FLEET_LABEL_TEMPLATE.content;
+    expect(content).toContain('types: [opened, edited, synchronize]');
   });
 });

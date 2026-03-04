@@ -89,7 +89,7 @@ export class InitHandler implements InitSpec {
       };
 
       // 2. Resolve which templates to commit
-      let templates = buildWorkflowTemplates(input.intervalMinutes);
+      let templates = buildWorkflowTemplates(input.intervalMinutes, input.auth);
       if (input.features) {
         const reconciler = new FeatureReconcileHandler(this.octokit);
         const featureResult = await reconciler.execute({
