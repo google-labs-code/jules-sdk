@@ -21,7 +21,7 @@ export const FLEET_LABEL_TEMPLATE: WorkflowTemplate = {
   content: `name: Fleet Label PR
 on:
   pull_request:
-    types: [opened]
+    types: [opened, edited, synchronize]
 
 permissions:
   pull-requests: write

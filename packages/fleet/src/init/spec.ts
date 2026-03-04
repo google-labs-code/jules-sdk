@@ -14,6 +14,11 @@
 
 import { z } from 'zod';
 
+// ── AUTH MODE ───────────────────────────────────────────────────────
+
+export const AuthModeSchema = z.enum(['token', 'app']).default('token');
+export type AuthMode = z.infer<typeof AuthModeSchema>;
+
 // ── INPUT ───────────────────────────────────────────────────────────
 
 export const InitInputSchema = z.object({
@@ -34,6 +39,8 @@ export const InitInputSchema = z.object({
   features: z.record(z.string(), z.boolean()).optional(),
   /** Pipeline cadence in minutes (min 5 per GitHub Actions, default 360 = 6h) */
   intervalMinutes: z.number().min(5).default(360),
+  /** Auth mode: 'token' uses secrets.GITHUB_TOKEN, 'app' generates a GitHub App token */
+  auth: AuthModeSchema,
 });
 
 export type InitInput = z.infer<typeof InitInputSchema>;

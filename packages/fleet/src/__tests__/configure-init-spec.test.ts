@@ -104,4 +104,50 @@ describe('InitInputSchema (Contract Tests)', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // ── Auth mode contract tests ──────────────────────────────
+
+  it('accepts auth=app', () => {
+    const result = InitInputSchema.safeParse({
+      owner: 'google',
+      repoName: 'sdk',
+      auth: 'app',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.auth).toBe('app');
+    }
+  });
+
+  it('accepts auth=token', () => {
+    const result = InitInputSchema.safeParse({
+      owner: 'google',
+      repoName: 'sdk',
+      auth: 'token',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.auth).toBe('token');
+    }
+  });
+
+  it('defaults auth to token when omitted', () => {
+    const result = InitInputSchema.safeParse({
+      owner: 'google',
+      repoName: 'sdk',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.auth).toBe('token');
+    }
+  });
+
+  it('rejects unknown auth modes', () => {
+    const result = InitInputSchema.safeParse({
+      owner: 'google',
+      repoName: 'sdk',
+      auth: 'oauth',
+    });
+    expect(result.success).toBe(false);
+  });
 });
