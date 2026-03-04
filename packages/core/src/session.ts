@@ -99,7 +99,11 @@ export class SessionClientImpl implements SessionClient {
       platform,
     );
 
-    this._activities = new DefaultActivityClient(activityStorage, network);
+    this._activities = new DefaultActivityClient(
+      activityStorage,
+      network,
+      platform,
+    );
   }
 
   // Private helper wrapper to enforce resume context
@@ -409,8 +413,10 @@ export class SessionClientImpl implements SessionClient {
     const includeActivities = options?.activities ?? true;
     const [info, activities] = await Promise.all([
       this.info(),
-      includeActivities ? collectAsync(this.history()) : [],
+      includeActivities ? collectAsync(this.history()) : Promise.resolve([]),
     ]);
-    return new SessionSnapshotImpl({ data: { session: info, activities } });
+    return new SessionSnapshotImpl({
+      data: { session: info, activities: activities ?? [] },
+    });
   }
 }

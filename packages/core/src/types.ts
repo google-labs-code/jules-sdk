@@ -1235,7 +1235,7 @@ export interface SessionSnapshot {
   readonly timeline: readonly TimelineEntry[];
   readonly insights: SessionInsights;
   readonly generatedFiles: GeneratedFiles;
-  readonly changeSet: () => ChangeSet | undefined;
+  readonly changeSet: () => ChangeSetArtifact | undefined;
   toJSON(options?: ToJSONOptions): Partial<SerializedSnapshot>;
   toMarkdown(): string;
 }
