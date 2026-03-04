@@ -94,4 +94,61 @@ describe('buildMergeTemplate', () => {
     // Different intervals should produce different cron expressions
     expect(parsed60.on.schedule[0].cron).not.toBe(parsed360.on.schedule[0].cron);
   });
+
+  it('default auth does NOT include decode/app-token steps', () => {
+    const parsed = yaml.parse(template.content);
+    const steps = parsed.jobs.merge.steps;
+    expect(steps.find((s: { name?: string }) => s.name === 'Decode private key')).toBeUndefined();
+    expect(steps.find((s: { uses?: string }) => s.uses?.includes('create-github-app-token'))).toBeUndefined();
+  });
+
+  it('default auth uses secrets.GITHUB_TOKEN', () => {
+    const parsed = yaml.parse(template.content);
+    const runStep = parsed.jobs.merge.steps.find(
+      (s: { run?: string }) => s.run?.includes('jules-fleet'),
+    );
+    expect(runStep.env.GITHUB_TOKEN).toContain('secrets.GITHUB_TOKEN');
+  });
+});
+
+describe('buildMergeTemplate with auth=app', () => {
+  const template = buildMergeTemplate(60, 'app');
+
+  it('content is valid YAML', () => {
+    expect(() => yaml.parse(template.content)).not.toThrow();
+  });
+
+  it('includes a Decode private key step', () => {
+    const parsed = yaml.parse(template.content);
+    const steps = parsed.jobs.merge.steps;
+    const decodeStep = steps.find((s: { name?: string }) => s.name === 'Decode private key');
+    expect(decodeStep).toBeDefined();
+    expect(decodeStep.run).toContain('base64 -d');
+    expect(decodeStep.run).toContain('GITHUB_OUTPUT');
+  });
+
+  it('includes create-github-app-token step', () => {
+    const parsed = yaml.parse(template.content);
+    const steps = parsed.jobs.merge.steps;
+    const tokenStep = steps.find((s: { uses?: string }) => s.uses?.includes('create-github-app-token'));
+    expect(tokenStep).toBeDefined();
+    expect(tokenStep.with['app-id']).toContain('FLEET_APP_ID');
+    expect(tokenStep.with['private-key']).toContain('decode-key.outputs.pem');
+  });
+
+  it('uses app token as GITHUB_TOKEN', () => {
+    const parsed = yaml.parse(template.content);
+    const runStep = parsed.jobs.merge.steps.find(
+      (s: { run?: string }) => s.run?.includes('jules-fleet'),
+    );
+    expect(runStep.env.GITHUB_TOKEN).toContain('app-token.outputs.token');
+  });
+
+  it('uses FLEET_APP_PRIVATE_KEY_BASE64 secret name', () => {
+    const parsed = yaml.parse(template.content);
+    const runStep = parsed.jobs.merge.steps.find(
+      (s: { run?: string }) => s.run?.includes('jules-fleet'),
+    );
+    expect(runStep.env.GITHUB_APP_PRIVATE_KEY_BASE64).toContain('FLEET_APP_PRIVATE_KEY_BASE64');
+  });
 });

@@ -15,7 +15,7 @@
 import type { WorkflowTemplate } from './types.js';
 import { buildCron, mergeInterval } from './cron.js';
 
-export function buildMergeTemplate(intervalMinutes: number): WorkflowTemplate {
+export function buildMergeTemplate(intervalMinutes: number, auth: 'token' | 'app' = 'token'): WorkflowTemplate {
   const cron = buildCron(mergeInterval(intervalMinutes));
   return {
     repoPath: '.github/workflows/fleet-merge.yml',
@@ -64,7 +64,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22'${auth === 'app' ? `
+      - name: Decode private key
+        id: decode-key
+        run: |
+          echo "\${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}" | base64 -d > /tmp/fleet-app-key.pem
+          {
+            echo "pem<<PEMEOF"
+            cat /tmp/fleet-app-key.pem
+            echo "PEMEOF"
+          } >> "\$GITHUB_OUTPUT"
+          rm /tmp/fleet-app-key.pem
+      - name: Generate Fleet App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: \${{ secrets.FLEET_APP_ID }}
+          private-key: \${{ steps.decode-key.outputs.pem }}` : ''}
       - run: |
           REDISPATCH_FLAG="--redispatch"
           if [ "\${{ inputs.redispatch }}" = "false" ]; then
@@ -72,10 +88,10 @@ jobs:
           fi
           npx -y --package=@google/jules-fleet jules-fleet merge --mode \${{ inputs.mode || 'label' }} --run-id "\${{ inputs.fleet_run_id }}" \$REDISPATCH_FLAG
         env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: \${{ ${auth === 'app' ? 'steps.app-token.outputs.token' : 'secrets.GITHUB_TOKEN'} }}
           JULES_API_KEY: \${{ secrets.JULES_API_KEY }}
           GITHUB_APP_ID: \${{ secrets.FLEET_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY_BASE64: \${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          GITHUB_APP_PRIVATE_KEY_BASE64: \${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
           GITHUB_APP_INSTALLATION_ID: \${{ secrets.FLEET_APP_INSTALLATION_ID }}
 `,
   };

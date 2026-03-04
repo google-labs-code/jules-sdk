@@ -193,4 +193,35 @@ describe('Workflow Template Guardrails', () => {
     });
     expect(new Set(names).size).toBe(names.length);
   });
+
+  // ── Secret naming consistency ──────────────────────────────────────
+
+  it('PRIVATE_KEY_BASE64 env var always maps to _BASE64 secret', () => {
+    for (const template of ALL_TEMPLATES) {
+      const parsed = yaml.parse(template.content);
+      const steps = extractSteps(parsed);
+      for (const step of steps) {
+        const env = (step as Record<string, unknown>).env as Record<string, string> | undefined;
+        if (!env) continue;
+        const base64Var = env['GITHUB_APP_PRIVATE_KEY_BASE64'];
+        if (base64Var) {
+          expect(base64Var).toContain('FLEET_APP_PRIVATE_KEY_BASE64');
+        }
+      }
+    }
+  });
+
+  // ── Auth=app templates ─────────────────────────────────────────────
+
+  it('auth=app templates are valid YAML', () => {
+    const appTemplates = buildWorkflowTemplates(60, 'app');
+    for (const t of appTemplates) {
+      expect(() => yaml.parse(t.content)).not.toThrow();
+    }
+  });
+
+  it('auth=app templates have same count as default templates', () => {
+    const appTemplates = buildWorkflowTemplates(60, 'app');
+    expect(appTemplates.length).toBe(ALL_TEMPLATES.length);
+  });
 });
