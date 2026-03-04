@@ -242,7 +242,11 @@ describe('Incremental Activity Sync Spec', async () => {
         );
         const mockNetwork = createMockNetwork(apiActivities);
 
-        const client = new DefaultActivityClient(storage, mockNetwork);
+        const client = new DefaultActivityClient(
+          storage,
+          mockNetwork,
+          {} as any,
+        );
 
         // Call hydrate
         const newCount = await client.hydrate();
@@ -308,7 +312,11 @@ describe('Incremental Activity Sync Spec', async () => {
           }
 
           const mockNetwork = createMockNetwork([]);
-          const client = new DefaultActivityClient(storage, mockNetwork);
+          const client = new DefaultActivityClient(
+            storage,
+            mockNetwork,
+            {} as any,
+          );
 
           const result = await client.hydrate();
 
@@ -352,7 +360,11 @@ describe('Incremental Activity Sync Spec', async () => {
           );
           const mockNetwork = createMockNetwork(apiActivities);
 
-          const client = new DefaultActivityClient(storage, mockNetwork);
+          const client = new DefaultActivityClient(
+            storage,
+            mockNetwork,
+            {} as any,
+          );
           const newCount = await client.hydrate();
 
           const expected = tc.then as HydrationTestCase['then'];
@@ -394,7 +406,11 @@ describe('Incremental Activity Sync Spec', async () => {
         );
         const mockNetwork = createMockNetwork(apiActivities);
 
-        const client = new DefaultActivityClient(storage, mockNetwork);
+        const client = new DefaultActivityClient(
+          storage,
+          mockNetwork,
+          {} as any,
+        );
 
         // Call stream() - which internally calls history() -> hydrate()
         // We only consume history portion (not updates which would block)

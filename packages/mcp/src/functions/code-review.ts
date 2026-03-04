@@ -344,8 +344,7 @@ export async function codeReview(
   await session.activities.hydrate();
   const snapshot = await session.snapshot();
 
-  // FIX: Ensure activities is always an array
-  const activities = snapshot.activities ?? [];
+  const activities = snapshot.activities;
 
   const status = getSemanticStatus(snapshot.state);
   const isBusy = status === 'busy';
@@ -373,11 +372,7 @@ export async function codeReview(
   } else {
     // Stable mode: use session outcome changeSet, but also get activity IDs if available
 
-    // FIX: Defensive check for changeSet being a function
-    const changeSet =
-      typeof snapshot.changeSet === 'function'
-        ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
-        : undefined;
+    const changeSet = snapshot.changeSet();
 
     // Try to get activity IDs by also aggregating from activities
     const activityFiles = aggregateFromActivities(activities);

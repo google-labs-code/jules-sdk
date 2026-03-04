@@ -45,14 +45,11 @@ export async function getSessionChangedFiles(
   const isBusy = isBusyState(snapshot.state);
 
   if (isBusy) {
-    return aggregateFromActivities(snapshot.activities ?? []);
+    return aggregateFromActivities(snapshot.activities);
   }
 
   // Stable: use outcome changeSet
-  const changeSet =
-    typeof snapshot.changeSet === 'function'
-      ? (snapshot.changeSet() as ChangeSetArtifact | undefined)
-      : undefined;
+  const changeSet = snapshot.changeSet();
 
   if (!changeSet) return [];
   const parsed = changeSet.parsed();

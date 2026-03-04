@@ -154,8 +154,7 @@ export async function getSessionState(
 
   const snapshot = await session.snapshot();
 
-  // FIX: Ensure activities is always an array
-  const activities = snapshot.activities ?? [];
+  const activities = snapshot.activities;
 
   const pr = snapshot.pr;
   const lastActivity = findLastActivity(activities);
