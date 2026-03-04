@@ -351,59 +351,76 @@ export async function select<T extends JulesDomain>(
     };
 
     // PASS 1: Scatter-Gather (Cross-session activity search)
+    // Convert AsyncIterable to an Array so we can pass it to pMap.
+    // pMap handles concurrency over the array.
+    const sessionEntries: { id: string }[] = [];
     for await (const sessionEntry of sessionScanner()) {
-      const sessionClient = await client.session(sessionEntry.id);
-      const localActivities = await sessionClient.activities.select({});
+      sessionEntries.push(sessionEntry);
+    }
 
-      for (const act of localActivities) {
-        // Apply standard filters
-        if (where?.id && !match(act.id, where.id)) continue;
-        if (where?.type && !match(act.type, where.type)) continue;
+    const sessionResults = await pMap(
+      sessionEntries,
+      async (sessionEntry) => {
+        const sessionClient = await client.session(sessionEntry.id);
+        const localActivities = await sessionClient.activities.select({});
+        const filtered: Record<string, unknown>[] = [];
 
-        // Apply dot-notation filters with existential matching
-        // Exclude sessionId from activity-level matching since it's handled by session routing
-        const activityWhere = where
-          ? Object.fromEntries(
-              Object.entries(where).filter(([k]) => k !== 'sessionId'),
-            )
-          : undefined;
-        if (!matchWhere(act, activityWhere)) continue;
+        for (const act of localActivities) {
+          // Apply standard filters
+          if (where?.id && !match(act.id, where.id)) continue;
+          if (where?.type && !match(act.type, where.type)) continue;
 
-        const item = applyProjection(
-          act,
-          query.select as string[] | undefined,
-          'activities',
-        );
+          // Apply dot-notation filters with existential matching
+          // Exclude sessionId from activity-level matching since it's handled by session routing
+          const activityWhere = where
+            ? Object.fromEntries(
+                Object.entries(where).filter(([k]) => k !== 'sessionId'),
+              )
+            : undefined;
+          if (!matchWhere(act, activityWhere)) continue;
 
-        // Preserve sorting metadata from original document
-        const actRecord = act as unknown as Record<string, unknown>;
-        item._sortKey = {
-          createTime: actRecord.createTime,
-          id: actRecord.id,
-        };
+          const item = applyProjection(
+            act,
+            query.select as string[] | undefined,
+            'activities',
+          );
 
-        // PASS 2: Reverse Join (Include Session Metadata)
-        if (query.include && 'session' in query.include) {
-          const sessConfig = query.include.session;
-          const sessSelect =
-            typeof sessConfig === 'object' ? sessConfig.select : undefined;
+          // Preserve sorting metadata from original document
+          const actRecord = act as unknown as Record<string, unknown>;
+          item._sortKey = {
+            createTime: actRecord.createTime,
+            id: actRecord.id,
+          };
 
-          let sessionInfo = sessionCache.get(sessionEntry.id);
-          if (!sessionInfo) {
-            const info = await sessionClient.info();
-            sessionInfo = info as unknown as Record<string, unknown>;
-            sessionCache.set(sessionEntry.id, sessionInfo);
+          // PASS 2: Reverse Join (Include Session Metadata)
+          if (query.include && 'session' in query.include) {
+            const sessConfig = query.include.session;
+            const sessSelect =
+              typeof sessConfig === 'object' ? sessConfig.select : undefined;
+
+            let sessionInfo = sessionCache.get(sessionEntry.id);
+            if (!sessionInfo) {
+              const info = await sessionClient.info();
+              sessionInfo = info as unknown as Record<string, unknown>;
+              sessionCache.set(sessionEntry.id, sessionInfo);
+            }
+
+            item.session = applyProjection(
+              sessionInfo,
+              sessSelect as string[] | undefined,
+              'sessions',
+            );
           }
 
-          item.session = applyProjection(
-            sessionInfo,
-            sessSelect as string[] | undefined,
-            'sessions',
-          );
+          filtered.push(item);
         }
+        return filtered;
+      },
+      { concurrency: 5 },
+    );
 
-        results.push(item);
-      }
+    for (const res of sessionResults) {
+      results.push(...res);
     }
   }
 
