@@ -35,12 +35,17 @@ import type { WorkflowTemplate } from './templates/types.js';
 /**
  * Build all workflow templates with a configurable interval.
  * @param intervalMinutes - Pipeline cadence in minutes (default: 360 = 6 hours)
+ * @param auth - Authentication mode: 'token' uses secrets.GITHUB_TOKEN,
+ *               'app' generates a GitHub App token for CLA-safe commits
  */
-export function buildWorkflowTemplates(intervalMinutes = 360): readonly WorkflowTemplate[] {
+export function buildWorkflowTemplates(
+  intervalMinutes = 360,
+  auth: 'token' | 'app' = 'token',
+): readonly WorkflowTemplate[] {
   return [
-    buildAnalyzeTemplate(intervalMinutes),
-    buildDispatchTemplate(intervalMinutes),
-    buildMergeTemplate(intervalMinutes),
+    buildAnalyzeTemplate(intervalMinutes, auth),
+    buildDispatchTemplate(intervalMinutes, auth),
+    buildMergeTemplate(intervalMinutes, auth),
     CONFLICT_DETECTION_TEMPLATE,
     FLEET_LABEL_TEMPLATE,
   ];
