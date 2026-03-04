@@ -33,16 +33,21 @@ jobs:
         with:
           node-version: '22'
       - name: Decode private key
+        id: decode-key
         run: |
-          echo "FLEET_APP_PEM<<EOF" >> $GITHUB_ENV
-          echo "${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}" | base64 -d >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}" | base64 -d > /tmp/fleet-app-key.pem
+          {
+            echo "pem<<PEMEOF"
+            cat /tmp/fleet-app-key.pem
+            echo "PEMEOF"
+          } >> "$GITHUB_OUTPUT"
+          rm /tmp/fleet-app-key.pem
       - name: Generate Fleet App token
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.FLEET_APP_ID }}
-          private-key: ${{ env.FLEET_APP_PEM }}
+          private-key: ${{ steps.decode-key.outputs.pem }}
       - run: |
           npm install --prefix /tmp/fleet @google/jules-fleet
           /tmp/fleet/node_modules/.bin/jules-fleet analyze --goal "${{ inputs.goal }}" --milestone "${{ inputs.milestone }}"
