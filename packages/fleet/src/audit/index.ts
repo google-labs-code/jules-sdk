@@ -16,6 +16,9 @@
 export {
   AuditInputSchema,
   AuditErrorCode,
+  AuditSuccessSchema,
+  AuditFailureSchema,
+  AuditResultSchema,
   type AuditInput,
   type AuditSuccess,
   type AuditFailure,
@@ -26,6 +29,10 @@ export {
 // ── Finding Types ──────────────────────────────────────────────────
 export {
   parseNodeId,
+  AuditFindingSchema,
+  AuditFindingTypeSchema,
+  AuditFindingSeveritySchema,
+  AuditFixabilitySchema,
   type AuditFinding,
   type AuditFindingType,
   type AuditFindingSeverity,
@@ -49,6 +56,21 @@ export {
 
 // ── Graph Builder ──────────────────────────────────────────────────
 export { buildLineage, type BuildLineageDeps, type BuildLineageOptions } from './graph/build-lineage.js';
+
+// ── Graph Serializer ───────────────────────────────────────────────
+export {
+  serializeGraph,
+  mergeSerializedGraphs,
+  embedFindings,
+  SerializedGraphSchema,
+  SerializedNodeSchema,
+  SerializedEdgeSchema,
+  SerializedUnresolvedEdgeSchema,
+  type SerializedGraph,
+  type SerializedNode,
+  type SerializedEdge,
+  type SerializedUnresolvedEdge,
+} from './graph/serialize.js';
 
 export {
   scanItem,

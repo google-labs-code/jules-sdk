@@ -12,45 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { z } from 'zod';
+
 // ── FINDING TYPES ──────────────────────────────────────────────────
 
-export type AuditFindingType =
+export const AuditFindingTypeSchema = z.enum([
   // Issue findings
-  | 'issue:missing-label'       // fleet issue without fleet label
-  | 'issue:missing-milestone'   // fleet issue without milestone
-  | 'issue:undispatched'        // fleet issue with no linked PR
-  | 'issue:missing-source'      // fleet issue without Fleet Context footer
-  | 'issue:stale'               // fleet issue open > N days with no activity
+  'issue:missing-label',       // fleet issue without fleet label
+  'issue:missing-milestone',   // fleet issue without milestone
+  'issue:undispatched',        // fleet issue with no linked PR
+  'issue:missing-source',      // fleet issue without Fleet Context footer
+  'issue:stale',               // fleet issue open > N days with no activity
 
   // PR findings
-  | 'pr:missing-label'          // PR linked to fleet issue but missing fleet-merge-ready
-  | 'pr:missing-milestone'      // PR missing milestone from linked issue
-  | 'pr:orphaned'               // PR with no linked issues
-  | 'pr:missing-session'        // jules/ PR with no session ID
-  | 'pr:failing-checks'         // PR with failing check runs
-  | 'pr:stale'                  // PR open > N days with no activity
-  | 'pr:draft-with-checks'      // Draft PR with check runs (resource waste)
+  'pr:missing-label',          // PR linked to fleet issue but missing fleet-merge-ready
+  'pr:missing-milestone',      // PR missing milestone from linked issue
+  'pr:orphaned',               // PR with no linked issues
+  'pr:missing-session',        // jules/ PR with no session ID
+  'pr:failing-checks',         // PR with failing check runs
+  'pr:stale',                  // PR open > N days with no activity
+  'pr:draft-with-checks',      // Draft PR with check runs (resource waste)
 
   // Graph integrity findings
-  | 'graph:broken-link'         // Node with unresolved edges
-  | 'graph:orphaned-session'    // Session with no linked issue or PR
-  | 'graph:milestone-mismatch'; // Issue and PR in different milestones
+  'graph:broken-link',         // Node with unresolved edges
+  'graph:orphaned-session',    // Session with no linked issue or PR
+  'graph:milestone-mismatch',  // Issue and PR in different milestones
+]);
+export type AuditFindingType = z.infer<typeof AuditFindingTypeSchema>;
 
-export type AuditFindingSeverity = 'error' | 'warning' | 'info';
+export const AuditFindingSeveritySchema = z.enum(['error', 'warning', 'info']);
+export type AuditFindingSeverity = z.infer<typeof AuditFindingSeveritySchema>;
 
-export type AuditFixability = 'deterministic' | 'cognitive' | 'none';
+export const AuditFixabilitySchema = z.enum(['deterministic', 'cognitive', 'none']);
+export type AuditFixability = z.infer<typeof AuditFixabilitySchema>;
 
-export interface AuditFinding {
-  type: AuditFindingType;
-  severity: AuditFindingSeverity;
-  fixability: AuditFixability;
+export const AuditFindingSchema = z.object({
+  type: AuditFindingTypeSchema,
+  severity: AuditFindingSeveritySchema,
+  fixability: AuditFixabilitySchema,
   /** The node this finding applies to */
-  nodeId: string; // nodeKey format: "kind:id"
+  nodeId: z.string(), // nodeKey format: "kind:id"
   /** Human-readable description */
-  detail: string;
+  detail: z.string(),
   /** Whether this finding was auto-fixed */
-  fixed: boolean;
-}
+  fixed: z.boolean(),
+  /** Whether this finding would be fixed in apply mode (dry-run only) */
+  wouldFix: z.boolean().optional(),
+});
+export type AuditFinding = z.infer<typeof AuditFindingSchema>;
 
 // ── NODE ID PARSING ────────────────────────────────────────────────
 

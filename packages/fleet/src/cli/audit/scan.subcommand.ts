@@ -14,9 +14,10 @@
 
 import { defineCommand } from 'citty';
 import { createFleetOctokit } from '../../shared/auth/octokit.js';
-import { getGitRepoInfo } from '../../shared/auth/git.js';
-import { AuditInputSchema } from '../../audit/spec.js';
 import { AuditHandler } from '../../audit/handler.js';
+import { ScanArgsSchema, buildAuditInput } from './parse-input.js';
+import { filterFindings, filterGraphFindings } from './filter-findings.js';
+import { renderJson, renderHuman } from './render-output.js';
 
 /**
  * `audit scan` — Run a full audit scan.
@@ -24,7 +25,10 @@ import { AuditHandler } from '../../audit/handler.js';
  * Examples:
  *   jules-fleet audit scan                        # Full repo audit
  *   jules-fleet audit scan --milestone 3          # Audit milestone 3
- *   jules-fleet audit scan --fix                  # Auto-fix deterministic findings
+ *   jules-fleet audit scan --fix                  # Preview fixable findings (dry run)
+ *   jules-fleet audit scan --fix --apply          # Apply fixes
+ *   jules-fleet audit scan --fixable              # Only fixable findings
+ *   jules-fleet audit scan --severity warning     # Warnings and errors only
  */
 export default defineCommand({
   meta: {
@@ -32,6 +36,7 @@ export default defineCommand({
     description: 'Run a full audit scan (findings + optional fix)',
   },
   args: {
+    // ── Scope ──────────────────────────────────────────────────────
     milestone: {
       type: 'string',
       description: 'Scope audit to a milestone (number)',
@@ -44,21 +49,6 @@ export default defineCommand({
       type: 'string',
       description: 'Scope audit to a specific PR (number)',
     },
-    fix: {
-      type: 'boolean',
-      description: 'Auto-fix deterministic findings',
-      default: false,
-    },
-    depth: {
-      type: 'string',
-      description: 'Max graph traversal depth (0-5, default: 2)',
-      default: '2',
-    },
-    json: {
-      type: 'boolean',
-      description: 'Output as JSON',
-      default: false,
-    },
     owner: {
       type: 'string',
       description: 'Repository owner (auto-detected from git remote if omitted)',
@@ -67,31 +57,60 @@ export default defineCommand({
       type: 'string',
       description: 'Repository name (auto-detected from git remote if omitted)',
     },
+    depth: {
+      type: 'string',
+      description: 'Max graph traversal depth (0-5, default: 2)',
+      default: '2',
+    },
+
+    // ── Fix mode ───────────────────────────────────────────────────
+    fix: {
+      type: 'boolean',
+      description: 'Preview what would be auto-fixed (dry run)',
+      default: false,
+    },
+    apply: {
+      type: 'boolean',
+      description: 'Actually apply fixes (requires --fix)',
+      default: false,
+    },
+
+    // ── Filtering ──────────────────────────────────────────────────
+    fixable: {
+      type: 'boolean',
+      description: 'Only show findings that can be auto-fixed',
+      default: false,
+    },
+    severity: {
+      type: 'string',
+      description: 'Minimum severity to show (error, warning, info)',
+    },
+
+    // ── Output ─────────────────────────────────────────────────────
+    json: {
+      type: 'boolean',
+      description: 'Output as JSON',
+      default: false,
+    },
+    graph: {
+      type: 'boolean',
+      description: 'Include serialized lineage graph in JSON output (implies --json)',
+      default: false,
+    },
+    output: {
+      type: 'string',
+      alias: 'o',
+      description: 'Write JSON output to a file instead of stdout',
+    },
   },
   async run({ args }) {
-    let owner = args.owner;
-    let repo = args.repo;
-    if (!owner || !repo) {
-      const repoInfo = await getGitRepoInfo();
-      owner = owner || repoInfo.owner;
-      repo = repo || repoInfo.repo;
-    }
+    // Parse, don't validate — raw CLI args go through Zod first
+    const parsed = ScanArgsSchema.parse(args);
 
-    // Determine entry point
-    let entryPoint: any = { kind: 'full' };
-    if (args.milestone) entryPoint = { kind: 'milestone', id: args.milestone };
-    if (args.issue) entryPoint = { kind: 'issue', id: args.issue };
-    if (args.pr) entryPoint = { kind: 'pr', id: args.pr };
+    // 1. Parse input
+    const { input, useJson, fixMode } = await buildAuditInput(parsed);
 
-    const input = AuditInputSchema.parse({
-      owner,
-      repo,
-      entryPoint,
-      fix: args.fix,
-      depth: Number(args.depth),
-      format: args.json ? 'json' : 'human',
-    });
-
+    // 2. Execute audit
     const octokit = createFleetOctokit();
     const handler = new AuditHandler({ octokit });
     const result = await handler.execute(input);
@@ -101,23 +120,21 @@ export default defineCommand({
       process.exit(1);
     }
 
-    if (args.json) {
-      console.log(JSON.stringify(result.data, null, 2));
-    } else {
-      console.log(`\n📋 Audit Results`);
-      console.log(`   Nodes scanned: ${result.data.nodesScanned}`);
-      console.log(`   Findings: ${result.data.totalFindings}`);
-      console.log(`   Fixed: ${result.data.fixedCount}`);
-      console.log(`   Unresolved edges: ${result.data.unresolvedEdges}`);
+    // 3. Filter findings
+    const filterOpts = { fixable: parsed.fixable, severity: parsed.severity };
+    const filtered = filterFindings(result.data.findings, filterOpts);
+    const filteredGraph = result.data.graph
+      ? filterGraphFindings(result.data.graph, filterOpts)
+      : undefined;
 
-      if (result.data.findings.length > 0) {
-        console.log(`\n   Findings:`);
-        for (const f of result.data.findings) {
-          const icon = f.severity === 'error' ? '❌' : f.severity === 'warning' ? '⚠️ ' : 'ℹ️ ';
-          const fix = f.fixed ? ' ✅ (fixed)' : f.fixability === 'deterministic' ? ' 🔧 (fixable with --fix)' : '';
-          console.log(`   ${icon} [${f.type}] ${f.detail}${fix}`);
-        }
-      }
+    // 4. Render output
+    if (useJson) {
+      renderJson(result.data, filtered, filteredGraph, {
+        graph: parsed.graph,
+        outputFile: parsed.output,
+      });
+    } else {
+      renderHuman(result.data, filtered, fixMode);
     }
   },
 });

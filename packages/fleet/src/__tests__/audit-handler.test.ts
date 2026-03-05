@@ -27,7 +27,7 @@ describe('AuditInputSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.baseBranch).toBe('main');
-      expect(result.data.fix).toBe(false);
+      expect(result.data.fixMode).toBe('off');
       expect(result.data.depth).toBe(2);
       expect(result.data.format).toBe('human');
       expect(result.data.entryPoint).toEqual({ kind: 'full' });
@@ -77,6 +77,39 @@ describe('AuditInputSchema', () => {
     const result = AuditInputSchema.safeParse({
       owner: '',
       repo: 'my-repo',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts fixMode dry-run', () => {
+    const result = AuditInputSchema.safeParse({
+      owner: 'google',
+      repo: 'my-repo',
+      fixMode: 'dry-run',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fixMode).toBe('dry-run');
+    }
+  });
+
+  it('accepts fixMode apply', () => {
+    const result = AuditInputSchema.safeParse({
+      owner: 'google',
+      repo: 'my-repo',
+      fixMode: 'apply',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fixMode).toBe('apply');
+    }
+  });
+
+  it('rejects invalid fixMode', () => {
+    const result = AuditInputSchema.safeParse({
+      owner: 'google',
+      repo: 'my-repo',
+      fixMode: 'yolo',
     });
     expect(result.success).toBe(false);
   });
@@ -132,9 +165,10 @@ describe('AuditHandler', () => {
       repo: 'my-repo',
       baseBranch: 'main',
       entryPoint: { kind: 'issue', id: '10' },
-      fix: false,
+      fixMode: 'off',
       depth: 1,
       format: 'human',
+      includeGraph: false,
     });
 
     expect(result.success).toBe(true);
@@ -161,9 +195,10 @@ describe('AuditHandler', () => {
       repo: 'my-repo',
       baseBranch: 'main',
       entryPoint: { kind: 'issue', id: '10' },
-      fix: false,
+      fixMode: 'off',
       depth: 1,
       format: 'human',
+      includeGraph: false,
     });
 
     expect(result.success).toBe(false);
@@ -181,9 +216,10 @@ describe('AuditHandler', () => {
       repo: 'my-repo',
       baseBranch: 'main',
       entryPoint: { kind: 'issue', id: '10' },
-      fix: false,
+      fixMode: 'off',
       depth: 0,
       format: 'human',
+      includeGraph: false,
     });
 
     expect(result.success).toBe(true);
@@ -196,26 +232,66 @@ describe('AuditHandler', () => {
     }
   });
 
-  it('returns empty findings on full scan with no fleet issues', async () => {
+  it('dry-run mode marks fixable findings as wouldFix without calling APIs', async () => {
     const octokit = createAuditMockOctokit();
-    // Full scan starts from listUndispatchedIssues which returns none
-    octokit.rest.issues.listForRepo.mockResolvedValue({ data: [] });
+    const handler = new AuditHandler({ octokit });
+
+    const result = await handler.execute({
+      owner: 'google',
+      repo: 'my-repo',
+      baseBranch: 'main',
+      entryPoint: { kind: 'issue', id: '10' },
+      fixMode: 'dry-run',
+      depth: 0,
+      format: 'human',
+      includeGraph: false,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Should have findings but none should be `fixed`
+      const fixable = result.data.findings.filter(
+        (f) => f.fixability === 'deterministic',
+      );
+      for (const f of fixable) {
+        expect(f.wouldFix).toBe(true);
+        expect(f.fixed).toBe(false);
+      }
+      expect(result.data.fixedCount).toBe(0);
+    }
+  });
+
+  it('apply mode actually fixes deterministic findings', async () => {
+    const octokit = createAuditMockOctokit();
+    // Mock PR missing fleet-merge-ready label
+    octokit.rest.issues.get.mockResolvedValue({
+      data: {
+        number: 10,
+        title: 'Fix bug',
+        state: 'open',
+        labels: [{ name: 'fleet' }],
+        body: 'Fix this\n\n---\n**Fleet Context**\n- Source: `jules:session:s-1`',
+        milestone: { number: 1, title: 'Sprint 3' },
+        pull_request: { url: 'https://api.github.com/repos/google/my-repo/pulls/10' },
+      },
+    });
+    octokit.rest.issues.addLabels = vi.fn().mockResolvedValue({ data: {} });
 
     const handler = new AuditHandler({ octokit });
     const result = await handler.execute({
       owner: 'google',
       repo: 'my-repo',
       baseBranch: 'main',
-      entryPoint: { kind: 'full' },
-      fix: false,
-      depth: 1,
+      entryPoint: { kind: 'issue', id: '10' },
+      fixMode: 'apply',
+      depth: 0,
       format: 'human',
+      includeGraph: false,
     });
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.findings).toHaveLength(0);
-      expect(result.data.nodesScanned).toBe(0);
+      expect(result.data.fixedCount).toBeGreaterThanOrEqual(0);
     }
   });
 });

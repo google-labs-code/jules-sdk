@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import { z } from 'zod';
-import type { AuditFinding } from './ops/scan-item.js';
+import { AuditFindingSchema, type AuditFinding } from './findings.js';
+import { SerializedGraphSchema } from './graph/serialize.js';
 
 // ── INPUT ───────────────────────────────────────────────────────────
 
@@ -32,11 +33,13 @@ export const AuditInputSchema = z.object({
     z.object({ kind: z.literal('full') }), // full repo scan
   ]).default({ kind: 'full' }),
   /** Whether to auto-fix deterministic findings */
-  fix: z.boolean().default(false),
+  fixMode: z.enum(['off', 'dry-run', 'apply']).default('off'),
   /** Max graph traversal depth */
   depth: z.number().min(0).max(5).default(2),
   /** Output format */
   format: z.enum(['human', 'json']).default('human'),
+  /** Include serialized lineage graph in output */
+  includeGraph: z.boolean().default(false),
 });
 
 export type AuditInput = z.infer<typeof AuditInputSchema>;
@@ -52,27 +55,35 @@ export type AuditErrorCode = z.infer<typeof AuditErrorCode>;
 
 // ── RESULT ──────────────────────────────────────────────────────────
 
-export interface AuditSuccess {
-  success: true;
-  data: {
-    findings: AuditFinding[];
-    fixedCount: number;
-    totalFindings: number;
-    nodesScanned: number;
-    unresolvedEdges: number;
-  };
-}
+export const AuditSuccessSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    findings: z.array(AuditFindingSchema),
+    fixedCount: z.number(),
+    totalFindings: z.number(),
+    nodesScanned: z.number(),
+    unresolvedEdges: z.number(),
+    /** Serialized lineage graph — present when includeGraph is true */
+    graph: SerializedGraphSchema.optional(),
+  }),
+});
+export type AuditSuccess = z.infer<typeof AuditSuccessSchema>;
 
-export interface AuditFailure {
-  success: false;
-  error: {
-    code: AuditErrorCode;
-    message: string;
-    recoverable: boolean;
-  };
-}
+export const AuditFailureSchema = z.object({
+  success: z.literal(false),
+  error: z.object({
+    code: AuditErrorCode,
+    message: z.string(),
+    recoverable: z.boolean(),
+  }),
+});
+export type AuditFailure = z.infer<typeof AuditFailureSchema>;
 
-export type AuditResult = AuditSuccess | AuditFailure;
+export const AuditResultSchema = z.discriminatedUnion('success', [
+  AuditSuccessSchema,
+  AuditFailureSchema,
+]);
+export type AuditResult = z.infer<typeof AuditResultSchema>;
 
 // ── INTERFACE ───────────────────────────────────────────────────────
 
