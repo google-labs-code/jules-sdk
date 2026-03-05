@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type {
-  SignalCreateInput,
-  SignalCreateResult,
-  SignalCreateSuccess,
-  SignalCreateFailure,
-  SignalCreateSpec,
-  SignalKind,
-  SignalCreateErrorCode,
-  SourceRef,
-} from './spec.js';
-export { SignalCreateInputSchema, SignalKind as SignalKindEnum, SourceRefSchema } from './spec.js';
-export { SignalCreateHandler } from './handler.js';
+import type { NodeRef } from '../graph/types.js';
+
+/**
+ * Resolve session → PR by checking the session state from the Jules API.
+ *
+ * The Jules session state includes PR information when a session has
+ * created one. Returns the PR NodeRef if found, null if the session
+ * hasn't produced a PR yet (which is legitimate, not an error).
+ */
+export function resolveSessionToPR(
+  sessionState: { pr?: { number: number } | null },
+): NodeRef | null {
+  if (sessionState.pr?.number) {
+    return { kind: 'pr', id: String(sessionState.pr.number) };
+  }
+  return null;
+}

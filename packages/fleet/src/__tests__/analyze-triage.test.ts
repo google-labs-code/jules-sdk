@@ -14,7 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AnalyzeHandler } from '../analyze/handler.js';
-import { TRIAGE_GOAL_FILENAME, getBuiltInTriagePrompt } from '../analyze/triage-prompt.js';
+import { USER_ISSUES_GOAL_FILENAME, getBuiltInTriagePrompt } from '../analyze/triage-prompt.js';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
 
 function createMockOctokit() {
@@ -40,9 +40,9 @@ function createMockDispatcher(): SessionDispatcher {
   };
 }
 
-describe('Triage Goal Auto-Injection', () => {
+describe('User Issues Goal Auto-Injection', () => {
   it('exports the correct reserved filename', () => {
-    expect(TRIAGE_GOAL_FILENAME).toBe('triage.md');
+    expect(USER_ISSUES_GOAL_FILENAME).toBe('user-issues.md');
   });
 
   it('generates prompt with repo name', () => {
@@ -53,7 +53,7 @@ describe('Triage Goal Auto-Injection', () => {
     expect(prompt).toContain('## Insight Hints');
   });
 
-  it('auto-injects triage goal when no triage.md exists in empty dir', async () => {
+  it('auto-injects user-issues goal when no user-issues.md exists in empty dir', async () => {
     const { mkdtempSync } = await import('fs');
     const { join } = await import('path');
     const { tmpdir } = await import('os');
@@ -83,14 +83,14 @@ describe('Triage Goal Auto-Injection', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('uses user triage.md when it exists', async () => {
+  it('uses user user-issues.md when it exists', async () => {
     const { mkdtempSync, writeFileSync } = await import('fs');
     const { join } = await import('path');
     const { tmpdir } = await import('os');
 
     const dir = mkdtempSync(join(tmpdir(), 'fleet-triage-'));
-    const triagePath = join(dir, 'triage.md');
-    writeFileSync(triagePath, '# Custom Triage\n\nMy custom instructions.');
+    const userIssuesPath = join(dir, 'user-issues.md');
+    writeFileSync(userIssuesPath, '# Custom User Issues\n\nMy custom instructions.');
 
     const octokit = createMockOctokit();
     const dispatcher = createMockDispatcher();

@@ -51,6 +51,10 @@ const create = defineCommand({
       type: 'string',
       description: 'Scope name (maps to milestone in GitHub)',
     },
+    source: {
+      type: 'string',
+      description: 'Provenance ref (provider:resource:id, e.g. jules:session:s-12345)',
+    },
     owner: {
       type: 'string',
       description: 'Repository owner (auto-detected from git remote if omitted)',
@@ -79,6 +83,9 @@ const create = defineCommand({
     // Parse tags
     const tags = args.tag ? (args.tag as string).split(',').map((t) => t.trim()) : [];
 
+    // Resolve source ref (flag > env var)
+    const source = args.source || process.env.FLEET_SOURCE_REF || undefined;
+
     // Parse & validate input through spec
     const input = SignalCreateInputSchema.parse({
       owner,
@@ -88,6 +95,7 @@ const create = defineCommand({
       body,
       tags,
       scope: args.scope || undefined,
+      source,
     });
 
     // Execute via handler

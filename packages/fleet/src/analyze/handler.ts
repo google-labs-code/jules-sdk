@@ -25,7 +25,7 @@ import { getMilestoneContext } from './milestone.js';
 import { toIssueMarkdown, formatPRContext } from './formatting.js';
 import { buildAnalyzerPrompt } from './prompt.js';
 import { getAnalyzePreamble } from './config.js';
-import { TRIAGE_GOAL_FILENAME, getBuiltInTriagePrompt } from './triage-prompt.js';
+import { USER_ISSUES_GOAL_FILENAME, getBuiltInTriagePrompt } from './triage-prompt.js';
 
 export interface AnalyzeHandlerDeps {
   octokit: Octokit;
@@ -107,13 +107,13 @@ export class AnalyzeHandler implements AnalyzeSpec {
 
     const userGoals = globSync(`${input.goalsDir}/*.md`);
 
-    // Auto-inject built-in triage goal if no triage.md exists
-    const hasUserTriage = userGoals.some(
-      (f) => basename(f) === TRIAGE_GOAL_FILENAME,
+    // Auto-inject built-in user-issues goal if none exists
+    const hasUserIssuesGoal = userGoals.some(
+      (f) => basename(f) === USER_ISSUES_GOAL_FILENAME,
     );
-    if (!hasUserTriage) {
+    if (!hasUserIssuesGoal) {
       // Use a virtual marker — processGoal handles it
-      userGoals.push(`__builtin__:${TRIAGE_GOAL_FILENAME}`);
+      userGoals.push(`__builtin__:${USER_ISSUES_GOAL_FILENAME}`);
     }
 
     return userGoals;
@@ -139,7 +139,7 @@ export class AnalyzeHandler implements AnalyzeSpec {
       goalInstructions = readFileSync(goalFile, 'utf-8');
     }
 
-    const displayName = isBuiltIn ? `triage.md (built-in)` : basename(goalFile);
+    const displayName = isBuiltIn ? `user-issues.md (built-in)` : basename(goalFile);
     const milestoneId = input.milestone ?? goal.config?.milestone?.toString();
 
     this.emit({
