@@ -19,6 +19,8 @@ import type {
   SignalCreateResult,
 } from './spec.js';
 
+import { buildFleetContext, serializeFleetContext } from '../shared/fleet-context.js';
+
 /**
  * Signal creation handler — GitHub adapter.
  *
@@ -26,6 +28,7 @@ import type {
  * - signal.kind → label (fleet-insight or fleet-assessment)
  * - signal.tags → labels
  * - signal.scope → milestone (resolved by title)
+ * - signal.source → Fleet Context footer (provenance)
  */
 export class SignalCreateHandler implements SignalCreateSpec {
   constructor(private readonly deps: { octokit: InstanceType<typeof Octokit> }) {}
@@ -65,12 +68,19 @@ export class SignalCreateHandler implements SignalCreateSpec {
         milestoneNumber = match.number;
       }
 
+      // Build body with optional Fleet Context footer
+      let issueBody = input.body;
+      if (input.source) {
+        const ctx = buildFleetContext(input.source);
+        issueBody += serializeFleetContext(ctx);
+      }
+
       // Create the GitHub issue
       const { data } = await octokit.rest.issues.create({
         owner: input.owner,
         repo: input.repo,
         title: input.title,
-        body: input.body,
+        body: issueBody,
         labels,
         ...(milestoneNumber && { milestone: milestoneNumber }),
       });

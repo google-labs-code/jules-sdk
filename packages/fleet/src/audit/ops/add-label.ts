@@ -12,15 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type {
-  SignalCreateInput,
-  SignalCreateResult,
-  SignalCreateSuccess,
-  SignalCreateFailure,
-  SignalCreateSpec,
-  SignalKind,
-  SignalCreateErrorCode,
-  SourceRef,
-} from './spec.js';
-export { SignalCreateInputSchema, SignalKind as SignalKindEnum, SourceRefSchema } from './spec.js';
-export { SignalCreateHandler } from './handler.js';
+import type { Octokit } from 'octokit';
+
+/**
+ * Add a label to an issue or PR.
+ */
+export async function addLabel(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueOrPRNumber: number,
+  label: string,
+): Promise<void> {
+  await octokit.rest.issues.addLabels({
+    owner,
+    repo,
+    issue_number: issueOrPRNumber,
+    labels: [label],
+  });
+}

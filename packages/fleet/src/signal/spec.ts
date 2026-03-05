@@ -19,6 +19,18 @@ import { z } from 'zod';
 export const SignalKind = z.enum(['insight', 'assessment']);
 export type SignalKind = z.infer<typeof SignalKind>;
 
+/**
+ * Source reference for provenance tracking.
+ * Format: `provider:resource:id` (e.g. `jules:session:s-12345`, `github:run:98765`)
+ */
+export const SourceRefSchema = z
+  .string()
+  .regex(
+    /^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:.+$/,
+    'Source must be in provider:resource:id format (e.g. jules:session:s-12345)',
+  );
+export type SourceRef = z.infer<typeof SourceRefSchema>;
+
 export const SignalCreateInputSchema = z.object({
   /** Repository owner */
   owner: z.string().min(1),
@@ -34,6 +46,8 @@ export const SignalCreateInputSchema = z.object({
   tags: z.array(z.string()).default([]),
   /** Scope name (maps to milestone title in GitHub) */
   scope: z.string().optional(),
+  /** Provenance: which session/run created this signal (provider:resource:id) */
+  source: SourceRefSchema.optional(),
 });
 
 export type SignalCreateInput = z.infer<typeof SignalCreateInputSchema>;

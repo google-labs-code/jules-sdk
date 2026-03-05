@@ -13,17 +13,17 @@
 // limitations under the License.
 
 /**
- * Built-in triage goal.
+ * Built-in user-issues goal.
  *
- * When `.fleet/goals/triage.md` doesn't exist, the analyze command
+ * When `.fleet/goals/user-issues.md` doesn't exist, the analyze command
  * auto-injects this prompt to triage all open issues that are not
  * associated with a milestone.
  *
- * Users override this by creating their own `triage.md` in the goals dir.
+ * Users override this by creating their own `user-issues.md` in the goals dir.
  */
 
 /** The reserved filename. If a user creates this, it overrides the built-in. */
-export const TRIAGE_GOAL_FILENAME = 'triage.md';
+export const USER_ISSUES_GOAL_FILENAME = 'user-issues.md';
 
 /**
  * Returns the built-in triage prompt content.

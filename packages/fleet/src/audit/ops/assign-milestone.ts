@@ -12,15 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type {
-  SignalCreateInput,
-  SignalCreateResult,
-  SignalCreateSuccess,
-  SignalCreateFailure,
-  SignalCreateSpec,
-  SignalKind,
-  SignalCreateErrorCode,
-  SourceRef,
-} from './spec.js';
-export { SignalCreateInputSchema, SignalKind as SignalKindEnum, SourceRefSchema } from './spec.js';
-export { SignalCreateHandler } from './handler.js';
+import type { Octokit } from 'octokit';
+
+/**
+ * Assign a milestone to an issue or PR by milestone number.
+ * Unlike copyMilestone, this directly sets a specific milestone.
+ */
+export async function assignMilestone(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueOrPRNumber: number,
+  milestoneNumber: number,
+): Promise<void> {
+  await octokit.rest.issues.update({
+    owner,
+    repo,
+    issue_number: issueOrPRNumber,
+    milestone: milestoneNumber,
+  });
+}
