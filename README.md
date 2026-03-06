@@ -39,10 +39,12 @@ for await (const activity of session.stream()) {
     case 'progressUpdated':
       console.log(`${activity.title}`);
       // Check for code updates
-      if (artifact.type === 'changeSet') {
-        const parsed = artifact.parsed();
-        for (const file of parsed.files) {
-          console.log(`${file.path}: +${file.additions} -${file.deletions}`);
+      for (const artifact of activity.artifacts) {
+        if (artifact.type === 'changeSet') {
+          const parsed = artifact.parsed();
+          for (const file of parsed.files) {
+            console.log(`${file.path}: +${file.additions} -${file.deletions}`);
+          }
         }
       }
       break;
@@ -70,7 +72,7 @@ export JULES_API_KEY=<api-key>
 
 ### Run Cloud Functions with a Coding Agent
 
-Jules sessions run in the cloud and can run without a GitHub repository. We call these "Repoless" sessions. They are incredibly powerful because they act like preconfigured serverless functions. The Jules VM comes with a preconfigured image with Node.js, Python, Rust, Bun, and other many other runtimes and tools.
+Jules sessions run in the cloud and can run without a GitHub repository. We call these "Repoless" sessions. They are incredibly powerful because they act like preconfigured serverless functions. The Jules VM comes with a preconfigured image with Node.js, Python, Rust, Bun, and many other runtimes and tools.
 
 Pass context through the prompt and have the agent generate the result.
 
