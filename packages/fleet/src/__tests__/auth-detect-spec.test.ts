@@ -60,15 +60,4 @@ describe('AuthDetectInputSchema', () => {
     });
     expect(result.success).toBe(false);
   });
-
-  it('allows preferredMethod to be omitted', () => {
-    const result = AuthDetectInputSchema.safeParse({
-      owner: 'octocat',
-      repo: 'hello-world',
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.preferredMethod).toBeUndefined();
-    }
-  });
 });

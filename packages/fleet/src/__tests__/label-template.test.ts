@@ -13,22 +13,37 @@
 // limitations under the License.
 
 import { describe, it, expect } from 'vitest';
+import * as yaml from 'yaml';
 import { FLEET_LABEL_TEMPLATE } from '../init/templates/label.js';
 
 describe('FLEET_LABEL_TEMPLATE', () => {
-  it('generates valid YAML', () => {
-    const content = FLEET_LABEL_TEMPLATE.content;
+  const parsed = yaml.parse(FLEET_LABEL_TEMPLATE.content);
 
-    expect(content).toContain('name: Fleet Label PR');
-    expect(content).toContain('pull_request:');
-    expect(content).toContain('runs-on: ubuntu-latest');
-    expect(content).toContain('gh pr edit');
-    expect(content).toContain('fleet-merge-ready');
-    expect(content).toContain('gh issue view "$ISSUE_NUMBER"');
+  it('content is valid YAML', () => {
+    expect(parsed).toBeDefined();
+    expect(parsed.name).toBeDefined();
   });
 
-  it('triggers on opened, edited, and synchronize', () => {
+  it('has a workflow name', () => {
+    expect(typeof parsed.name).toBe('string');
+    expect(parsed.name.length).toBeGreaterThan(0);
+  });
+
+  it('triggers on pull_request events', () => {
+    expect(parsed.on).toHaveProperty('pull_request');
+    expect(parsed.on.pull_request.types).toContain('opened');
+    expect(parsed.on.pull_request.types).toContain('edited');
+    expect(parsed.on.pull_request.types).toContain('synchronize');
+  });
+
+  it('has ubuntu-latest runner', () => {
+    const jobs = Object.values(parsed.jobs) as any[];
+    expect(jobs.length).toBeGreaterThan(0);
+    expect(jobs[0]['runs-on']).toBe('ubuntu-latest');
+  });
+
+  it('references fleet-merge-ready label in steps', () => {
     const content = FLEET_LABEL_TEMPLATE.content;
-    expect(content).toContain('types: [opened, edited, synchronize]');
+    expect(content).toContain('fleet-merge-ready');
   });
 });

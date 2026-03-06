@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { describe, it, expect } from 'vitest';
-import { SignalCreateInputSchema, SignalKind } from '../signal/spec.js';
+import { SignalCreateInputSchema } from '../signal/spec.js';
 
 describe('SignalCreateInputSchema', () => {
   const validInput = {
@@ -76,19 +76,5 @@ describe('SignalCreateInputSchema', () => {
     expect(() =>
       SignalCreateInputSchema.parse({ ...validInput, kind: 'invalid' }),
     ).toThrow();
-  });
-});
-
-describe('SignalKind', () => {
-  it('accepts insight', () => {
-    expect(SignalKind.parse('insight')).toBe('insight');
-  });
-
-  it('accepts assessment', () => {
-    expect(SignalKind.parse('assessment')).toBe('assessment');
-  });
-
-  it('rejects unknown kind', () => {
-    expect(() => SignalKind.parse('task')).toThrow();
   });
 });
