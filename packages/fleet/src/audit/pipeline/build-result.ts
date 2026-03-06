@@ -22,6 +22,7 @@ export interface AuditStats {
   nodesScanned: number;
   totalUnresolved: number;
   fixedCount: number;
+  mutatedUrls: string[];
 }
 
 /**
@@ -48,6 +49,7 @@ export function buildResult(
         totalFindings: findings.length,
         nodesScanned: stats.nodesScanned,
         unresolvedEdges: stats.totalUnresolved,
+        mutatedUrls: stats.mutatedUrls,
         graph: graphWithFindings,
       },
     };
@@ -61,6 +63,7 @@ export function buildResult(
       totalFindings: findings.length,
       nodesScanned: stats.nodesScanned,
       unresolvedEdges: stats.totalUnresolved,
+      mutatedUrls: stats.mutatedUrls,
     },
   };
 }

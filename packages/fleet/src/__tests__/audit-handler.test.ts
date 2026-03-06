@@ -118,7 +118,7 @@ describe('AuditInputSchema', () => {
 // ── AuditHandler logic tests ───────────────────────────────────────
 
 function createAuditMockOctokit() {
-  return {
+  const octokit = {
     rest: {
       issues: {
         get: vi.fn().mockResolvedValue({
@@ -152,7 +152,15 @@ function createAuditMockOctokit() {
         pullRequest: { closingIssuesReferences: { nodes: [] } },
       },
     }),
+    paginate: null as any,
   } as any;
+
+  octokit.paginate = vi.fn().mockImplementation(async (method: any, opts: any) => {
+    const result = await method(opts);
+    return result.data;
+  });
+
+  return octokit;
 }
 
 describe('AuditHandler', () => {

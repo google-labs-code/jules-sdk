@@ -459,23 +459,12 @@ describe('AuditInputSchema includeGraph', () => {
 // ── AuditHandler with includeGraph ─────────────────────────────────
 
 describe('AuditHandler includeGraph integration', () => {
-  const mockOctokit = {
-    rest: {
-      issues: {
-        get: vi.fn().mockResolvedValue({
-          data: {
-            number: 10,
-            title: 'Fleet issue',
-            state: 'open',
-            body: '',
-            labels: [{ name: 'fleet' }],
-            milestone: null,
-            pull_request: undefined,
-          },
-        }),
-        listForRepo: vi.fn().mockResolvedValue({
-          data: [
-            {
+  const mockOctokit = (() => {
+    const oct = {
+      rest: {
+        issues: {
+          get: vi.fn().mockResolvedValue({
+            data: {
               number: 10,
               title: 'Fleet issue',
               state: 'open',
@@ -484,19 +473,38 @@ describe('AuditHandler includeGraph integration', () => {
               milestone: null,
               pull_request: undefined,
             },
-          ],
-        }),
-        listEventsForTimeline: vi.fn().mockResolvedValue({ data: [] }),
-      },
-    },
-    graphql: vi.fn().mockResolvedValue({
-      repository: {
-        pullRequest: {
-          closingIssuesReferences: { nodes: [] },
+          }),
+          listForRepo: vi.fn().mockResolvedValue({
+            data: [
+              {
+                number: 10,
+                title: 'Fleet issue',
+                state: 'open',
+                body: '',
+                labels: [{ name: 'fleet' }],
+                milestone: null,
+                pull_request: undefined,
+              },
+            ],
+          }),
+          listEventsForTimeline: vi.fn().mockResolvedValue({ data: [] }),
         },
       },
-    }),
-  } as any;
+      graphql: vi.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            closingIssuesReferences: { nodes: [] },
+          },
+        },
+      }),
+      paginate: null as any,
+    } as any;
+    oct.paginate = vi.fn().mockImplementation(async (method: any, opts: any) => {
+      const result = await method(opts);
+      return result.data;
+    });
+    return oct;
+  })();
 
   it('omits graph when includeGraph is false', async () => {
     const handler = new AuditHandler({ octokit: mockOctokit });
@@ -505,7 +513,7 @@ describe('AuditHandler includeGraph integration', () => {
       repo: 'repo',
       baseBranch: 'main',
       entryPoint: { kind: 'issue', id: '10' },
-      fix: false,
+      fixMode: 'off',
       depth: 0,
       format: 'json',
       includeGraph: false,
@@ -524,7 +532,7 @@ describe('AuditHandler includeGraph integration', () => {
       repo: 'repo',
       baseBranch: 'main',
       entryPoint: { kind: 'issue', id: '10' },
-      fix: false,
+      fixMode: 'off',
       depth: 0,
       format: 'json',
       includeGraph: true,
@@ -547,7 +555,7 @@ describe('AuditHandler includeGraph integration', () => {
       repo: 'repo',
       baseBranch: 'main',
       entryPoint: { kind: 'issue', id: '10' },
-      fix: false,
+      fixMode: 'off',
       depth: 0,
       format: 'json',
       includeGraph: true,
@@ -569,7 +577,7 @@ describe('AuditHandler includeGraph integration', () => {
       repo: 'repo',
       baseBranch: 'main',
       entryPoint: { kind: 'issue', id: '10' },
-      fix: false,
+      fixMode: 'off',
       depth: 0,
       format: 'json',
       includeGraph: true,

@@ -18,6 +18,7 @@ import { AuditHandler } from '../../audit/handler.js';
 import { ScanArgsSchema, buildAuditInput } from './parse-input.js';
 import { filterFindings, filterGraphFindings } from './filter-findings.js';
 import { renderJson, renderHuman } from './render-output.js';
+import { invalidateEntries } from '../../shared/auth/cache-plugin.js';
 
 /**
  * `audit scan` — Run a full audit scan.
@@ -64,14 +65,14 @@ export default defineCommand({
     },
 
     // ── Fix mode ───────────────────────────────────────────────────
-    fix: {
+    'dry-run': {
       type: 'boolean',
-      description: 'Preview what would be auto-fixed (dry run)',
+      description: 'Preview what would be auto-fixed (no writes)',
       default: false,
     },
-    apply: {
+    fix: {
       type: 'boolean',
-      description: 'Actually apply fixes (requires --fix)',
+      description: 'Apply auto-fixes',
       default: false,
     },
 
@@ -104,6 +105,9 @@ export default defineCommand({
     },
   },
   async run({ args }) {
+    const timing = process.env.FLEET_TIMING === '1';
+    const t0 = Date.now();
+
     // Parse, don't validate — raw CLI args go through Zod first
     const parsed = ScanArgsSchema.parse(args);
 
@@ -113,11 +117,18 @@ export default defineCommand({
     // 2. Execute audit
     const octokit = createFleetOctokit();
     const handler = new AuditHandler({ octokit });
+    const tExec = Date.now();
     const result = await handler.execute(input);
+    if (timing) console.log(`\n⏱  handler.execute: ${Date.now() - tExec}ms`);
 
     if (!result.success) {
       console.error(`Error [${result.error.code}]: ${result.error.message}`);
       process.exit(1);
+    }
+
+    // If fixes were applied, invalidate only the mutated cache entries
+    if (result.data.fixedCount > 0) {
+      invalidateEntries(result.data.mutatedUrls);
     }
 
     // 3. Filter findings
@@ -136,5 +147,7 @@ export default defineCommand({
     } else {
       renderHuman(result.data, filtered, fixMode);
     }
+
+    if (timing) console.log(`⏱  total wall time: ${Date.now() - t0}ms`);
   },
 });

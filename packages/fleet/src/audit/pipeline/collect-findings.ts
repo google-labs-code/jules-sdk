@@ -16,6 +16,7 @@ import type { Octokit } from 'octokit';
 import type { AuditInput } from '../spec.js';
 import type { AuditFinding } from '../findings.js';
 import type { NodeRef, LineageGraph } from '../graph/types.js';
+import { nodeKey } from '../graph/types.js';
 import { buildLineage } from '../graph/build-lineage.js';
 import { scanItem } from '../ops/scan-item.js';
 
@@ -29,6 +30,7 @@ export interface CollectResult {
 
 /**
  * Steps 2+3: Build lineage graphs and scan all nodes for findings.
+ * Deduplicates nodes across overlapping entry-point graphs.
  */
 export async function collectFindings(
   octokit: Octokit,
@@ -37,6 +39,7 @@ export async function collectFindings(
 ): Promise<CollectResult> {
   const findings: AuditFinding[] = [];
   const graphs: LineageGraph[] = [];
+  const scannedNodes = new Set<string>();
   let nodesScanned = 0;
   let totalUnresolved = 0;
 
@@ -56,8 +59,12 @@ export async function collectFindings(
       graphs.push(graph);
     }
 
-    // Scan each node
+    // Scan each node — skip already-scanned nodes from prior graphs
     for (const node of graph.nodes.values()) {
+      const key = nodeKey(node.ref);
+      if (scannedNodes.has(key)) continue;
+      scannedNodes.add(key);
+
       const nodeFindings = scanItem(node, graph.unresolvedEdges);
       findings.push(...nodeFindings);
       nodesScanned++;

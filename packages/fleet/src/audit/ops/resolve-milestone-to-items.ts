@@ -27,8 +27,8 @@ export async function resolveMilestoneToItems(
 ): Promise<NodeRef[]> {
   const refs: NodeRef[] = [];
 
-  // Fetch issues in the milestone
-  const { data: issues } = await octokit.rest.issues.listForRepo({
+  // Fetch issues in the milestone (paginated)
+  const issues = await octokit.paginate(octokit.rest.issues.listForRepo, {
     owner,
     repo,
     milestone: String(milestoneNumber),

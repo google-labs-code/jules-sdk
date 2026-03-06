@@ -31,8 +31,8 @@ export async function listUndispatchedIssues(
   owner: string,
   repo: string,
 ): Promise<UndispatchedIssue[]> {
-  // Fetch open issues with fleet label
-  const { data: issues } = await octokit.rest.issues.listForRepo({
+  // Fetch open issues with fleet label (paginated)
+  const issues = await octokit.paginate(octokit.rest.issues.listForRepo, {
     owner,
     repo,
     state: 'open',
@@ -43,8 +43,8 @@ export async function listUndispatchedIssues(
   // Filter out pull requests (GitHub API returns PRs in issue listings)
   const actualIssues = issues.filter((i) => !i.pull_request);
 
-  // Fetch open PRs to check for linked dispatches
-  const { data: pulls } = await octokit.rest.pulls.list({
+  // Fetch open PRs to check for linked dispatches (paginated)
+  const pulls = await octokit.paginate(octokit.rest.pulls.list, {
     owner,
     repo,
     state: 'open',

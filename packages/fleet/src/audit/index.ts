@@ -81,6 +81,10 @@ export {
   type UndispatchedIssue,
 } from './ops/list-undispatched-issues.js';
 
+export {
+  listFleetItems,
+} from './ops/list-fleet-items.js';
+
 // ── Edge Resolution Ops ────────────────────────────────────────────
 export { resolvePRToIssues } from './ops/resolve-pr-to-issues.js';
 export { resolveIssueToPRs } from './ops/resolve-issue-to-prs.js';

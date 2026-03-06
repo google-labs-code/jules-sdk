@@ -27,8 +27,8 @@ export async function resolveIssueToPRs(
   repo: string,
   issueNumber: number,
 ): Promise<NodeRef[]> {
-  // Use timeline events to find cross-referenced PRs
-  const { data: timeline } = await octokit.rest.issues.listEventsForTimeline({
+  // Use timeline events to find cross-referenced PRs (paginated)
+  const timeline = await octokit.paginate(octokit.rest.issues.listEventsForTimeline, {
     owner,
     repo,
     issue_number: issueNumber,

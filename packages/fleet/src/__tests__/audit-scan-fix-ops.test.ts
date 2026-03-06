@@ -171,23 +171,22 @@ describe('scanItem', () => {
 
 describe('listUndispatchedIssues', () => {
   it('returns fleet issues without open PRs', async () => {
+    const issuesData = [
+      { number: 10, title: 'Fix bug', labels: [{ name: 'fleet' }], milestone: null },
+      { number: 20, title: 'Add feature', labels: [{ name: 'fleet' }], milestone: { title: 'Sprint 1' } },
+    ];
+    const pullsData = [
+      { number: 42, body: 'Fixes #20' },
+    ];
     const octokit = {
+      paginate: vi.fn().mockImplementation((method: any) => {
+        if (method === octokit.rest.issues.listForRepo) return Promise.resolve(issuesData);
+        if (method === octokit.rest.pulls.list) return Promise.resolve(pullsData);
+        return Promise.resolve([]);
+      }),
       rest: {
-        issues: {
-          listForRepo: vi.fn().mockResolvedValue({
-            data: [
-              { number: 10, title: 'Fix bug', labels: [{ name: 'fleet' }], milestone: null },
-              { number: 20, title: 'Add feature', labels: [{ name: 'fleet' }], milestone: { title: 'Sprint 1' } },
-            ],
-          }),
-        },
-        pulls: {
-          list: vi.fn().mockResolvedValue({
-            data: [
-              { number: 42, body: 'Fixes #20' },
-            ],
-          }),
-        },
+        issues: { listForRepo: vi.fn() },
+        pulls: { list: vi.fn() },
       },
     } as any;
 
@@ -197,18 +196,18 @@ describe('listUndispatchedIssues', () => {
   });
 
   it('excludes PRs from issue listing', async () => {
+    const issuesData = [
+      { number: 10, title: 'Fix bug', labels: [{ name: 'fleet' }], pull_request: {} },
+    ];
     const octokit = {
+      paginate: vi.fn().mockImplementation((method: any) => {
+        if (method === octokit.rest.issues.listForRepo) return Promise.resolve(issuesData);
+        if (method === octokit.rest.pulls.list) return Promise.resolve([]);
+        return Promise.resolve([]);
+      }),
       rest: {
-        issues: {
-          listForRepo: vi.fn().mockResolvedValue({
-            data: [
-              { number: 10, title: 'Fix bug', labels: [{ name: 'fleet' }], pull_request: {} },
-            ],
-          }),
-        },
-        pulls: {
-          list: vi.fn().mockResolvedValue({ data: [] }),
-        },
+        issues: { listForRepo: vi.fn() },
+        pulls: { list: vi.fn() },
       },
     } as any;
 

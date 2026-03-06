@@ -37,11 +37,9 @@ export class SignalCreateHandler implements SignalCreateSpec {
     try {
       const { octokit } = this.deps;
 
-      // Map kind to label
-      const labels = [...input.tags];
-      labels.push(
-        input.kind === 'insight' ? 'fleet-insight' : 'fleet-assessment',
-      );
+      // All fleet-managed issues get the 'fleet' label.
+      // Type (insight vs assessment) is in the title prefix and body content.
+      const labels = [...new Set([...input.tags, 'fleet'])];
 
       // Resolve scope name to milestone ID if provided
       let milestoneNumber: number | undefined;

@@ -26,8 +26,8 @@ describe('ScanArgsSchema', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.data['dry-run']).toBe(false);
       expect(result.data.fix).toBe(false);
-      expect(result.data.apply).toBe(false);
       expect(result.data.json).toBe(false);
       expect(result.data.graph).toBe(false);
       expect(result.data.fixable).toBe(false);
@@ -62,14 +62,14 @@ describe('ScanArgsSchema', () => {
 
 describe('deriveFixMode', () => {
   const cases = [
-    { fix: false, apply: false, expected: 'off' },
-    { fix: true, apply: false, expected: 'dry-run' },
-    { fix: true, apply: true, expected: 'apply' },
-    { fix: false, apply: true, expected: 'off' }, // apply without fix = off
+    { 'dry-run': false, fix: false, expected: 'off' },
+    { 'dry-run': true, fix: false, expected: 'dry-run' },
+    { 'dry-run': false, fix: true, expected: 'apply' },
+    { 'dry-run': true, fix: true, expected: 'dry-run' }, // --dry-run overrides --fix
   ] as const;
 
-  it.each(cases)('fix=$fix apply=$apply → $expected', ({ fix, apply, expected }) => {
-    expect(deriveFixMode({ fix, apply } as any)).toBe(expected);
+  it.each(cases)('dry-run=$dry-run fix=$fix → $expected', (c) => {
+    expect(deriveFixMode(c as any)).toBe(c.expected);
   });
 });
 
@@ -96,10 +96,10 @@ describe('matchesFilter', () => {
   ];
 
   describe('--fixable', () => {
-    it('keeps only deterministic findings', () => {
+    it('keeps deterministic and cognitive findings, excludes none', () => {
       const filtered = findings.filter((f) => matchesFilter(f, { fixable: true }));
-      expect(filtered).toHaveLength(2);
-      expect(filtered.every((f) => f.fixability === 'deterministic')).toBe(true);
+      expect(filtered).toHaveLength(3);
+      expect(filtered.every((f) => f.fixability !== 'none')).toBe(true);
     });
   });
 
@@ -124,8 +124,8 @@ describe('matchesFilter', () => {
   describe('--fixable --severity (composed)', () => {
     it('fixable + warning: only fixable warnings+', () => {
       const filtered = findings.filter((f) => matchesFilter(f, { fixable: true, severity: 'warning' }));
-      expect(filtered).toHaveLength(2);
-      expect(filtered.every((f) => f.fixability === 'deterministic')).toBe(true);
+      expect(filtered).toHaveLength(3);
+      expect(filtered.every((f) => f.fixability !== 'none')).toBe(true);
       expect(filtered.every((f) => ['error', 'warning'].includes(f.severity))).toBe(true);
     });
 

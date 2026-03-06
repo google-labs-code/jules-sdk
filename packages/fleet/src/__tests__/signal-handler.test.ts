@@ -42,7 +42,7 @@ const baseInput: SignalCreateInput = {
 };
 
 describe('SignalCreateHandler', () => {
-  it('creates an assessment with fleet-assessment label', async () => {
+  it('creates an assessment with fleet label (no sub-type labels)', async () => {
     const octokit = createMockOctokit();
     const handler = new SignalCreateHandler({ octokit });
 
@@ -59,12 +59,12 @@ describe('SignalCreateHandler', () => {
         owner: 'google',
         repo: 'jules-sdk',
         title: '[Fleet Execution] Fix auth module',
-        labels: ['fleet', 'fleet-assessment'],
+        labels: ['fleet'],
       }),
     );
   });
 
-  it('creates an insight with fleet-insight label', async () => {
+  it('creates an insight with fleet label (same as assessment — type is in title)', async () => {
     const octokit = createMockOctokit();
     const handler = new SignalCreateHandler({ octokit });
 
@@ -73,7 +73,7 @@ describe('SignalCreateHandler', () => {
     expect(result.success).toBe(true);
     expect(octokit.rest.issues.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        labels: ['fleet', 'fleet-insight'],
+        labels: ['fleet'],
       }),
     );
   });
