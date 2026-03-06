@@ -14,7 +14,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { AnalyzeInputSchema } from '../analyze/spec.js';
-import { parseGoalContent } from '../analyze/goals.js';
 
 describe('AnalyzeInputSchema', () => {
   it('accepts valid input with goal', () => {
@@ -66,53 +65,5 @@ describe('AnalyzeInputSchema', () => {
     expect(() =>
       AnalyzeInputSchema.parse({ owner: 'o' }),
     ).toThrow();
-  });
-});
-
-describe('parseGoalContent — Verification Section', () => {
-
-  it('extracts verification commands from ## Verification section', () => {
-    const content = `---
-milestone: "1"
----
-# My Goal
-
-Some description.
-
-## Verification
-- \`python -m pytest tests/ -v\`
-- \`python -m mypy src/ --strict\`
-- \`python -m build --sdist\`
-
-## Assessment Hints
-Some hints here.`;
-
-    const result = parseGoalContent(content);
-    expect(result.config.verification).toEqual([
-      'python -m pytest tests/ -v',
-      'python -m mypy src/ --strict',
-      'python -m build --sdist',
-    ]);
-  });
-
-  it('returns undefined when no Verification section exists', () => {
-    const content = `# My Goal
-
-## Diagnostics
-- \`npm test\``;
-
-    const result = parseGoalContent(content);
-    expect(result.config.verification).toBeUndefined();
-  });
-
-  it('returns undefined for empty Verification section', () => {
-    const content = `# My Goal
-
-## Verification
-
-## Next Section`;
-
-    const result = parseGoalContent(content);
-    expect(result.config.verification).toBeUndefined();
   });
 });

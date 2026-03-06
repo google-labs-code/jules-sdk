@@ -23,6 +23,7 @@ import type { InitArgs } from '../init/wizard/types.js';
 import { uploadSecret } from '../init/ops/upload-secrets.js';
 import { WORKFLOW_TEMPLATES, buildWorkflowTemplates } from '../init/templates.js';
 import { parseFeatureFlags } from '../init/wizard/parse-features.js';
+import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
 
 export default defineCommand({
   meta: {
@@ -91,6 +92,7 @@ export default defineCommand({
       description: 'Overwrite existing workflow files (default: false)',
       default: false,
     },
+    ...outputArgs,
   },
   async run({ args }) {
     const nonInteractive = args['non-interactive'] || !isInteractive();
@@ -128,6 +130,13 @@ export default defineCommand({
     if (dryRun) {
       const files = buildWorkflowTemplates(intervalMinutes, wizardResult.authMethod).map((t) => t.repoPath);
       files.push('.fleet/goals/example.md');
+      const format = resolveOutputFormat(args);
+      const dryRunResult = { success: true as const, data: { dryRun: true, files } };
+      const json = renderResult(dryRunResult, format, args.fields as string | undefined);
+      if (json !== null) {
+        console.log(json);
+        return;
+      }
       emit({ type: 'init:dry-run', files });
       renderer.end(`Dry run complete. ${files.length} files would be created.`);
       return;
@@ -159,6 +168,12 @@ export default defineCommand({
     }
 
     if (!result.success) {
+      const format = resolveOutputFormat(args);
+      const json = renderResult(result, format, args.fields as string | undefined);
+      if (json !== null) {
+        console.log(json);
+        process.exit(1);
+      }
       renderer.error(result.error.message);
       if (result.error.suggestion) {
         renderer.render({
@@ -172,6 +187,13 @@ export default defineCommand({
         renderer.end(`${secretNames.length} secret(s) uploaded, but no new files were committed.`);
       }
       process.exit(1);
+    }
+
+    const format = resolveOutputFormat(args);
+    const initJson = renderResult(result, format, args.fields as string | undefined);
+    if (initJson !== null) {
+      console.log(initJson);
+      return;
     }
 
     renderer.end('Fleet initialized! Merge the PR to activate Fleet.');

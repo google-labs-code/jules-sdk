@@ -41,6 +41,8 @@ export const MergeInputSchema = z
     owner: z.string().min(1),
     /** Repository name */
     repo: z.string().min(1),
+    /** If true, list mergeable PRs without merging */
+    dryRun: z.boolean().default(false),
   })
   .refine((d) => d.mode !== 'fleet-run' || !!d.runId, {
     message: '--run-id is required when mode is fleet-run',

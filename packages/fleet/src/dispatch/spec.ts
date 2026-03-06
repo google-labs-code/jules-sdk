@@ -27,6 +27,8 @@ export const DispatchInputSchema = z.object({
   baseBranch: z.string().default('main'),
   /** Directory containing goal files (for verification commands) */
   goalsDir: z.string().default('.fleet/goals'),
+  /** If true, list dispatchable issues without creating sessions */
+  dryRun: z.boolean().default(false),
 });
 
 export type DispatchInput = z.infer<typeof DispatchInputSchema>;

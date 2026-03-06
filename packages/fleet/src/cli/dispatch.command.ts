@@ -20,6 +20,7 @@ import { getGitRepoInfo } from '../shared/auth/git.js';
 import { createRenderer, createEmitter } from '../shared/ui/index.js';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
 import { jules } from '@google/jules-sdk';
+import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
 
 export default defineCommand({
   meta: {
@@ -40,6 +41,12 @@ export default defineCommand({
     repo: {
       type: 'string',
       description: 'Repository name (auto-detected from git remote if omitted)',
+    },
+    ...outputArgs,
+    'dry-run': {
+      type: 'boolean',
+      description: 'List issues that would be dispatched (no sessions created)',
+      default: false,
     },
   },
   async run({ args }) {
@@ -100,6 +107,7 @@ export default defineCommand({
         owner,
         repo,
         baseBranch: process.env.FLEET_BASE_BRANCH || 'main',
+        dryRun: args['dry-run'],
       });
 
       const result = await handler.execute(input);
@@ -114,6 +122,16 @@ export default defineCommand({
     }
 
     renderer.end(`${totalDispatched} dispatched, ${totalSkipped} skipped across ${milestones.length} milestone(s).`);
+
+    const format = resolveOutputFormat(args);
+    const summaryResult = {
+      success: true as const,
+      data: { totalDispatched, totalSkipped, milestones: milestones.length },
+    };
+    const json = renderResult(summaryResult, format, args.fields as string | undefined);
+    if (json !== null) {
+      console.log(json);
+    }
   },
 });
 

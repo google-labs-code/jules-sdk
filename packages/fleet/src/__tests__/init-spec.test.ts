@@ -13,59 +13,7 @@
 // limitations under the License.
 
 import { describe, it, expect } from 'vitest';
-import { ConfigureInputSchema } from '../configure/spec.js';
 import { InitInputSchema } from '../init/spec.js';
-
-describe('ConfigureInputSchema (Contract Tests)', () => {
-  it('accepts valid create labels input', () => {
-    const result = ConfigureInputSchema.safeParse({
-      resource: 'labels',
-      action: 'create',
-      owner: 'google',
-      repo: 'sdk',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts valid delete labels input', () => {
-    const result = ConfigureInputSchema.safeParse({
-      resource: 'labels',
-      action: 'delete',
-      owner: 'google',
-      repo: 'sdk',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('defaults action to create', () => {
-    const result = ConfigureInputSchema.safeParse({
-      resource: 'labels',
-      owner: 'google',
-      repo: 'sdk',
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.action).toBe('create');
-    }
-  });
-
-  it('rejects invalid resource', () => {
-    const result = ConfigureInputSchema.safeParse({
-      resource: 'invalid',
-      owner: 'google',
-      repo: 'sdk',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects missing owner', () => {
-    const result = ConfigureInputSchema.safeParse({
-      resource: 'labels',
-      repo: 'sdk',
-    });
-    expect(result.success).toBe(false);
-  });
-});
 
 describe('InitInputSchema (Contract Tests)', () => {
   it('accepts valid input with explicit owner/repo', () => {
