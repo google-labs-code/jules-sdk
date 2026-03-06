@@ -24,7 +24,7 @@ import { nodeKey } from '../audit/graph/types.js';
  *   - PR #42 is on a jules/ branch and fixes issue #10
  */
 function createGraphMockOctokit() {
-  return {
+  const octokit = {
     rest: {
       issues: {
         get: vi.fn().mockImplementation(({ issue_number }: any) => {
@@ -111,7 +111,16 @@ function createGraphMockOctokit() {
         },
       };
     }),
+    paginate: null as any, // will be set below
   } as any;
+
+  // paginate delegates to the underlying method and unwraps .data
+  octokit.paginate = vi.fn().mockImplementation(async (method: any, opts: any) => {
+    const result = await method(opts);
+    return result.data;
+  });
+
+  return octokit;
 }
 
 describe('buildLineage', () => {

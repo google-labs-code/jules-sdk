@@ -63,6 +63,8 @@ export const AuditSuccessSchema = z.object({
     totalFindings: z.number(),
     nodesScanned: z.number(),
     unresolvedEdges: z.number(),
+    /** URL patterns of resources mutated by --fix (used for cache invalidation) */
+    mutatedUrls: z.array(z.string()).default([]),
     /** Serialized lineage graph — present when includeGraph is true */
     graph: SerializedGraphSchema.optional(),
   }),

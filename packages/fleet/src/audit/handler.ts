@@ -40,15 +40,35 @@ export class AuditHandler implements AuditSpec {
   }
 
   async execute(input: AuditInput): Promise<AuditResult> {
+    const timing = process.env.FLEET_TIMING === '1';
+    const t = (label: string, start: number) => {
+      if (timing) console.error(`  ⏱  ${label}: ${Date.now() - start}ms`);
+    };
+
     try {
+      const t0 = Date.now();
+      if (timing) console.error(`\n⏱  Audit pipeline timing:`);
+
+      const t1 = Date.now();
       const entries = await resolveEntryPoints(this.octokit, input);
+      t(`resolveEntryPoints (${entries.length} entries)`, t1);
+
+      const t2 = Date.now();
       const collected = await collectFindings(this.octokit, input, entries);
-      const fixedCount = await applyFixMode(this.octokit, input, collected.findings);
-      return buildResult(input, collected.findings, collected.graphs, {
+      t(`collectFindings (${collected.nodesScanned} nodes)`, t2);
+
+      const t3 = Date.now();
+      const fixResult = await applyFixMode(this.octokit, input, collected.findings);
+      t(`applyFixMode`, t3);
+
+      const result = buildResult(input, collected.findings, collected.graphs, {
         nodesScanned: collected.nodesScanned,
         totalUnresolved: collected.totalUnresolved,
-        fixedCount,
+        fixedCount: fixResult.fixedCount,
+        mutatedUrls: fixResult.mutatedUrls,
       });
+      t(`total`, t0);
+      return result;
     } catch (error) {
       return buildErrorResult(error);
     }

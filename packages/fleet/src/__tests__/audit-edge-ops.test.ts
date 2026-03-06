@@ -64,22 +64,22 @@ describe('resolvePRToIssues', () => {
 
 describe('resolveIssueToPRs', () => {
   it('finds PRs from cross-referenced timeline events', async () => {
+    const timelineData = [
+      {
+        event: 'cross-referenced',
+        source: { issue: { number: 55, pull_request: {} } },
+      },
+      {
+        event: 'cross-referenced',
+        source: { issue: { number: 66, pull_request: {} } },
+      },
+      { event: 'labeled' }, // non-cross-ref event
+    ];
     const octokit = {
+      paginate: vi.fn().mockResolvedValue(timelineData),
       rest: {
         issues: {
-          listEventsForTimeline: vi.fn().mockResolvedValue({
-            data: [
-              {
-                event: 'cross-referenced',
-                source: { issue: { number: 55, pull_request: {} } },
-              },
-              {
-                event: 'cross-referenced',
-                source: { issue: { number: 66, pull_request: {} } },
-              },
-              { event: 'labeled' }, // non-cross-ref event
-            ],
-          }),
+          listEventsForTimeline: vi.fn(),
         },
       },
     } as any;
@@ -92,21 +92,21 @@ describe('resolveIssueToPRs', () => {
   });
 
   it('deduplicates PRs', async () => {
+    const timelineData = [
+      {
+        event: 'cross-referenced',
+        source: { issue: { number: 55, pull_request: {} } },
+      },
+      {
+        event: 'cross-referenced',
+        source: { issue: { number: 55, pull_request: {} } },
+      },
+    ];
     const octokit = {
+      paginate: vi.fn().mockResolvedValue(timelineData),
       rest: {
         issues: {
-          listEventsForTimeline: vi.fn().mockResolvedValue({
-            data: [
-              {
-                event: 'cross-referenced',
-                source: { issue: { number: 55, pull_request: {} } },
-              },
-              {
-                event: 'cross-referenced',
-                source: { issue: { number: 55, pull_request: {} } },
-              },
-            ],
-          }),
+          listEventsForTimeline: vi.fn(),
         },
       },
     } as any;
@@ -226,16 +226,16 @@ describe('resolvePRToChecks', () => {
 
 describe('resolveMilestoneToItems', () => {
   it('returns issue and PR refs for a milestone', async () => {
+    const milestoneItems = [
+      { number: 10 },          // issue (no pull_request)
+      { number: 20, pull_request: {} },  // PR
+      { number: 30 },          // issue
+    ];
     const octokit = {
+      paginate: vi.fn().mockResolvedValue(milestoneItems),
       rest: {
         issues: {
-          listForRepo: vi.fn().mockResolvedValue({
-            data: [
-              { number: 10 },          // issue (no pull_request)
-              { number: 20, pull_request: {} },  // PR
-              { number: 30 },          // issue
-            ],
-          }),
+          listForRepo: vi.fn(),
         },
       },
     } as any;

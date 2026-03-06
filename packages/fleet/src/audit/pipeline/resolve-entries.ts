@@ -15,7 +15,7 @@
 import type { Octokit } from 'octokit';
 import type { AuditInput } from '../spec.js';
 import type { NodeRef } from '../graph/types.js';
-import { listUndispatchedIssues } from '../ops/list-undispatched-issues.js';
+import { listFleetItems } from '../ops/list-fleet-items.js';
 
 /**
  * Step 1: Resolve the input entry point into concrete node references.
@@ -34,16 +34,8 @@ export async function resolveEntryPoints(
     case 'milestone':
       return [{ kind: 'milestone', id: ep.id }];
     case 'full': {
-      // For full scan, start from undispatched issues
-      const undispatched = await listUndispatchedIssues(
-        octokit,
-        input.owner,
-        input.repo,
-      );
-      return undispatched.map((i) => ({
-        kind: 'issue' as const,
-        id: String(i.number),
-      }));
+      // For full scan, start from all fleet items (issues + fleet-branch PRs)
+      return listFleetItems(octokit, input.owner, input.repo);
     }
   }
 }

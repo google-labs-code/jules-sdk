@@ -26,7 +26,7 @@ export interface FilterOptions {
  * Test whether a finding matches the active filters.
  */
 export function matchesFilter(f: AuditFinding, opts: FilterOptions): boolean {
-  if (opts.fixable && f.fixability !== 'deterministic') return false;
+  if (opts.fixable && f.fixability === 'none') return false;
   if (opts.severity) {
     const min = opts.severity as keyof typeof severityRank;
     if (severityRank[f.severity] < severityRank[min]) return false;

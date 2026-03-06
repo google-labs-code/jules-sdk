@@ -157,7 +157,7 @@ async function resolveNode(
         repo,
         pull_number: Number(ref.id),
       });
-      data = { number: pr.number, title: pr.title, state: pr.state, headRef: pr.head.ref, headSha: pr.head.sha, merged: pr.merged, body: pr.body, milestone: pr.milestone };
+      data = { number: pr.number, title: pr.title, state: pr.state, labels: pr.labels, headRef: pr.head.ref, headSha: pr.head.sha, merged: pr.merged, body: pr.body, milestone: pr.milestone };
 
       // PR → Issues (via closingIssuesReferences)
       const issueRefs = await resolvePRToIssues(octokit, owner, repo, Number(ref.id));

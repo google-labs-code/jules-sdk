@@ -27,8 +27,8 @@ export const ScanArgsSchema = z.object({
   milestone: z.string().optional(),
   issue: z.string().optional(),
   pr: z.string().optional(),
+  'dry-run': z.boolean().default(false),
   fix: z.boolean().default(false),
-  apply: z.boolean().default(false),
   depth: z.string().default('2'),
   json: z.boolean().default(false),
   graph: z.boolean().default(false),
@@ -40,10 +40,13 @@ export type ScanArgs = z.infer<typeof ScanArgsSchema>;
 
 /**
  * Derive fixMode from CLI flags.
+ * --dry-run  → preview what would be fixed (no writes) — overrides --fix
+ * --fix      → actually apply fixes
+ * (neither)  → off
  */
-export function deriveFixMode(args: Pick<ScanArgs, 'fix' | 'apply'>): FixMode {
-  if (args.fix && args.apply) return 'apply';
-  if (args.fix) return 'dry-run';
+export function deriveFixMode(args: Pick<ScanArgs, 'dry-run' | 'fix'>): FixMode {
+  if (args['dry-run']) return 'dry-run'; // safety: dry-run always wins
+  if (args.fix) return 'apply';
   return 'off';
 }
 

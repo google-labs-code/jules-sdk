@@ -72,7 +72,7 @@ export function renderHuman(
         : f.wouldFix
           ? ' 🔧 (would fix)'
           : f.fixability === 'deterministic'
-            ? ' 🔧 (fixable with --fix)'
+            ? ' 🔧 (auto-fixable, run with --dry-run)'
             : '';
       console.log(`   ${icon} [${f.type}] ${f.detail}${fix}`);
     }
@@ -82,12 +82,12 @@ export function renderHuman(
   if (fixMode === 'dry-run') {
     const wouldFixCount = filteredFindings.filter((f) => f.wouldFix).length;
     if (wouldFixCount > 0) {
-      console.log(`\n   💡 ${wouldFixCount} finding(s) can be auto-fixed. Run with --fix --apply to execute.`);
+      console.log(`\n   💡 ${wouldFixCount} finding(s) would be auto-fixed. Run with --fix to apply.`);
     }
   } else if (fixMode === 'off') {
     const fixableCount = filteredFindings.filter((f) => f.fixability === 'deterministic' && !f.fixed).length;
     if (fixableCount > 0) {
-      console.log(`\n   💡 ${fixableCount} finding(s) are fixable. Run with --fix to preview.`);
+      console.log(`\n   💡 ${fixableCount} finding(s) are auto-fixable. Run with --dry-run to preview, --fix to apply.`);
     }
   }
 }

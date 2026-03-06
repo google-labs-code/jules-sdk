@@ -19,32 +19,38 @@ import { parseNodeId } from '../findings.js';
 import { addLabel } from '../ops/add-label.js';
 import { assignMilestone } from '../ops/assign-milestone.js';
 
+export interface FixResult {
+  fixedCount: number;
+  /** URL patterns of mutated resources — used for granular cache invalidation */
+  mutatedUrls: string[];
+}
+
 /**
  * Step 4: Handle fix mode (off / dry-run / apply).
  *
- * - off: no-op, returns 0
- * - dry-run: marks deterministic findings with wouldFix, returns 0
- * - apply: calls APIs to fix deterministic findings, returns fixed count
+ * - off: no-op, returns { fixedCount: 0, mutatedUrls: [] }
+ * - dry-run: marks deterministic findings with wouldFix, returns { fixedCount: 0, mutatedUrls: [] }
+ * - apply: calls APIs to fix deterministic findings, returns fix count + mutated URLs
  */
 export async function applyFixMode(
   octokit: Octokit,
   input: AuditInput,
   findings: AuditFinding[],
-): Promise<number> {
+): Promise<FixResult> {
   if (input.fixMode === 'dry-run') {
     for (const finding of findings) {
       if (finding.fixability === 'deterministic' && !finding.fixed) {
         finding.wouldFix = true;
       }
     }
-    return 0;
+    return { fixedCount: 0, mutatedUrls: [] };
   }
 
   if (input.fixMode === 'apply') {
     return applyFixes(octokit, input, findings);
   }
 
-  return 0;
+  return { fixedCount: 0, mutatedUrls: [] };
 }
 
 // ── APPLY FIXES ────────────────────────────────────────────────────
@@ -53,8 +59,9 @@ async function applyFixes(
   octokit: Octokit,
   input: AuditInput,
   findings: AuditFinding[],
-): Promise<number> {
+): Promise<FixResult> {
   let fixedCount = 0;
+  const mutatedUrls: string[] = [];
 
   for (const finding of findings) {
     if (finding.fixability !== 'deterministic' || finding.fixed) continue;
@@ -73,6 +80,9 @@ async function applyFixes(
           );
           finding.fixed = true;
           fixedCount++;
+          // Track mutated resources for cache invalidation
+          mutatedUrls.push(`/repos/${input.owner}/${input.repo}/pulls/${parsed.id}`);
+          mutatedUrls.push(`/repos/${input.owner}/${input.repo}/issues/${parsed.id}/labels`);
           break;
         }
         // Other deterministic fixes can be added here
@@ -84,5 +94,12 @@ async function applyFixes(
     }
   }
 
-  return fixedCount;
+  // GraphQL responses contain bulk PR data (including labels). If any PR
+  // was mutated, invalidate all /graphql cache entries so the next scan
+  // fetches fresh data.
+  if (fixedCount > 0) {
+    mutatedUrls.push('/graphql');
+  }
+
+  return { fixedCount, mutatedUrls };
 }
