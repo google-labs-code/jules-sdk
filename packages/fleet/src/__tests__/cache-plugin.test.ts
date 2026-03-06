@@ -161,13 +161,20 @@ describe('cache-plugin: invalidateEntries', () => {
     const filesAfter = readdirSync(cacheDir).filter(f => f.endsWith('.json'));
     expect(filesAfter.length).toBe(1);
 
-    // Requesting PR 200 should be TTL hit (still cached)
+    // Requesting PR 200 should revalidate with ETag (not evicted, but always revalidates)
     const { request: req200 } = await makeRequest(pr200Options, response);
-    expect(req200).not.toHaveBeenCalled(); // cache hit
+    expect(req200).toHaveBeenCalledTimes(1); // ETag revalidation (not TTL hit)
+    expect(req200).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'if-none-match': 'W/"etag"',
+        }),
+      }),
+    );
 
-    // Requesting PR 145 should be cold miss (evicted)
+    // Requesting PR 145 should be cold miss (evicted — no cached entry, no ETag)
     const { request: req145 } = await makeRequest(pr145Options, response);
-    expect(req145).toHaveBeenCalledTimes(1); // network hit
+    expect(req145).toHaveBeenCalledTimes(1); // network hit (cold miss)
   });
 });
 
@@ -223,3 +230,158 @@ describe('applyFixMode: mutated URLs', () => {
     );
   });
 });
+
+// ── Test 4: ETag-first revalidation (TTL must NOT block ETag checks) ──
+
+describe('cache-plugin: ETag-first revalidation', () => {
+  let cacheDir: string;
+
+  beforeEach(() => {
+    cacheDir = makeTempCacheDir();
+    process.env.FLEET_CACHE_DIR = cacheDir;
+    delete process.env.FLEET_CACHE;
+    delete process.env.FLEET_CACHE_TTL;
+    delete process.env.FLEET_TIMING;
+  });
+
+  afterEach(() => {
+    delete process.env.FLEET_CACHE_DIR;
+  });
+
+  it('GET with ETag always revalidates — even within TTL window', async () => {
+    const { octokit, makeRequest } = createMockOctokit();
+    cachePlugin(octokit);
+
+    const getOptions = { method: 'GET', url: '/repos/owner/repo/issues' };
+    const response1 = {
+      data: [{ number: 1, labels: [] }],
+      status: 200,
+      headers: { etag: 'W/"etag-v1"' },
+    };
+
+    // 1. Cold miss — populates cache with ETag
+    const { request: req1 } = await makeRequest(getOptions, response1);
+    expect(req1).toHaveBeenCalledTimes(1);
+
+    // 2. Immediately request again — cache entry is 0ms old (well within 5-min TTL)
+    //    Server has updated data with a new ETag
+    const response2 = {
+      data: [{ number: 1, labels: ['fleet'] }], // label was added externally
+      status: 200,
+      headers: { etag: 'W/"etag-v2"' },
+    };
+
+    const { request: req2, result } = await makeRequest(getOptions, response2);
+
+    // ❌ CURRENT BUG: request is NOT made because TTL gate blocks it
+    // ✅ CORRECT: request SHOULD be made with If-None-Match header
+    expect(req2).toHaveBeenCalledTimes(1);
+    expect(req2).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'if-none-match': 'W/"etag-v1"',
+        }),
+      }),
+    );
+
+    // Should return the FRESH data, not the stale cached data
+    expect(result.data).toEqual([{ number: 1, labels: ['fleet'] }]);
+  });
+
+  it('GET with ETag returns cached data on 304 (no rate limit hit)', async () => {
+    const { octokit, makeRequest } = createMockOctokit();
+    cachePlugin(octokit);
+
+    const getOptions = { method: 'GET', url: '/repos/owner/repo/issues' };
+    const originalData = [{ number: 1, labels: ['fleet'] }];
+    const response1 = {
+      data: originalData,
+      status: 200,
+      headers: { etag: 'W/"etag-v1"' },
+    };
+
+    // 1. Cold miss — populates cache
+    await makeRequest(getOptions, response1);
+
+    // 2. Server returns 304 (data unchanged)
+    //    Octokit surfaces 304 as an error with status property
+    const { octokit: octokit2, makeRequest: makeRequest2 } = createMockOctokit();
+    cachePlugin(octokit2);
+
+    // Re-populate cache for octokit2
+    await makeRequest2(getOptions, response1);
+
+    // Now simulate 304: the mock request function throws with status 304
+    let wrappedHandler: any;
+    const octokit3 = {
+      hook: {
+        wrap: (_name: string, handler: any) => { wrappedHandler = handler; },
+      },
+    };
+    cachePlugin(octokit3);
+
+    // Construct request that throws 304
+    const request304 = vi.fn().mockRejectedValue(Object.assign(new Error('Not Modified'), { status: 304 }));
+
+    // Must have a cached entry first
+    const requestOk = vi.fn().mockResolvedValue(response1);
+    await wrappedHandler(requestOk, { ...getOptions });
+
+    // Now revalidate — should get 304 and return cached data
+    const result = await wrappedHandler(request304, { ...getOptions });
+    expect(result.data).toEqual(originalData);
+    expect(result.status).toBe(200);
+  });
+
+  it('POST/GraphQL still uses TTL — no ETag available', async () => {
+    const { octokit, makeRequest } = createMockOctokit();
+    cachePlugin(octokit);
+
+    const postOptions = { method: 'POST', url: '/graphql', data: { query: '{ viewer }' } };
+    const response = { data: { data: { viewer: 'test' } }, status: 200, headers: {} };
+
+    // 1. Cold miss
+    const { request: req1 } = await makeRequest(postOptions, response);
+    expect(req1).toHaveBeenCalledTimes(1);
+
+    // 2. Second request immediately — POST should still use TTL (no ETag to revalidate)
+    const { request: req2 } = await makeRequest(postOptions, response);
+    expect(req2).not.toHaveBeenCalled(); // TTL hit — correct for POST
+  });
+});
+
+// ── Test 5: Live GitHub API integration (opt-in) ──────────────────────
+
+describe('cache-plugin: live GitHub API', () => {
+  const LIVE = process.env.FLEET_TEST_LIVE === '1';
+
+  it.skipIf(!LIVE)('ETag revalidation works with real GitHub API', async () => {
+    const { Octokit } = await import('octokit');
+    const { cachePlugin: realCachePlugin } = await import('../shared/auth/cache-plugin.js');
+
+    const cacheDir = makeTempCacheDir();
+    process.env.FLEET_CACHE_DIR = cacheDir;
+
+    const octokit = new Octokit({
+      auth: process.env.GITHUB_TOKEN,
+    });
+    realCachePlugin(octokit);
+
+    // Fetch the same endpoint twice — second should use ETag
+    const endpoint = '/repos/davideast/jules-sdk-python/issues?state=open&per_page=5';
+    const r1 = await octokit.request(`GET ${endpoint}`);
+    expect(r1.status).toBe(200);
+
+    const r2 = await octokit.request(`GET ${endpoint}`);
+    // Should still get data (from cache or fresh) — no errors
+    expect(r2.data).toBeDefined();
+    expect(Array.isArray(r2.data)).toBe(true);
+
+    // The cache dir should have entries
+    const files = readdirSync(cacheDir);
+    expect(files.length).toBeGreaterThan(0);
+
+    delete process.env.FLEET_CACHE_DIR;
+  });
+});
+

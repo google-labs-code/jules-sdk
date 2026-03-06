@@ -182,21 +182,20 @@ export function cachePlugin(octokit: any) {
     const isPost = options.method === 'POST';
     const ttlMs = isPost ? postTtlMs : getTtlMs;
 
-    // ── TTL hit: return from disk, skip network entirely ──────────
-    if (cached && cached.ageMs < ttlMs) {
-      hits++;
-      // Ensure reverse index is populated even for cache hits
-      urlIndex.set(key, options.url);
-      return { data: cached.entry.data, status: 200, headers: {} };
-    }
-
-    // ── ETag revalidation (GET only — POST/GraphQL has no ETags) ──
-    if (cached && cached.entry.etag) {
+    // ── ETag-first: always revalidate GETs when we have an ETag ────
+    // 304 responses are free (no rate limit hit, ~50ms round-trip).
+    // TTL only applies as fallback for POST/GraphQL (no ETag support).
+    if (cached && cached.entry.etag && !isPost) {
       revalidations++;
       options.headers = {
         ...options.headers,
         'if-none-match': cached.entry.etag,
       };
+    } else if (cached && isPost && cached.ageMs < ttlMs) {
+      // POST/GraphQL: TTL fallback (no ETag available)
+      hits++;
+      urlIndex.set(key, options.url);
+      return { data: cached.entry.data, status: 200, headers: {} };
     } else {
       misses++;
     }
