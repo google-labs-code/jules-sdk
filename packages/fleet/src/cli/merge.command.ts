@@ -20,6 +20,7 @@ import { getGitRepoInfo } from '../shared/auth/git.js';
 import { createRenderer, createEmitter } from '../shared/ui/index.js';
 import { jules } from '@google/jules-sdk';
 import type { SessionDispatcher } from '../shared/session-dispatcher.js';
+import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
 
 export default defineCommand({
   meta: {
@@ -60,6 +61,12 @@ export default defineCommand({
       type: 'string',
       description: 'Repository name (auto-detected from git remote if omitted)',
     },
+    ...outputArgs,
+    'dry-run': {
+      type: 'boolean',
+      description: 'List PRs that would be merged (no merges performed)',
+      default: false,
+    },
   },
   async run({ args }) {
     const renderer = createRenderer();
@@ -81,6 +88,7 @@ export default defineCommand({
       baseBranch: args.base,
       admin: args.admin,
       redispatch: args['redispatch'],
+      dryRun: args['dry-run'],
       owner,
       repo,
     });
@@ -106,6 +114,14 @@ export default defineCommand({
 
     const handler = new MergeHandler({ octokit, emit, dispatcher });
     const result = await handler.execute(input);
+
+    const format = resolveOutputFormat(args);
+    const json = renderResult(result, format, args.fields as string | undefined);
+    if (json !== null) {
+      console.log(json);
+      if (!result.success) process.exit(1);
+      return;
+    }
 
     if (!result.success) {
       renderer.error(result.error.message);

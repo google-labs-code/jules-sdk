@@ -18,6 +18,7 @@ import { ConfigureHandler } from '../configure/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
 import { createRenderer, createEmitter } from '../shared/ui/index.js';
+import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
 
 export default defineCommand({
   meta: {
@@ -46,6 +47,12 @@ export default defineCommand({
     repo: {
       type: 'string',
       description: 'Repository name (auto-detected from git remote if omitted)',
+    },
+    ...outputArgs,
+    'dry-run': {
+      type: 'boolean',
+      description: 'Show what would be created/deleted (no changes made)',
+      default: false,
     },
   },
   async run({ args }) {
@@ -90,10 +97,37 @@ export default defineCommand({
       milestone,
     });
 
+    // Dry run: preview what would happen
+    const format = resolveOutputFormat(args);
+    if (args['dry-run']) {
+      const preview = {
+        success: true as const,
+        data: {
+          dryRun: true,
+          action: input.action,
+          resource: input.resource,
+          repo: `${input.owner}/${input.repo}`,
+          milestone: input.milestone,
+        },
+      };
+      const previewJson = renderResult(preview, format, args.fields as string | undefined);
+      console.log(
+        previewJson ??
+        `Dry run: would ${input.action} ${input.resource} in ${input.owner}/${input.repo}`,
+      );
+      return;
+    }
+
     const octokit = createFleetOctokit();
     const emit = createEmitter(renderer);
     const handler = new ConfigureHandler({ octokit, emit });
     const result = await handler.execute(input);
+    const json = renderResult(result, format, args.fields as string | undefined);
+    if (json !== null) {
+      console.log(json);
+      if (!result.success) process.exit(1);
+      return;
+    }
 
     if (!result.success) {
       renderer.error(result.error.message);

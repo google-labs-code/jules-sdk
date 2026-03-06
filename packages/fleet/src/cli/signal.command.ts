@@ -18,6 +18,7 @@ import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../shared/auth/git.js';
 import { SignalCreateInputSchema } from '../signal/spec.js';
 import { SignalCreateHandler } from '../signal/handler.js';
+import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
 
 const create = defineCommand({
   meta: {
@@ -63,6 +64,12 @@ const create = defineCommand({
       type: 'string',
       description: 'Repository name (auto-detected from git remote if omitted)',
     },
+    ...outputArgs,
+    'dry-run': {
+      type: 'boolean',
+      description: 'Validate input and show what would be created (no API calls)',
+      default: false,
+    },
   },
   async run({ args }) {
     // Resolve body from flag or file
@@ -98,10 +105,38 @@ const create = defineCommand({
       source,
     });
 
+    // Dry run: validate input and preview
+    const format = resolveOutputFormat(args);
+    if (args['dry-run']) {
+      const preview = {
+        success: true as const,
+        data: {
+          dryRun: true,
+          wouldCreate: {
+            kind: input.kind,
+            title: input.title,
+            repo: `${owner}/${repo}`,
+            tags,
+            scope: input.scope,
+            source: input.source,
+          },
+        },
+      };
+      const previewJson = renderResult(preview, format, args.fields as string | undefined);
+      console.log(previewJson ?? `Dry run: would create ${input.kind} "${input.title}" in ${owner}/${repo}`);
+      return;
+    }
+
     // Execute via handler
     const octokit = createFleetOctokit();
     const handler = new SignalCreateHandler({ octokit });
     const result = await handler.execute(input);
+    const json = renderResult(result, format, args.fields as string | undefined);
+    if (json !== null) {
+      console.log(json);
+      if (!result.success) process.exit(1);
+      return;
+    }
 
     if (!result.success) {
       console.error(`Error [${result.error.code}]: ${result.error.message}`);
