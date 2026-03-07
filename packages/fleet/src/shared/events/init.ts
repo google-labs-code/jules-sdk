@@ -28,4 +28,9 @@ export type InitEvent =
   | { type: 'init:secret:uploaded'; name: string }
   | { type: 'init:secret:skipped'; name: string; reason: string }
   | { type: 'init:dry-run'; files: string[] }
-  | { type: 'init:already-initialized' };
+  | { type: 'init:already-initialized' }
+  // Repo creation events
+  | { type: 'init:repo:creating'; owner: string; name: string }
+  | { type: 'init:repo:created'; fullName: string; url: string }
+  | { type: 'init:repo:exists'; fullName: string }
+  | { type: 'init:repo:failed'; reason: string };

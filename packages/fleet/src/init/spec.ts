@@ -21,6 +21,9 @@ export type AuthMode = z.infer<typeof AuthModeSchema>;
 
 // ── INPUT ───────────────────────────────────────────────────────────
 
+export const VisibilitySchema = z.enum(['public', 'private']).default('private');
+export type Visibility = z.infer<typeof VisibilitySchema>;
+
 export const InitInputSchema = z.object({
   /** Repository in owner/repo format (auto-detected from git if omitted) */
   repo: z
@@ -41,6 +44,12 @@ export const InitInputSchema = z.object({
   intervalMinutes: z.number().min(5).default(360),
   /** Auth mode: 'token' uses secrets.GITHUB_TOKEN, 'app' generates a GitHub App token */
   auth: AuthModeSchema,
+  /** Whether to create the repo if it doesn't exist */
+  createRepo: z.boolean().default(false),
+  /** Repo visibility when creating (default: private) */
+  visibility: VisibilitySchema,
+  /** Repo description when creating */
+  description: z.string().optional(),
 });
 
 export type InitInput = z.infer<typeof InitInputSchema>;
@@ -49,6 +58,7 @@ export type InitInput = z.infer<typeof InitInputSchema>;
 
 export const InitErrorCode = z.enum([
   'REPO_NOT_FOUND',
+  'REPO_CREATE_FAILED',
   'BRANCH_CREATE_FAILED',
   'FILE_COMMIT_FAILED',
   'PR_CREATE_FAILED',
@@ -72,6 +82,8 @@ export interface InitSuccess {
     filesCreated: string[];
     /** Labels created in the repo */
     labelsCreated: string[];
+    /** Whether the repo was created as part of init */
+    repoCreated?: boolean;
   };
 }
 

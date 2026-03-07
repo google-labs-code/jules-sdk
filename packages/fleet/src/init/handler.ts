@@ -23,6 +23,7 @@ import type { FleetEmitter } from '../shared/events.js';
 import { createBranch, isBranchResult } from './ops/create-branch.js';
 import { commitFiles, isCommitResult } from './ops/commit-files.js';
 import { createInitPR, isPRResult } from './ops/create-pr.js';
+import { createRepo, isRepoResult } from './ops/create-repo.js';
 import { execSync } from 'node:child_process';
 
 /**
@@ -67,6 +68,34 @@ export class InitHandler implements InitSpec {
     try {
       const { owner, repoName: repo, baseBranch, overwrite } = input;
       this.emit({ type: 'init:start', owner, repo });
+
+      // 0. Create repo if requested
+      let repoCreated: boolean | undefined;
+      if (input.createRepo) {
+        // Check if repo already exists
+        let repoExists = true;
+        try {
+          await (this.octokit as any).rest.repos.get({ owner, repo });
+        } catch (error: any) {
+          if (error?.status === 404) {
+            repoExists = false;
+          } else {
+            throw error;
+          }
+        }
+
+        if (repoExists) {
+          this.emit({ type: 'init:repo:exists', fullName: `${owner}/${repo}` });
+        } else {
+          const repoResult = await createRepo(
+            this.octokit, owner, repo,
+            { visibility: input.visibility ?? 'private', description: input.description },
+            this.emit,
+          );
+          if (isRepoResult(repoResult)) return repoResult;
+          repoCreated = true;
+        }
+      }
 
       // 1. Create branch
       const branchResult = await createBranch(
@@ -153,7 +182,7 @@ export class InitHandler implements InitSpec {
         labels: labelsCreated,
       });
 
-      return ok({ prUrl, prNumber, filesCreated, labelsCreated });
+      return ok({ prUrl, prNumber, filesCreated, labelsCreated, repoCreated });
     } catch (error) {
       return fail(
         'UNKNOWN_ERROR',

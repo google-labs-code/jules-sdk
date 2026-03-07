@@ -13,17 +13,18 @@
 // limitations under the License.
 
 import { defineCommand } from 'citty';
-import { InitInputSchema } from '../init/spec.js';
+import { InitInputSchema, type InitInput } from '../init/spec.js';
 import { InitHandler } from '../init/handler.js';
 import { ConfigureHandler } from '../configure/handler.js';
 import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { createRenderer, createEmitter, isInteractive } from '../shared/ui/index.js';
 import { runInitWizard, validateHeadlessInputs } from '../init/wizard/index.js';
-import type { InitArgs } from '../init/wizard/types.js';
+import type { InitArgs, InitWizardResult } from '../init/wizard/types.js';
 import { uploadSecret } from '../init/ops/upload-secrets.js';
 import { WORKFLOW_TEMPLATES, buildWorkflowTemplates } from '../init/templates.js';
 import { parseFeatureFlags } from '../init/wizard/parse-features.js';
 import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
+import { inputArgs, resolveInput } from '../shared/cli/input.js';
 
 export default defineCommand({
   meta: {
@@ -92,7 +93,22 @@ export default defineCommand({
       description: 'Overwrite existing workflow files (default: false)',
       default: false,
     },
+    'create-repo': {
+      type: 'boolean',
+      description: 'Create the repo if it does not exist (default: false)',
+      default: false,
+    },
+    visibility: {
+      type: 'string',
+      description: 'Repo visibility when creating: public | private (default: private)',
+      default: 'private',
+    },
+    description: {
+      type: 'string',
+      description: 'Repo description when creating',
+    },
     ...outputArgs,
+    ...inputArgs,
   },
   async run({ args }) {
     const nonInteractive = args['non-interactive'] || !isInteractive();
@@ -118,10 +134,10 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { owner, repo, baseBranch, secretsToUpload, dryRun, overwrite } = inputs as Exclude<typeof inputs, { success: false }>;
+    const wizardResult = inputs as InitWizardResult;
+    const { owner, repo, baseBranch, secretsToUpload, dryRun, overwrite } = wizardResult;
 
     // ── Parse feature flags ──
-    const wizardResult = inputs as Exclude<typeof inputs, { success: false }>;
     const features = wizardResult.features ?? parseFeatureFlags(args as unknown as InitArgs);
     const intervalMinutes = wizardResult.intervalMinutes ?? 360;
     renderer.start(`Fleet Init — ${owner}/${repo}`);
@@ -143,7 +159,7 @@ export default defineCommand({
     }
 
     // ── Execute init pipeline ──
-    const input = InitInputSchema.parse({
+    const input = resolveInput<InitInput>(InitInputSchema, args.json as string | undefined, {
       repo: `${owner}/${repo}`,
       owner,
       repoName: repo,
@@ -152,6 +168,9 @@ export default defineCommand({
       features,
       intervalMinutes,
       auth: wizardResult.authMethod,
+      createRepo: args['create-repo'] ?? wizardResult.createRepo ?? false,
+      visibility: args.visibility ?? wizardResult.visibility ?? 'private',
+      description: args.description ?? wizardResult.description,
     });
 
     const octokit = createFleetOctokit();

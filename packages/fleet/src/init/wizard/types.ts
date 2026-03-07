@@ -28,6 +28,12 @@ export interface InitWizardResult {
   features?: Record<string, boolean>;
   /** Pipeline cadence in minutes (default 360 = 6h) */
   intervalMinutes: number;
+  /** Whether to create the repo if it doesn't exist */
+  createRepo?: boolean;
+  /** Repo visibility when creating (default: private) */
+  visibility?: 'public' | 'private';
+  /** Repo description when creating */
+  description?: string;
 }
 
 /** Parsed args from citty */
@@ -49,4 +55,10 @@ export interface InitArgs {
   interval?: string;
   /** Whether to overwrite existing workflow files */
   overwrite?: boolean;
+  /** Whether to create the repo if it doesn't exist */
+  'create-repo'?: boolean;
+  /** Repo visibility when creating */
+  visibility?: string;
+  /** Repo description when creating */
+  description?: string;
 }
