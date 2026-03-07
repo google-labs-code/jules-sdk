@@ -14,6 +14,7 @@
 
 import type { WorkflowTemplate } from './types.js';
 import { buildCron, dispatchOffset } from './cron.js';
+import { fleetAppEnv, fleetAppSteps, githubTokenExpr } from './auth-snippets.js';
 
 export function buildDispatchTemplate(intervalMinutes: number, auth: 'token' | 'app' = 'token'): WorkflowTemplate {
   const cron = buildCron(intervalMinutes, dispatchOffset(intervalMinutes));
@@ -71,30 +72,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'${auth === 'app' ? `
-      - name: Decode private key
-        id: decode-key
-        run: |
-          echo "\${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}" | base64 -d > /tmp/fleet-app-key.pem
-          {
-            echo "pem<<PEMEOF"
-            cat /tmp/fleet-app-key.pem
-            echo "PEMEOF"
-          } >> "\$GITHUB_OUTPUT"
-          rm /tmp/fleet-app-key.pem
-      - name: Generate Fleet App token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: \${{ secrets.FLEET_APP_ID }}
-          private-key: \${{ steps.decode-key.outputs.pem }}` : ''}
+          node-version: '22'${fleetAppSteps(auth)}
       - run: npx -y --package=@google/jules-fleet jules-fleet dispatch --milestone \${{ matrix.milestone }}
         env:
-          GITHUB_TOKEN: \${{ ${auth === 'app' ? 'steps.app-token.outputs.token' : 'secrets.GITHUB_TOKEN'} }}
-          JULES_API_KEY: \${{ secrets.JULES_API_KEY }}
-          GITHUB_APP_ID: \${{ secrets.FLEET_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY_BASE64: \${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
-          GITHUB_APP_INSTALLATION_ID: \${{ secrets.FLEET_APP_INSTALLATION_ID }}
+          GITHUB_TOKEN: \${{ ${githubTokenExpr(auth)} }}
+          JULES_API_KEY: \${{ secrets.JULES_API_KEY }}${fleetAppEnv(auth)}
 `,
   };
 }

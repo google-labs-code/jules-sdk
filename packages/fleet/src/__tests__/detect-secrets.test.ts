@@ -109,4 +109,27 @@ describe('detectSecretsFromEnv', () => {
     const secrets = detectSecretsFromEnv();
     expect(secrets).toEqual({});
   });
+
+  it('filters to allowlist when provided', () => {
+    process.env.JULES_API_KEY = 'sk-key';
+    process.env.FLEET_APP_ID = 'app-id';
+    process.env.FLEET_APP_PRIVATE_KEY = 'priv-key';
+    process.env.FLEET_APP_INSTALLATION_ID = 'inst-id';
+    const secrets = detectSecretsFromEnv(['JULES_API_KEY']);
+    expect(secrets).toEqual({ JULES_API_KEY: 'sk-key' });
+  });
+
+  it('returns all secrets when allowlist is undefined', () => {
+    process.env.JULES_API_KEY = 'sk-key';
+    process.env.FLEET_APP_ID = 'app-id';
+    const secrets = detectSecretsFromEnv(undefined);
+    expect(secrets).toEqual({ JULES_API_KEY: 'sk-key', FLEET_APP_ID: 'app-id' });
+  });
+
+  it('returns empty when allowlist is empty array', () => {
+    process.env.JULES_API_KEY = 'sk-key';
+    process.env.FLEET_APP_ID = 'app-id';
+    const secrets = detectSecretsFromEnv([]);
+    expect(secrets).toEqual({});
+  });
 });

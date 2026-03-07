@@ -31,13 +31,15 @@ const SECRET_MAPPINGS: [string, ...string[]][] = [
  * the first matching env var candidate wins (e.g. FLEET_APP_ID
  * is preferred over GITHUB_APP_ID).
  *
- * This is a pure function with no side effects — it only reads
- * from process.env.
+ * @param allowlist - If provided, only secrets whose names are in
+ *   this list will be returned. If undefined, all detected secrets
+ *   are returned. An empty array returns no secrets.
  */
-export function detectSecretsFromEnv(): Record<string, string> {
+export function detectSecretsFromEnv(allowlist?: string[]): Record<string, string> {
   const secrets: Record<string, string> = {};
 
   for (const [secretName, ...envVars] of SECRET_MAPPINGS) {
+    if (allowlist && !allowlist.includes(secretName)) continue;
     for (const envVar of envVars) {
       const value = process.env[envVar];
       if (value) {
