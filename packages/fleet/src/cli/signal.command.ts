@@ -19,6 +19,8 @@ import { getGitRepoInfo } from '../shared/auth/git.js';
 import { SignalCreateInputSchema } from '../signal/spec.js';
 import { SignalCreateHandler } from '../signal/handler.js';
 import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
+import { inputArgs, resolveInput } from '../shared/cli/input.js';
+import { resolveSourceRef } from '../signal/resolve-source.js';
 
 const create = defineCommand({
   meta: {
@@ -26,6 +28,7 @@ const create = defineCommand({
     description: 'Create a signal (insight or assessment)',
   },
   args: {
+    ...inputArgs,
     title: {
       type: 'string',
       description: 'Signal title',
@@ -90,8 +93,12 @@ const create = defineCommand({
     // Parse tags
     const tags = args.tag ? (args.tag as string).split(',').map((t) => t.trim()) : [];
 
-    // Resolve source ref (flag > env var)
-    const source = args.source || process.env.FLEET_SOURCE_REF || undefined;
+    // Resolve source ref (flag > FLEET_SOURCE_REF > JULES_SESSION_ID)
+    const source = resolveSourceRef({
+      flag: args.source as string | undefined,
+      fleetSourceRef: process.env.FLEET_SOURCE_REF,
+      julesSessionId: process.env.JULES_SESSION_ID,
+    });
 
     // Parse & validate input through spec
     const input = SignalCreateInputSchema.parse({
