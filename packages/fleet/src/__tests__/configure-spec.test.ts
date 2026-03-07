@@ -64,4 +64,39 @@ describe('ConfigureInputSchema (Contract Tests)', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('defaults auth to token', () => {
+    const result = ConfigureInputSchema.safeParse({
+      resource: 'secrets',
+      owner: 'google',
+      repo: 'sdk',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.auth).toBe('token');
+    }
+  });
+
+  it('accepts auth=app', () => {
+    const result = ConfigureInputSchema.safeParse({
+      resource: 'secrets',
+      owner: 'google',
+      repo: 'sdk',
+      auth: 'app',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.auth).toBe('app');
+    }
+  });
+
+  it('rejects invalid auth value', () => {
+    const result = ConfigureInputSchema.safeParse({
+      resource: 'secrets',
+      owner: 'google',
+      repo: 'sdk',
+      auth: 'invalid',
+    });
+    expect(result.success).toBe(false);
+  });
 });

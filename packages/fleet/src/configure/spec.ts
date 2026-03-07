@@ -33,6 +33,8 @@ export const ConfigureInputSchema = z.object({
   repo: z.string().min(1),
   /** Milestone title */
   milestone: z.string().optional(),
+  /** Auth mode: token (GITHUB_TOKEN) or app (GitHub App credentials) */
+  auth: z.enum(['token', 'app']).default('token'),
 });
 
 export type ConfigureInput = z.infer<typeof ConfigureInputSchema>;

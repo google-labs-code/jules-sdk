@@ -22,6 +22,7 @@ export interface LabelConfigurator {
     action: 'create';
     owner: string;
     repo: string;
+    auth: 'token' | 'app';
   }): Promise<ConfigureResult>;
 }
 
