@@ -15,31 +15,15 @@
 import type { Octokit } from 'octokit';
 import type { InitInput, InitResult, InitSpec } from './spec.js';
 import { ok, fail } from '../shared/result/index.js';
-import { buildWorkflowTemplates } from './templates.js';
-import { FeatureReconcileHandler } from './features/handler.js';
-import { EXAMPLE_GOAL } from './templates/example-goal.js';
 import type { LabelConfigurator } from './types.js';
 import type { FleetEmitter } from '../shared/events.js';
 import { createBranch, isBranchResult } from './ops/create-branch.js';
 import { commitFiles, isCommitResult } from './ops/commit-files.js';
 import { createInitPR, isPRResult } from './ops/create-pr.js';
-import { createRepo, isRepoResult } from './ops/create-repo.js';
-import { execSync } from 'node:child_process';
-
-/**
- * Read the local git author from `git config`.
- * Returns "Name <email>" for Co-authored-by trailers, or undefined on failure.
- */
-function getLocalGitAuthor(): string | undefined {
-  try {
-    const name = execSync('git config user.name', { encoding: 'utf-8' }).trim();
-    const email = execSync('git config user.email', { encoding: 'utf-8' }).trim();
-    if (name && email) return `${name} <${email}>`;
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
+import { ensureRepo } from './ops/ensure-repo.js';
+import { resolveTemplates } from './ops/resolve-templates.js';
+import { buildCommitContext } from './ops/commit-context.js';
+import { EXAMPLE_GOAL } from './templates/example-goal.js';
 
 export interface InitHandlerDeps {
   octokit: Octokit;
@@ -51,7 +35,7 @@ export interface InitHandlerDeps {
  * InitHandler scaffolds fleet workflow files by creating a PR via GitHub REST API.
  * Never throws — all errors are Result values.
  *
- * Pipeline: createBranch → commitFiles → createInitPR → configureLabels
+ * Pipeline: ensureRepo → createBranch → resolveTemplates → commitFiles → createPR → configureLabels
  */
 export class InitHandler implements InitSpec {
   private octokit: Octokit;
@@ -69,80 +53,30 @@ export class InitHandler implements InitSpec {
       const { owner, repoName: repo, baseBranch, overwrite } = input;
       this.emit({ type: 'init:start', owner, repo });
 
-      // 0. Create repo if requested
-      let repoCreated: boolean | undefined;
-      if (input.createRepo) {
-        // Check if repo already exists
-        let repoExists = true;
-        try {
-          await (this.octokit as any).rest.repos.get({ owner, repo });
-        } catch (error: any) {
-          if (error?.status === 404) {
-            repoExists = false;
-          } else {
-            throw error;
-          }
-        }
+      // 1. Ensure repo exists (creates if needed)
+      const repoResult = await ensureRepo(this.octokit, input, this.emit);
+      if (typeof repoResult === 'object' && repoResult !== null) return repoResult;
+      const repoCreated = repoResult === true ? true : undefined;
 
-        if (repoExists) {
-          this.emit({ type: 'init:repo:exists', fullName: `${owner}/${repo}` });
-        } else {
-          const repoResult = await createRepo(
-            this.octokit, owner, repo,
-            { visibility: input.visibility ?? 'private', description: input.description },
-            this.emit,
-          );
-          if (isRepoResult(repoResult)) return repoResult;
-          repoCreated = true;
-        }
-      }
-
-      // 1. Create branch
+      // 2. Create branch
       const branchResult = await createBranch(
         this.octokit, owner, repo, baseBranch, this.emit,
       );
       if (isBranchResult(branchResult)) return branchResult;
       const { branchName } = branchResult;
 
-      // App auth commits are authored by the bot — attribute the human who ran the command.
-      // PAT auth commits are already authored by the user, so no co-author needed.
-      const isAppAuth = !!(process.env.FLEET_APP_ID || process.env.GITHUB_APP_ID);
+      // 3. Resolve templates
+      const templateResult = await resolveTemplates(this.octokit, input);
+      if ('success' in templateResult) return templateResult;
+      const templates = templateResult;
 
-      const ctx = {
-        octokit: this.octokit,
-        owner,
-        repo,
-        branchName,
-        emit: this.emit,
-        coAuthor: isAppAuth ? getLocalGitAuthor() : undefined,
-      };
-
-      // 2. Resolve which templates to commit
-      let templates = buildWorkflowTemplates(input.intervalMinutes, input.auth);
-      if (input.features) {
-        const reconciler = new FeatureReconcileHandler(this.octokit);
-        const featureResult = await reconciler.execute({
-          owner,
-          repo,
-          desired: input.features as Record<string, boolean>,
-        });
-        if (!featureResult.success) {
-          return fail(
-            'UNKNOWN_ERROR',
-            featureResult.error.message,
-            featureResult.error.recoverable,
-            featureResult.error.suggestion,
-          );
-        }
-        templates = featureResult.data.toAdd;
-      }
-
-      // 3. Commit workflow templates + example goal
+      // 4. Commit workflow templates + example goal
+      const ctx = buildCommitContext(this.octokit, owner, repo, branchName, this.emit);
       const filesResult = await commitFiles(ctx, templates, EXAMPLE_GOAL, overwrite);
       if (isCommitResult(filesResult)) return filesResult;
       const filesCreated = filesResult;
 
-      // 2b. Guard: bail out if every file was skipped (nothing to PR)
+      // 5. Guard: bail out if every file was skipped (nothing to PR)
       if (filesCreated.length === 0) {
         this.emit({
           type: 'error',
@@ -158,12 +92,12 @@ export class InitHandler implements InitSpec {
         );
       }
 
-      // 3. Create PR
+      // 6. Create PR
       const prResult = await createInitPR(ctx, baseBranch, filesCreated);
       if (isPRResult(prResult)) return prResult;
       const { prUrl, prNumber } = prResult;
 
-      // 4. Configure labels
+      // 7. Configure labels
       let labelsCreated: string[] = [];
       if (this.labelConfigurator) {
         const labelResult = await this.labelConfigurator.execute({
@@ -193,4 +127,3 @@ export class InitHandler implements InitSpec {
     }
   }
 }
-
