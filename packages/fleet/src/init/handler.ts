@@ -171,6 +171,7 @@ export class InitHandler implements InitSpec {
           action: 'create',
           owner,
           repo,
+          auth: 'token',
         });
         labelsCreated = labelResult.success ? labelResult.data.created : [];
       }
