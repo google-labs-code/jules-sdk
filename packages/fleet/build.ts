@@ -45,6 +45,7 @@ import { writeFileSync } from 'fs';
 const cliEntrypoints = [
   './src/cli/index.ts',
   ...globSync('./src/cli/*.command.ts'),
+  ...globSync('./src/cli/audit/*.subcommand.ts'),
 ];
 
 await Bun.build({

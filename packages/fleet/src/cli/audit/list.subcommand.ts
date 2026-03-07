@@ -16,6 +16,7 @@ import { defineCommand } from 'citty';
 import { createFleetOctokit } from '../../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../../shared/auth/git.js';
 import { listUndispatchedIssues } from '../../audit/ops/list-undispatched-issues.js';
+import { outputArgs, renderResult, resolveOutputFormat } from '../../shared/cli/output.js';
 
 /**
  * `audit list` — Query operations.
@@ -39,11 +40,7 @@ export default defineCommand({
       description: 'Filter to undispatched fleet issues',
       default: false,
     },
-    json: {
-      type: 'boolean',
-      description: 'Output as JSON',
-      default: false,
-    },
+    ...outputArgs,
     owner: {
       type: 'string',
       description: 'Repository owner',
@@ -66,8 +63,11 @@ export default defineCommand({
 
     if (args.type === 'issues' && args.undispatched) {
       const issues = await listUndispatchedIssues(octokit, owner, repo);
-      if (args.json) {
-        console.log(JSON.stringify(issues, null, 2));
+      const format = resolveOutputFormat(args);
+      const result = { success: true as const, data: { issues } };
+      const json = renderResult(result, format, args.fields as string | undefined);
+      if (json !== null) {
+        console.log(json);
       } else {
         console.log(`\n📋 Undispatched Fleet Issues (${issues.length}):`);
         for (const issue of issues) {

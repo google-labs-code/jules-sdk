@@ -15,15 +15,16 @@
 import { defineCommand } from 'citty';
 import { createFleetOctokit } from '../../shared/auth/octokit.js';
 import { getGitRepoInfo } from '../../shared/auth/git.js';
-import { buildLineage } from '../../audit/graph/build-lineage.js';
-import { nodeKey } from '../../audit/graph/types.js';
+import { outputArgs, renderResult, resolveOutputFormat } from '../../shared/cli/output.js';
+import { inspectLineage, renderInspectHuman } from '../../audit/ops/inspect-lineage.js';
 
 /**
  * `audit inspect` — Show lineage graph for a specific item.
  *
  * Examples:
- *   jules-fleet audit inspect issue 42    # Lineage graph for issue #42
- *   jules-fleet audit inspect pr 99       # Lineage graph for PR #99
+ *   jules-fleet audit inspect issue 42                       # Human-readable graph
+ *   jules-fleet audit inspect issue 42 --output json         # JSON output
+ *   jules-fleet audit inspect pr 99 --output json --fields root,nodes
  */
 export default defineCommand({
   meta: {
@@ -46,21 +47,18 @@ export default defineCommand({
       description: 'Max traversal depth (default: 2)',
       default: '2',
     },
-    json: {
-      type: 'boolean',
-      description: 'Output as JSON',
-      default: false,
-    },
+    ...outputArgs,
     owner: {
       type: 'string',
-      description: 'Repository owner',
+      description: 'Repository owner (auto-detected from git remote if omitted)',
     },
     repo: {
       type: 'string',
-      description: 'Repository name',
+      description: 'Repository name (auto-detected from git remote if omitted)',
     },
   },
   async run({ args }) {
+    // Resolve owner/repo
     let owner = args.owner;
     let repo = args.repo;
     if (!owner || !repo) {
@@ -69,49 +67,19 @@ export default defineCommand({
       repo = repo || repoInfo.repo;
     }
 
+    // Execute via ops module
     const kind = args.type === 'pr' ? 'pr' : 'issue';
     const octokit = createFleetOctokit();
+    const data = await inspectLineage(octokit, owner, repo, { kind, id: args.id }, { depth: Number(args.depth) });
 
-    const graph = await buildLineage(
-      { octokit },
-      owner,
-      repo,
-      { kind, id: args.id },
-      { depth: Number(args.depth) },
-    );
-
-    if (args.json) {
-      const serialized = {
-        root: graph.root,
-        nodes: Array.from(graph.nodes.entries()).map(([key, node]) => ({
-          key,
-          ref: node.ref,
-          edges: node.edges.length,
-          data: { title: node.data.title, state: node.data.state },
-        })),
-        unresolvedEdges: graph.unresolvedEdges,
-      };
-      console.log(JSON.stringify(serialized, null, 2));
+    // Render output
+    const format = resolveOutputFormat(args);
+    const result = { success: true as const, data };
+    const json = renderResult(result, format, args.fields as string | undefined);
+    if (json !== null) {
+      console.log(json);
     } else {
-      console.log(`\n🌳 Lineage Graph (root: ${nodeKey(graph.root)})`);
-      console.log(`   Nodes: ${graph.nodes.size}`);
-      console.log(`   Unresolved edges: ${graph.unresolvedEdges.length}`);
-
-      for (const [key, node] of graph.nodes) {
-        const title = (node.data.title as string) || node.ref.id;
-        console.log(`\n   ${key}: ${title}`);
-        for (const edge of node.edges) {
-          const status = edge.resolved ? '→' : '⚠';
-          console.log(`     ${status} ${edge.relation} → ${nodeKey(edge.target)}`);
-        }
-      }
-
-      if (graph.unresolvedEdges.length > 0) {
-        console.log(`\n   ⚠️  Unresolved Edges:`);
-        for (const edge of graph.unresolvedEdges) {
-          console.log(`     ${nodeKey(edge.from)} --${edge.expectedRelation}--> ? (${edge.reason})`);
-        }
-      }
+      console.log(renderInspectHuman(data));
     }
   },
 });
