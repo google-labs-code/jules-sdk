@@ -13,19 +13,15 @@
 // limitations under the License.
 
 import { defineCommand } from 'citty';
-import { Octokit } from 'octokit';
-import { InitInputSchema, type InitInput } from '../init/spec.js';
 import { InitHandler } from '../init/handler.js';
 import { ConfigureHandler } from '../configure/handler.js';
-import { createFleetOctokit } from '../shared/auth/octokit.js';
 import { createRenderer, createEmitter, isInteractive } from '../shared/ui/index.js';
-import { runInitWizard, validateHeadlessInputs } from '../init/wizard/index.js';
-import type { InitArgs, InitWizardResult } from '../init/wizard/types.js';
 import { uploadSecret } from '../init/ops/upload-secrets.js';
-import { WORKFLOW_TEMPLATES, buildWorkflowTemplates } from '../init/templates.js';
-import { parseFeatureFlags } from '../init/wizard/parse-features.js';
+import { buildWorkflowTemplates } from '../init/templates.js';
 import { outputArgs, renderResult, resolveOutputFormat } from '../shared/cli/output.js';
-import { inputArgs, resolveInput } from '../shared/cli/input.js';
+import { inputArgs } from '../shared/cli/input.js';
+import { resolveInitContext } from '../init/resolve-context.js';
+import { renderInitOutput } from '../init/render-result.js';
 
 export default defineCommand({
   meta: {
@@ -116,98 +112,28 @@ export default defineCommand({
     const renderer = createRenderer(!nonInteractive);
     const emit = createEmitter(renderer);
 
-    // ── Fast path: --json bypasses the wizard entirely ──
-    // When --json is provided, all inputs come from the JSON payload.
-    // The wizard's git remote detection and repo validation are skipped.
-    if (args.json) {
-      const input = resolveInput<InitInput>(InitInputSchema, args.json as string);
-      renderer.start(`Fleet Init — ${input.owner}/${input.repoName}`);
+    // ── 1. Resolve context: input + secrets + octokit ──
+    const ctxResult = await resolveInitContext(args, emit);
 
-      // Respect the auth mode from the JSON payload.
-      // When auth=token, use GITHUB_TOKEN directly (even if App env vars are set).
-      const octokit = input.auth === 'token'
-        ? new Octokit({ auth: process.env.GITHUB_TOKEN })
-        : createFleetOctokit();
-      const labelConfigurator = new ConfigureHandler({ octokit });
-      const handler = new InitHandler({ octokit, emit, labelConfigurator });
-
-      // ── Dry run: list files and exit ──
-      if (args['dry-run']) {
-        const files = buildWorkflowTemplates(input.intervalMinutes, input.auth).map((t) => t.repoPath);
-        files.push('.fleet/goals/example.md');
-        const format = resolveOutputFormat(args);
-        const dryRunResult = { success: true as const, data: { dryRun: true, files } };
-        const json = renderResult(dryRunResult, format, args.fields as string | undefined);
-        if (json !== null) {
-          console.log(json);
-          return;
-        }
-        emit({ type: 'init:dry-run', files });
-        renderer.end(`Dry run complete. ${files.length} files would be created.`);
-        return;
-      }
-
-      const result = await handler.execute(input);
-
-      if (!result.success) {
-        const format = resolveOutputFormat(args);
-        const json = renderResult(result, format, args.fields as string | undefined);
-        if (json !== null) {
-          console.log(json);
-          process.exit(1);
-        }
-        renderer.error(result.error.message);
-        if (result.error.suggestion) {
-          renderer.render({
-            type: 'error',
-            code: result.error.code,
-            message: result.error.suggestion,
-          });
-        }
-        process.exit(1);
-      }
-
-      const format = resolveOutputFormat(args);
-      const initJson = renderResult(result, format, args.fields as string | undefined);
-      if (initJson !== null) {
-        console.log(initJson);
-        return;
-      }
-
-      renderer.end('Fleet initialized! Merge the PR to activate Fleet.');
-      return;
-    }
-
-    // ── Collect inputs: wizard or headless ──
-    const wizardArgs = args as unknown as InitArgs;
-    const inputs = nonInteractive
-      ? await validateHeadlessInputs(wizardArgs, emit)
-      : await runInitWizard(wizardArgs, emit);
-
-    // Check if input collection failed
-    if ('success' in inputs && !inputs.success) {
-      renderer.error(inputs.error.message);
-      if (inputs.error.suggestion) {
+    // Propagate input resolution failure
+    if ('success' in ctxResult && !ctxResult.success) {
+      renderer.error(ctxResult.error.message);
+      if (ctxResult.error.suggestion) {
         renderer.render({
           type: 'error',
-          code: inputs.error.code,
-          message: inputs.error.suggestion,
+          code: ctxResult.error.code,
+          message: ctxResult.error.suggestion,
         });
       }
       process.exit(1);
     }
 
-    const wizardResult = inputs as InitWizardResult;
-    const { owner, repo, baseBranch, secretsToUpload, dryRun, overwrite } = wizardResult;
+    const { input, secrets, octokit } = ctxResult as import('../init/resolve-context.js').InitContext;
+    renderer.start(`Fleet Init — ${input.owner}/${input.repoName}`);
 
-    // ── Parse feature flags ──
-    const features = wizardResult.features ?? parseFeatureFlags(args as unknown as InitArgs);
-    const intervalMinutes = wizardResult.intervalMinutes ?? 360;
-    renderer.start(`Fleet Init — ${owner}/${repo}`);
-
-    // ── Dry run: list files and exit ──
-    if (dryRun) {
-      const files = buildWorkflowTemplates(intervalMinutes, wizardResult.authMethod).map((t) => t.repoPath);
+    // ── 2. Dry run ──
+    if (args['dry-run']) {
+      const files = buildWorkflowTemplates(input.intervalMinutes, input.auth).map((t) => t.repoPath);
       files.push('.fleet/goals/example.md');
       const format = resolveOutputFormat(args);
       const dryRunResult = { success: true as const, data: { dryRun: true, files } };
@@ -221,63 +147,20 @@ export default defineCommand({
       return;
     }
 
-    // ── Execute init pipeline ──
-    const input = resolveInput<InitInput>(InitInputSchema, undefined, {
-      repo: `${owner}/${repo}`,
-      owner,
-      repoName: repo,
-      baseBranch,
-      overwrite,
-      features,
-      intervalMinutes,
-      auth: wizardResult.authMethod,
-      createRepo: args['create-repo'] ?? wizardResult.createRepo ?? false,
-      visibility: args.visibility ?? wizardResult.visibility ?? 'private',
-      description: args.description ?? wizardResult.description,
-    });
-
-    const octokit = createFleetOctokit();
+    // ── 3. Execute ──
     const labelConfigurator = new ConfigureHandler({ octokit });
     const handler = new InitHandler({ octokit, emit, labelConfigurator });
     const result = await handler.execute(input);
 
-    // ── Upload secrets (always, even if files already exist) ──
-    const secretNames = Object.keys(secretsToUpload);
+    // ── 4. Upload secrets ──
+    const secretNames = Object.keys(secrets);
     if (secretNames.length > 0) {
       for (const name of secretNames) {
-        await uploadSecret(octokit, owner, repo, name, secretsToUpload[name], emit);
+        await uploadSecret(octokit, input.owner, input.repoName, name, secrets[name], emit);
       }
     }
 
-    if (!result.success) {
-      const format = resolveOutputFormat(args);
-      const json = renderResult(result, format, args.fields as string | undefined);
-      if (json !== null) {
-        console.log(json);
-        process.exit(1);
-      }
-      renderer.error(result.error.message);
-      if (result.error.suggestion) {
-        renderer.render({
-          type: 'error',
-          code: result.error.code,
-          message: result.error.suggestion,
-        });
-      }
-      // If secrets were uploaded despite file failure, note partial success
-      if (secretNames.length > 0) {
-        renderer.end(`${secretNames.length} secret(s) uploaded, but no new files were committed.`);
-      }
-      process.exit(1);
-    }
-
-    const format = resolveOutputFormat(args);
-    const initJson = renderResult(result, format, args.fields as string | undefined);
-    if (initJson !== null) {
-      console.log(initJson);
-      return;
-    }
-
-    renderer.end('Fleet initialized! Merge the PR to activate Fleet.');
+    // ── 5. Render ──
+    renderInitOutput(result, args, renderer);
   },
 });

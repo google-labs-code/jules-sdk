@@ -19,7 +19,7 @@ import { z } from 'zod';
 export const ConfigureAction = z.enum(['create', 'delete']);
 export type ConfigureAction = z.infer<typeof ConfigureAction>;
 
-export const ConfigureResource = z.enum(['labels', 'milestones']);
+export const ConfigureResource = z.enum(['labels', 'milestones', 'secrets']);
 export type ConfigureResource = z.infer<typeof ConfigureResource>;
 
 export const ConfigureInputSchema = z.object({
