@@ -106,5 +106,13 @@ export async function validateHeadlessInputs(
     emit({ type: 'init:dry-run', files });
   }
 
-  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite: args.overwrite ?? false, features: parseFeatureFlags(args), intervalMinutes };
+  return {
+    owner, repo, baseBranch, authMethod, secretsToUpload, dryRun,
+    overwrite: args.overwrite ?? false,
+    features: parseFeatureFlags(args),
+    intervalMinutes,
+    createRepo: args['create-repo'],
+    visibility: (args.visibility === 'public' ? 'public' : 'private') as 'public' | 'private',
+    description: args.description,
+  };
 }
