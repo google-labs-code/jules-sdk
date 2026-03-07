@@ -50,6 +50,8 @@ export const InitInputSchema = z.object({
   visibility: VisibilitySchema,
   /** Repo description when creating */
   description: z.string().optional(),
+  /** Secrets allowlist — only upload secrets whose names are in this list. If omitted, upload all detected. */
+  secrets: z.array(z.string()).optional(),
 });
 
 export type InitInput = z.infer<typeof InitInputSchema>;

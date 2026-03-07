@@ -78,7 +78,7 @@ export async function resolveInitContext(
   // ── Path 1: JSON ──
   if (args.json) {
     const input = resolveInput<InitInput>(InitInputSchema, args.json as string);
-    const secrets = detectSecretsFromEnv();
+    const secrets = detectSecretsFromEnv(input.secrets);
     const octokit = buildOctokit(input.auth);
     return { input, secrets, octokit };
   }
