@@ -196,16 +196,16 @@ describe('Workflow Template Guardrails', () => {
 
   // ── Secret naming consistency ──────────────────────────────────────
 
-  it('PRIVATE_KEY_BASE64 env var always maps to _BASE64 secret', () => {
+  it('PRIVATE_KEY env var always maps to FLEET_APP_PRIVATE_KEY secret', () => {
     for (const template of ALL_TEMPLATES) {
       const parsed = yaml.parse(template.content);
       const steps = extractSteps(parsed);
       for (const step of steps) {
         const env = (step as Record<string, unknown>).env as Record<string, string> | undefined;
         if (!env) continue;
-        const base64Var = env['GITHUB_APP_PRIVATE_KEY_BASE64'];
-        if (base64Var) {
-          expect(base64Var).toContain('FLEET_APP_PRIVATE_KEY_BASE64');
+        const privateKeyVar = env['FLEET_APP_PRIVATE_KEY'];
+        if (privateKeyVar) {
+          expect(privateKeyVar).toContain('FLEET_APP_PRIVATE_KEY');
         }
       }
     }

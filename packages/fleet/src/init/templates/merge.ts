@@ -68,7 +68,7 @@ jobs:
       - name: Decode private key
         id: decode-key
         run: |
-          echo "\${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}" | base64 -d > /tmp/fleet-app-key.pem
+          echo "\${{ secrets.FLEET_APP_PRIVATE_KEY }}" | base64 -d > /tmp/fleet-app-key.pem
           {
             echo "pem<<PEMEOF"
             cat /tmp/fleet-app-key.pem
@@ -90,9 +90,9 @@ jobs:
         env:
           GITHUB_TOKEN: \${{ ${auth === 'app' ? 'steps.app-token.outputs.token' : 'secrets.GITHUB_TOKEN'} }}
           JULES_API_KEY: \${{ secrets.JULES_API_KEY }}
-          GITHUB_APP_ID: \${{ secrets.FLEET_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY_BASE64: \${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
-          GITHUB_APP_INSTALLATION_ID: \${{ secrets.FLEET_APP_INSTALLATION_ID }}
+          FLEET_APP_ID: \${{ secrets.FLEET_APP_ID }}
+          FLEET_APP_PRIVATE_KEY: \${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          FLEET_APP_INSTALLATION_ID: \${{ secrets.FLEET_APP_INSTALLATION_ID }}
 `,
   };
 }

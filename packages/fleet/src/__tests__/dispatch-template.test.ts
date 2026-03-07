@@ -140,11 +140,11 @@ describe('buildDispatchTemplate with auth=app', () => {
     expect(runStep.env.GITHUB_TOKEN).toContain('app-token.outputs.token');
   });
 
-  it('uses FLEET_APP_PRIVATE_KEY_BASE64 secret name', () => {
+  it('uses FLEET_APP_PRIVATE_KEY secret name', () => {
     const parsed = yaml.parse(template.content);
     const runStep = parsed.jobs.dispatch.steps.find(
       (s: { run?: string }) => s.run?.includes('jules-fleet'),
     );
-    expect(runStep.env.GITHUB_APP_PRIVATE_KEY_BASE64).toContain('FLEET_APP_PRIVATE_KEY_BASE64');
+    expect(runStep.env.FLEET_APP_PRIVATE_KEY).toContain('FLEET_APP_PRIVATE_KEY');
   });
 });
