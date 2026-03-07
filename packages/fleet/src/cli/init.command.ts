@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { defineCommand } from 'citty';
+import { Octokit } from 'octokit';
 import { InitInputSchema, type InitInput } from '../init/spec.js';
 import { InitHandler } from '../init/handler.js';
 import { ConfigureHandler } from '../configure/handler.js';
@@ -115,6 +116,68 @@ export default defineCommand({
     const renderer = createRenderer(!nonInteractive);
     const emit = createEmitter(renderer);
 
+    // ── Fast path: --json bypasses the wizard entirely ──
+    // When --json is provided, all inputs come from the JSON payload.
+    // The wizard's git remote detection and repo validation are skipped.
+    if (args.json) {
+      const input = resolveInput<InitInput>(InitInputSchema, args.json as string);
+      renderer.start(`Fleet Init — ${input.owner}/${input.repoName}`);
+
+      // Respect the auth mode from the JSON payload.
+      // When auth=token, use GITHUB_TOKEN directly (even if App env vars are set).
+      const octokit = input.auth === 'token'
+        ? new Octokit({ auth: process.env.GITHUB_TOKEN })
+        : createFleetOctokit();
+      const labelConfigurator = new ConfigureHandler({ octokit });
+      const handler = new InitHandler({ octokit, emit, labelConfigurator });
+
+      // ── Dry run: list files and exit ──
+      if (args['dry-run']) {
+        const files = buildWorkflowTemplates(input.intervalMinutes, input.auth).map((t) => t.repoPath);
+        files.push('.fleet/goals/example.md');
+        const format = resolveOutputFormat(args);
+        const dryRunResult = { success: true as const, data: { dryRun: true, files } };
+        const json = renderResult(dryRunResult, format, args.fields as string | undefined);
+        if (json !== null) {
+          console.log(json);
+          return;
+        }
+        emit({ type: 'init:dry-run', files });
+        renderer.end(`Dry run complete. ${files.length} files would be created.`);
+        return;
+      }
+
+      const result = await handler.execute(input);
+
+      if (!result.success) {
+        const format = resolveOutputFormat(args);
+        const json = renderResult(result, format, args.fields as string | undefined);
+        if (json !== null) {
+          console.log(json);
+          process.exit(1);
+        }
+        renderer.error(result.error.message);
+        if (result.error.suggestion) {
+          renderer.render({
+            type: 'error',
+            code: result.error.code,
+            message: result.error.suggestion,
+          });
+        }
+        process.exit(1);
+      }
+
+      const format = resolveOutputFormat(args);
+      const initJson = renderResult(result, format, args.fields as string | undefined);
+      if (initJson !== null) {
+        console.log(initJson);
+        return;
+      }
+
+      renderer.end('Fleet initialized! Merge the PR to activate Fleet.');
+      return;
+    }
+
     // ── Collect inputs: wizard or headless ──
     const wizardArgs = args as unknown as InitArgs;
     const inputs = nonInteractive
@@ -159,7 +222,7 @@ export default defineCommand({
     }
 
     // ── Execute init pipeline ──
-    const input = resolveInput<InitInput>(InitInputSchema, args.json as string | undefined, {
+    const input = resolveInput<InitInput>(InitInputSchema, undefined, {
       repo: `${owner}/${repo}`,
       owner,
       repoName: repo,
