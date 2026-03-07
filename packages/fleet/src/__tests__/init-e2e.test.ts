@@ -32,6 +32,7 @@ import { InitHandler } from '../init/handler.js';
 import { InitInputSchema } from '../init/spec.js';
 import { resolveInput } from '../shared/cli/input.js';
 import type { FleetEvent } from '../shared/events.js';
+import { execSync } from 'node:child_process';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const describeE2E = GITHUB_TOKEN ? describe : describe.skip;
@@ -204,5 +205,116 @@ describeE2E('Init E2E — full pipeline with repo creation', () => {
     const types = events.map((e) => e.type);
     expect(types).toContain('init:repo:exists');
     expect(types).not.toContain('init:repo:creating');
+  }, 60_000);
+});
+
+// ── CLI binary tests: --json bypasses wizard ─────────────────────
+// These test the actual built CLI binary to verify --json skips the
+// wizard's git remote detection and uses the JSON payload directly.
+
+describeE2E('Init E2E — CLI binary with --json', () => {
+  const octokit = createOctokit();
+
+  const CLI_REPO = `fleet-e2e-cli-${Date.now()}`;
+  let cliOwner = '';
+  let cliRepoCreated = false;
+
+  afterAll(async () => {
+    if (cliRepoCreated && cliOwner) {
+      try {
+        await octokit.rest.repos.delete({ owner: cliOwner, repo: CLI_REPO });
+        console.log(`   🗑️  Deleted CLI test repo ${cliOwner}/${CLI_REPO}`);
+      } catch (err) {
+        console.warn(`   ⚠️  Failed to delete ${cliOwner}/${CLI_REPO}:`, err);
+      }
+    }
+  });
+
+  it('--json bypasses wizard and targets the correct repo', async () => {
+    // Discover owner
+    const { data: user } = await octokit.rest.users.getAuthenticated();
+    cliOwner = user.login;
+
+    // Create a test repo first
+    await octokit.rest.repos.createForAuthenticatedUser({
+      name: CLI_REPO,
+      private: true,
+      auto_init: true,
+      description: 'CLI --json bypass e2e test',
+    });
+    cliRepoCreated = true;
+    console.log(`   📦 Created ${cliOwner}/${CLI_REPO}`);
+
+    // Run the CLI binary with --json from a DIFFERENT directory
+    // (to prove it doesn't use git remote detection)
+    const cliPath = new URL('../../dist/cli/index.mjs', import.meta.url).pathname;
+    const jsonPayload = JSON.stringify({
+      owner: cliOwner,
+      repoName: CLI_REPO,
+      baseBranch: 'main',
+      auth: 'token',
+    });
+
+    const output = execSync(
+      `node ${cliPath} init --json '${jsonPayload}' --output json`,
+      {
+        encoding: 'utf-8',
+        timeout: 60_000,
+        env: {
+          ...process.env,
+          GITHUB_TOKEN: GITHUB_TOKEN!,
+          // Ensure App env vars don't interfere
+          GITHUB_APP_ID: undefined,
+          GITHUB_APP_INSTALLATION_ID: undefined,
+          GITHUB_APP_PRIVATE_KEY_BASE64: undefined,
+          FLEET_APP_ID: undefined,
+          FLEET_APP_INSTALLATION_ID: undefined,
+          FLEET_APP_PRIVATE_KEY: undefined,
+        },
+        cwd: '/tmp', // Deliberately NOT in a git repo
+      },
+    ).trim();
+
+    console.log(`   📤 CLI output (last 500 chars): ${output.slice(-500)}`);
+
+    // Extract the JSON result from the output.
+    // The renderer may output decorative text before and after the JSON.
+    // Look for the {"success": pattern that starts our result envelope.
+    const jsonStart = output.indexOf('{"success"');
+    if (jsonStart === -1) {
+      // Try pretty-printed format
+      const prettyStart = output.indexOf('{\n  "success"');
+      expect(prettyStart).toBeGreaterThan(-1);
+      // Find the matching closing brace by counting braces
+      let depth = 0;
+      let jsonEnd = prettyStart;
+      for (let i = prettyStart; i < output.length; i++) {
+        if (output[i] === '{') depth++;
+        if (output[i] === '}') depth--;
+        if (depth === 0) { jsonEnd = i + 1; break; }
+      }
+      const result = JSON.parse(output.slice(prettyStart, jsonEnd));
+      console.log(`   ✅ CLI --json result: ${JSON.stringify(result, null, 2)}`);
+      expect(result.success).toBe(true);
+      expect(result.data.prUrl).toContain(`${cliOwner}/${CLI_REPO}/pull/`);
+      expect(result.data.filesCreated.length).toBeGreaterThan(0);
+      return;
+    }
+
+    // Compact JSON — find end by brace counting
+    let depth = 0;
+    let jsonEnd = jsonStart;
+    for (let i = jsonStart; i < output.length; i++) {
+      if (output[i] === '{') depth++;
+      if (output[i] === '}') depth--;
+      if (depth === 0) { jsonEnd = i + 1; break; }
+    }
+    const result = JSON.parse(output.slice(jsonStart, jsonEnd));
+
+    console.log(`   ✅ CLI --json result: ${JSON.stringify(result, null, 2)}`);
+
+    expect(result.success).toBe(true);
+    expect(result.data.prUrl).toContain(`${cliOwner}/${CLI_REPO}/pull/`);
+    expect(result.data.filesCreated.length).toBeGreaterThan(0);
   }, 60_000);
 });

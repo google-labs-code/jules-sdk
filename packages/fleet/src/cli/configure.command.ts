@@ -28,7 +28,7 @@ export default defineCommand({
   args: {
     resource: {
       type: 'positional',
-      description: 'Resource to configure (labels | milestones)',
+      description: 'Resource to configure (labels | milestones | secrets)',
       required: true,
     },
     title: {

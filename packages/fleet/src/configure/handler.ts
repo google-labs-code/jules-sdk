@@ -21,6 +21,8 @@ import type {
 import type { FleetEmitter } from '../shared/events.js';
 import { ok, fail } from '../shared/result/index.js';
 import { FLEET_LABELS } from './labels.js';
+import { detectSecretsFromEnv } from '../init/ops/detect-secrets.js';
+import { uploadSecret } from '../init/ops/upload-secrets.js';
 
 export interface ConfigureHandlerDeps {
   octokit: Octokit;
@@ -66,6 +68,15 @@ export class ConfigureHandler implements ConfigureSpec {
           ? await this.createMilestones(input.owner, input.repo, input.milestone)
           : fail('UNKNOWN_ERROR', 'Deleting milestones is not supported', false);
 
+        this.emit({ type: 'configure:done' });
+        return result;
+      }
+
+      if (input.resource === 'secrets') {
+        if (input.action === 'delete') {
+          return fail('UNKNOWN_ERROR', 'Deleting secrets is not supported. Remove them manually in GitHub Settings → Secrets.', false);
+        }
+        const result = await this.createSecrets(input.owner, input.repo);
         this.emit({ type: 'configure:done' });
         return result;
       }
@@ -191,5 +202,42 @@ export class ConfigureHandler implements ConfigureSpec {
         );
       }
     }
+  }
+  private async createSecrets(
+    owner: string,
+    repo: string,
+  ): Promise<ConfigureResult> {
+    const secrets = detectSecretsFromEnv();
+    const secretNames = Object.keys(secrets);
+
+    if (secretNames.length === 0) {
+      return fail(
+        'UNKNOWN_ERROR',
+        'No secrets found in environment. Set JULES_API_KEY, FLEET_APP_ID, FLEET_APP_PRIVATE_KEY, or FLEET_APP_INSTALLATION_ID.',
+        true,
+        'Set the environment variables and retry.',
+      );
+    }
+
+    const created: string[] = [];
+    const skipped: string[] = [];
+
+    for (const name of secretNames) {
+      const uploadResult = await uploadSecret(
+        this.octokit,
+        owner,
+        repo,
+        name,
+        secrets[name],
+        this.emit,
+      );
+      if (uploadResult.success) {
+        created.push(name);
+      } else {
+        skipped.push(name);
+      }
+    }
+
+    return ok({ created, deleted: [], skipped });
   }
 }
