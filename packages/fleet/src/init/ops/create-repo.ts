@@ -55,6 +55,7 @@ export async function createRepo(
         name,
         visibility: options.visibility,
         description: options.description,
+        auto_init: true, // Seed with initial commit so default branch exists
       });
       data = response.data;
     } else {
@@ -62,6 +63,7 @@ export async function createRepo(
         name,
         private: options.visibility === 'private',
         description: options.description,
+        auto_init: true, // Seed with initial commit so default branch exists
       });
       data = response.data;
     }
