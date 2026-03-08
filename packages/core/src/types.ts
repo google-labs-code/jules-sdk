@@ -1203,6 +1203,24 @@ export interface SessionClient {
   unarchive(): Promise<void>;
 
   /**
+   * Deletes the session permanently.
+   * This removes the session from both the Jules API and the local cache.
+   * Once deleted, the session cannot be recovered.
+   *
+   * **Side Effects:**
+   * - Sends a DELETE request to `sessions/{id}`.
+   * - Removes the session from the local cache.
+   *
+   * **Error Handling:**
+   * - If the API call fails, the local cache is NOT modified.
+   * - If the session is not found (404), the local cache is still cleaned up.
+   *
+   * @example
+   * await session.delete();
+   */
+  delete(): Promise<void>;
+
+  /**
    * Creates a point-in-time snapshot of the session with all activities loaded and derived analytics computed.
    * This is a network operation with cache heuristics.
    *
