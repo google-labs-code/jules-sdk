@@ -338,6 +338,90 @@ describe('SessionClient', () => {
     });
   });
 
+  describe('delete()', () => {
+    it('should call the delete API endpoint and remove from cache', async () => {
+      let localDeleteCalled = false;
+      let cacheDeleted = false;
+
+      server.use(
+        http.delete(
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123',
+          () => {
+            localDeleteCalled = true;
+            return HttpResponse.json({});
+          },
+        ),
+      );
+
+      // Mock storage delete to verify it's called
+      const storage = (session as any).sessionStorage;
+      const originalDelete = storage.delete;
+      storage.delete = async (sessionId: string) => {
+        cacheDeleted = true;
+        return originalDelete.call(storage, sessionId);
+      };
+
+      await session.delete();
+
+      expect(localDeleteCalled).toBe(true);
+      expect(cacheDeleted).toBe(true);
+    });
+
+    it('should clean up local cache even if API returns 404', async () => {
+      let cacheDeleted = false;
+
+      server.use(
+        http.delete(
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123',
+          () => {
+            return HttpResponse.json(
+              { error: { message: 'Session not found' } },
+              { status: 404 },
+            );
+          },
+        ),
+      );
+
+      const storage = (session as any).sessionStorage;
+      const originalDelete = storage.delete;
+      storage.delete = async (sessionId: string) => {
+        cacheDeleted = true;
+        return originalDelete.call(storage, sessionId);
+      };
+
+      // Should not throw
+      await session.delete();
+
+      expect(cacheDeleted).toBe(true);
+    });
+
+    it('should throw error and NOT clean up cache if API fails with non-404 status', async () => {
+      let cacheDeleted = false;
+
+      server.use(
+        http.delete(
+          'https://jules.googleapis.com/v1alpha/sessions/SESSION_123',
+          () => {
+            return HttpResponse.json(
+              { error: { message: 'Permission denied' } },
+              { status: 403 },
+            );
+          },
+        ),
+      );
+
+      const storage = (session as any).sessionStorage;
+      const originalDelete = storage.delete;
+      storage.delete = async (sessionId: string) => {
+        cacheDeleted = true;
+        return originalDelete.call(storage, sessionId);
+      };
+
+      await expect(session.delete()).rejects.toThrow();
+      expect(cacheDeleted).toBe(false);
+    });
+  });
+
   describe('ask()', () => {
     it('should send a message and return the corresponding reply', async () => {
       const startTime = new Date();
