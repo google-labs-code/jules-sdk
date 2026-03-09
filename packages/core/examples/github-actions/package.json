@@ -1,0 +1,18 @@
+{
+  "name": "jules-github-actions-example",
+  "version": "1.0.0",
+  "description": "An example of using the Jules SDK in a GitHub Action",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0",
+    "@google/jules-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
