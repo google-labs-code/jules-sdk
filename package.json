@@ -9,6 +9,7 @@
   },
   "workspaces": [
     "packages/*",
+    "packages/core/examples/*",
     "examples/*"
   ],
   "description": "Official Jules TypeScript SDK",
