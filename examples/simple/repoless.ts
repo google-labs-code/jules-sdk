@@ -359,31 +359,6 @@ async function runRepolessAutomated() {
 
             // Save the code to .output directory
             await saveChangeSet(artifact, run.id);
-          } else if (artifact.type === 'bashOutput') {
-            const exitIcon = artifact.exitCode === 0 ? '✅' : '❌';
-            console.log(`\n   💻 Bash ${exitIcon}`);
-            console.log(`      $ ${artifact.command}`);
-            if (artifact.stdout) {
-              artifact.stdout
-                .split('\n')
-                .slice(0, 8)
-                .forEach((line: string) => {
-                  console.log(`      │ ${line}`);
-                });
-              if (artifact.stdout.split('\n').length > 8) {
-                console.log(
-                  `      │ ... (${artifact.stdout.split('\n').length - 8} more lines)`,
-                );
-              }
-            }
-            if (artifact.stderr) {
-              artifact.stderr
-                .split('\n')
-                .slice(0, 3)
-                .forEach((line: string) => {
-                  console.log(`      ⚠ ${line}`);
-                });
-            }
           }
         }
       }
@@ -520,31 +495,6 @@ async function runRepolessSession() {
             if (artifact.gitPatch?.unidiffPatch) {
               await renderDiff(artifact.gitPatch.unidiffPatch);
             }
-          } else if (artifact.type === 'bashOutput') {
-            const exitIcon = artifact.exitCode === 0 ? '✅' : '❌';
-            console.log(`\n   💻 Bash ${exitIcon}`);
-            console.log(`      $ ${artifact.command}`);
-            if (artifact.stdout) {
-              artifact.stdout
-                .split('\n')
-                .slice(0, 8)
-                .forEach((line: string) => {
-                  console.log(`      │ ${line}`);
-                });
-              if (artifact.stdout.split('\n').length > 8) {
-                console.log(
-                  `      │ ... (${artifact.stdout.split('\n').length - 8} more lines)`,
-                );
-              }
-            }
-            if (artifact.stderr) {
-              artifact.stderr
-                .split('\n')
-                .slice(0, 3)
-                .forEach((line: string) => {
-                  console.log(`      ⚠ ${line}`);
-                });
-            }
           }
         }
       }
@@ -651,31 +601,6 @@ async function resumeSession(sessionId: string) {
 
             // Save the code to .output directory
             await saveChangeSet(artifact, sessionId);
-          } else if (artifact.type === 'bashOutput') {
-            const exitIcon = artifact.exitCode === 0 ? '✅' : '❌';
-            console.log(`\n   💻 Bash ${exitIcon}`);
-            console.log(`      $ ${artifact.command}`);
-            if (artifact.stdout) {
-              artifact.stdout
-                .split('\n')
-                .slice(0, 8)
-                .forEach((line: string) => {
-                  console.log(`      │ ${line}`);
-                });
-              if (artifact.stdout.split('\n').length > 8) {
-                console.log(
-                  `      │ ... (${artifact.stdout.split('\n').length - 8} more lines)`,
-                );
-              }
-            }
-            if (artifact.stderr) {
-              artifact.stderr
-                .split('\n')
-                .slice(0, 3)
-                .forEach((line: string) => {
-                  console.log(`      ⚠ ${line}`);
-                });
-            }
           }
         }
       }

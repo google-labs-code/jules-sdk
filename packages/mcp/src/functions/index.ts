@@ -5,7 +5,6 @@
 
 // Export all functions
 export { getSessionState } from './session-state.js';
-export { getBashOutputs } from './bash-outputs.js';
 export { listSessions } from './list-sessions.js';
 export { createSession } from './create-session.js';
 export { interact } from './interact.js';
@@ -20,10 +19,6 @@ export type {
   // Session State
   SessionStatus,
   SessionStateResult,
-  // Bash Outputs
-  BashOutput,
-  BashOutputsSummary,
-  BashOutputsResult,
   // File Changes (shared)
   FileChange,
   FilesSummary,

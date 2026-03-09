@@ -16,7 +16,6 @@
 
 import {
   MediaArtifact,
-  BashArtifact,
   ChangeSetArtifact,
 } from '../artifacts.js';
 import { Activity, Artifact } from '../types.js';
@@ -81,7 +80,6 @@ export class DefaultActivityClient implements ActivityClient {
     const hydratedArtifacts = activity.artifacts.map((artifact) => {
       // If it's already a class instance, we're done.
       if (artifact instanceof MediaArtifact) return artifact;
-      if (artifact instanceof BashArtifact) return artifact;
       if (artifact instanceof ChangeSetArtifact) return artifact;
 
       // It's a plain object from JSON.parse(), so we need to re-hydrate it.
@@ -95,10 +93,6 @@ export class DefaultActivityClient implements ActivityClient {
             rawChangeSet.source,
             rawChangeSet.gitPatch,
           );
-        case 'bashOutput':
-          // The raw cached format has artifact.bashOutput
-          const rawBashOutput = (artifact as any).bashOutput || artifact;
-          return new BashArtifact(rawBashOutput);
         case 'media':
           const rawMedia = (artifact as any).media || artifact;
           return new MediaArtifact(rawMedia, this.platform, activity.id);

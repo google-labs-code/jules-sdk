@@ -148,20 +148,11 @@ export class SessionSnapshotImpl implements SessionSnapshot {
   }
 
   private computeInsights(): SessionInsights {
-    const failedCommands = this.activities.filter((activity) =>
-      activity.artifacts.some((artifact) => {
-        if (artifact.type === 'bashOutput') {
-          return artifact.exitCode !== 0;
-        }
-        return false;
-      }),
-    );
-
     return {
       completionAttempts: this.activityCounts['sessionCompleted'] || 0,
       planRegenerations: this.activityCounts['planGenerated'] || 0,
       userInterventions: this.activityCounts['userMessaged'] || 0,
-      failedCommands,
+      failedCommands: [],
     };
   }
 

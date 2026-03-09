@@ -7,7 +7,6 @@ import {
   MemoryStorage,
   MemorySessionStorage,
   ChangeSetArtifact,
-  BashArtifact,
 } from '@google/jules-sdk';
 import type {
   JulesClient,
@@ -112,13 +111,6 @@ export function createTestActivity(input: {
         unidiffPatch: a.gitPatch.unidiffPatch,
         baseCommitId: 'test-commit',
         suggestedCommitMessage: 'Test commit',
-      });
-    }
-    if (a.type === 'bashOutput') {
-      return new BashArtifact({
-        command: a.command ?? '',
-        output: (a.stdout ?? '') + (a.stderr ?? ''),
-        exitCode: a.exitCode ?? 0,
       });
     }
     return a;

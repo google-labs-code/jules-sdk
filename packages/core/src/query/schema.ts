@@ -417,7 +417,7 @@ export const ACTIVITY_SCHEMA: DomainSchema = {
       fields: [
         {
           name: 'type',
-          type: '"changeSet" | "media" | "bashOutput"',
+          type: '"changeSet" | "media"',
           description: 'Artifact type discriminator',
           filterable: true,
           selectable: true,
@@ -464,36 +464,6 @@ export const ACTIVITY_SCHEMA: DomainSchema = {
           ],
         },
         {
-          name: 'command',
-          type: 'string',
-          description: 'Bash command executed (for bashOutput type)',
-          optional: true,
-          filterable: true,
-          selectable: true,
-        },
-        {
-          name: 'stdout',
-          type: 'string',
-          description: 'Standard output (for bashOutput type)',
-          optional: true,
-          selectable: true,
-        },
-        {
-          name: 'stderr',
-          type: 'string',
-          description: 'Standard error (for bashOutput type)',
-          optional: true,
-          selectable: true,
-        },
-        {
-          name: 'exitCode',
-          type: 'number | null',
-          description: 'Exit code (for bashOutput type)',
-          optional: true,
-          filterable: true,
-          selectable: true,
-        },
-        {
           name: 'data',
           type: 'string',
           description:
@@ -518,22 +488,6 @@ export const ACTIVITY_SCHEMA: DomainSchema = {
         from: 'activities',
         where: { sessionId: 'SESSION_ID', type: 'planGenerated' },
         select: ['id', 'createTime', 'plan.steps.title'],
-      },
-    },
-    {
-      description: 'Find activities with bash commands that failed',
-      query: {
-        from: 'activities',
-        where: {
-          'artifacts.type': 'bashOutput',
-          'artifacts.exitCode': { neq: 0 },
-        },
-        select: [
-          'id',
-          'artifacts.command',
-          'artifacts.exitCode',
-          'artifacts.stderr',
-        ],
       },
     },
     {
@@ -615,8 +569,7 @@ export const FILTER_OP_SCHEMA = {
     description:
       'Use dot notation for nested field paths. When filtering arrays, uses existential matching (ANY element matches).',
     examples: [
-      '"artifacts.type": "bashOutput"',
-      '"artifacts.exitCode": { neq: 0 }',
+      '"artifacts.type": "changeSet"',
       '"plan.steps.title": { contains: "test" }',
       '"outputs.pullRequest.url": { exists: true }',
     ],

@@ -646,27 +646,6 @@ export interface MediaArtifact {
 }
 
 /**
- * Output from a bash command execution, with a helper method to format the output.
- * This is an SDK-specific enhancement.
- */
-export interface BashArtifact {
-  readonly type: 'bashOutput';
-  readonly command: string;
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly exitCode: number | null;
-  /**
-   * Returns a cleanly formatted string combining the command, output, and exit code.
-   *
-   * @example
-   * if (artifact.type === 'bashOutput') {
-   *   console.log(artifact.toString());
-   * }
-   */
-  toString(): string;
-}
-
-/**
  * A single unit of data produced by an activity, enhanced with SDK helper methods.
  * This is a discriminated union based on the `type` property.
  * Maps to the `Artifact` resource in the REST API.
@@ -679,7 +658,7 @@ export interface BashArtifact {
  *   }
  * }
  */
-export type Artifact = ChangeSetArtifact | MediaArtifact | BashArtifact;
+export type Artifact = ChangeSetArtifact | MediaArtifact;
 
 // Raw REST API type definitions for artifacts, used by mappers.
 // These represent the JSON structure before being mapped to rich SDK objects.
@@ -695,18 +674,9 @@ export interface RestMediaArtifact {
   };
 }
 
-export interface RestBashOutputArtifact {
-  bashOutput: {
-    command: string;
-    output: string;
-    exitCode: number | null;
-  };
-}
-
 export type RestArtifact =
   | RestChangeSetArtifact
-  | RestMediaArtifact
-  | RestBashOutputArtifact;
+  | RestMediaArtifact;
 
 // --- Activity Types (Discriminated Union) ---
 

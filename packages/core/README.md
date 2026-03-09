@@ -178,11 +178,7 @@ const messages = await jules.select({
   limit: 5,
 });
 
-// Find activities with bash errors (exitCode > 0)
-const errors = await jules.select({
-  from: 'activities',
-  where: { 'artifacts.exitCode': { $gt: 0 } },
-});
+
 ```
 
 ### Reactive Streams
@@ -208,15 +204,12 @@ for await (const activity of session.stream()) {
 }
 ```
 
-### Code Diffs, Shell Output, and Media Artifacts
+### Code Diffs and Media Artifacts
 
-Activities can contain artifacts: code changes (`changeSet`), shell output (`bashOutput`), or images (`media`).
+Activities can contain artifacts: code changes (`changeSet`) or images (`media`).
 
 ```typescript
 for (const artifact of activity.artifacts) {
-  if (artifact.type === 'bashOutput') {
-    console.log(artifact.toString());
-  }
   if (artifact.type === 'changeSet') {
     const parsed = artifact.parsed();
     for (const file of parsed.files) {
@@ -312,7 +305,6 @@ if (myRepo) {
 - **Artifacts:**
   - `artifact.save()`: Save to filesystem.
   - `artifact.toUrl()`: Get data URI.
-  - `artifact.toString()`: Formatted output for bash artifacts.
   - `artifact.parsed()`: Structured diff parsing for changesets.
 - **Sources:**
   - `jules.sources()`: Async iterator over all connected sources.

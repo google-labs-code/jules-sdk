@@ -134,30 +134,6 @@ export interface CodeChangesSummary {
 }
 
 // ============================================================================
-// Bash Outputs
-// ============================================================================
-
-export interface BashOutput {
-  command: string;
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
-  activityId: string;
-}
-
-export interface BashOutputsSummary {
-  totalCommands: number;
-  succeeded: number;
-  failed: number;
-}
-
-export interface BashOutputsResult {
-  sessionId: string;
-  outputs: BashOutput[];
-  summary: BashOutputsSummary;
-}
-
-// ============================================================================
 // List Sessions
 // ============================================================================
 

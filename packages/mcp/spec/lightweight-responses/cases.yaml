@@ -100,11 +100,12 @@
       type: 'progressUpdated'
       title: 'Running tests'
       artifacts:
-        - type: 'bashOutput'
-          command: 'npm test'
-          stdout: '100 tests passed...'
-          stderr: ''
-          exitCode: 0
+        - type: 'changeSet'
+          source: 'test'
+          gitPatch:
+            unidiffPatch: 'diff --git a/test.ts b/test.ts'
+            baseCommitId: 'abc'
+            suggestedCommitMessage: 'test'
   when: toLightweight
   then:
     result:
@@ -121,8 +122,12 @@
       id: 'act-1'
       type: 'progressUpdated'
       artifacts:
-        - type: 'bashOutput'
-          command: 'npm test'
+        - type: 'changeSet'
+          source: 'test'
+          gitPatch:
+            unidiffPatch: ''
+            baseCommitId: 'abc'
+            suggestedCommitMessage: 'test'
   when: toLightweight
   options:
     includeArtifacts: true
@@ -213,7 +218,7 @@
     lightweightTokens:
       # Now includes message and artifacts, so more tokens than before
       # But still less than full format due to stripped media data
-      lessThan: 25000
+      lessThan: 35000
     fullTokens:
       greaterThan: 15000
 

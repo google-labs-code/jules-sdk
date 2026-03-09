@@ -258,8 +258,9 @@ describe('Lightweight Responses Spec', async () => {
                 message: 'a'.repeat(tc.given.activities.averageMessageLength),
                 artifacts: Array(tc.given.activities.averageArtifactCount).fill(
                   {
-                    type: 'bashOutput',
-                    command: 'ls',
+                    type: 'changeSet',
+                    source: 'test',
+                    gitPatch: { unidiffPatch: '', baseCommitId: '', suggestedCommitMessage: '' },
                   },
                 ),
               }),
