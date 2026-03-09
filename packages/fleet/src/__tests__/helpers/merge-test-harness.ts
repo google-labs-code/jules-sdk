@@ -116,6 +116,7 @@ export class MergeTestHarness {
       pullsGet: ReturnType<typeof vi.fn>;
       pullsUpdate: ReturnType<typeof vi.fn>;
       julesSession: ReturnType<typeof vi.fn>;
+      listComments: ReturnType<typeof vi.fn>;
     };
   } {
     const events: FleetEvent[] = [];
@@ -224,6 +225,7 @@ export class MergeTestHarness {
         },
         issues: {
           createComment: vi.fn().mockResolvedValue({ data: {} }),
+          listComments: vi.fn().mockResolvedValue({ data: [] }),
         },
       },
       graphql: vi.fn().mockResolvedValue({
@@ -257,6 +259,7 @@ export class MergeTestHarness {
         pullsGet: pullsGetMock,
         pullsUpdate: pullsUpdateMock,
         julesSession: this.julesSessionMock,
+        listComments: octokit.rest.issues.listComments,
       },
     };
   }

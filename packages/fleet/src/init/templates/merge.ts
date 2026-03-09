@@ -29,9 +29,6 @@ name: Fleet Merge
 on:
   schedule:
     - cron: '${cron}'
-  workflow_run:
-    workflows: ['Conflict Detection']
-    types: [completed]
   workflow_dispatch:
     inputs:
       mode:
@@ -52,7 +49,7 @@ on:
 
 concurrency:
   group: fleet-merge
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   merge:

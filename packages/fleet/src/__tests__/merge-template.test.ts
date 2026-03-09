@@ -109,6 +109,18 @@ describe('buildMergeTemplate', () => {
     );
     expect(runStep.env.GITHUB_TOKEN).toContain('secrets.GITHUB_TOKEN');
   });
+
+  // Regression: workflow_run trigger creates a feedback loop —
+  // redispatched PRs trigger Conflict Detection → Fleet Merge → more redispatches.
+  it('does NOT include a workflow_run trigger', () => {
+    const parsed = yaml.parse(template.content);
+    expect(parsed.on.workflow_run).toBeUndefined();
+  });
+
+  it('sets cancel-in-progress to true', () => {
+    const parsed = yaml.parse(template.content);
+    expect(parsed.concurrency['cancel-in-progress']).toBe(true);
+  });
 });
 
 describe('buildMergeTemplate with auth=app', () => {

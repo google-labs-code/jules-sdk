@@ -162,7 +162,7 @@ export class MergeHandler implements MergeSpec {
               } else {
                 // Fall back to per-PR redispatch
                 for (const pr of failedPRs) {
-                  await redispatch(
+                  const rdResult = await redispatch(
                     this.octokit,
                     input.owner,
                     input.repo,
@@ -172,7 +172,9 @@ export class MergeHandler implements MergeSpec {
                     this.emit,
                     this.sleep,
                   );
-                  redispatched.push({ oldPr: pr.number });
+                  if (!rdResult.skipped) {
+                    redispatched.push({ oldPr: pr.number });
+                  }
                   skipped.push(pr.number);
                 }
               }
@@ -230,7 +232,7 @@ export class MergeHandler implements MergeSpec {
               );
             }
 
-            await redispatch(
+            const rdResult = await redispatch(
               this.octokit,
               input.owner,
               input.repo,
@@ -241,9 +243,11 @@ export class MergeHandler implements MergeSpec {
               this.sleep,
             );
 
-            redispatched.push({
-              oldPr: currentPr.number,
-            });
+            if (!rdResult.skipped) {
+              redispatched.push({
+                oldPr: currentPr.number,
+              });
+            }
             skipped.push(currentPr.number);
             break;
           }
@@ -426,10 +430,12 @@ export class MergeHandler implements MergeSpec {
           this.emit,
           this.sleep,
         );
+        if (result.skipped) {
+          return { merged: false };
+        }
         return {
           merged: false,
           redispatched: true,
-          sessionId: result?.number?.toString(),
         };
       }
       return { merged: false };

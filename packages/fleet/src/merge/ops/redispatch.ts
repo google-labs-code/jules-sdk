@@ -18,9 +18,14 @@ import type { FleetEmitter } from '../../shared/events.js';
 import { jules } from '@google/jules-sdk';
 import { getClosingIssueRefs } from './extract-issue-refs.js';
 
+export interface RedispatchResult {
+  /** True if skip was due to dedup guard (recent redispatch detected) */
+  skipped: boolean;
+}
+
 /**
  * Closes a conflicting PR and re-dispatches via Jules SDK.
- * Polls for the new PR and returns it, or null on timeout.
+ * Returns { skipped: true } if a dedup guard prevents redispatch.
  */
 export async function redispatch(
   octokit: Octokit,
@@ -31,7 +36,13 @@ export async function redispatch(
   pollTimeoutSeconds: number,
   emit: FleetEmitter,
   sleep: (ms: number) => Promise<void>,
-): Promise<PR | null> {
+): Promise<RedispatchResult> {
+  // Dedup guard: skip if this PR was already redispatched recently
+  if (await wasRecentlyRedispatched(octokit, owner, repo, oldPr.number)) {
+    emit({ type: 'merge:redispatch:skipped', oldPr: oldPr.number, reason: 'recent-redispatch' } as any);
+    return { skipped: true };
+  }
+
   emit({ type: 'merge:redispatch:start', oldPr: oldPr.number });
 
   // Close the conflicting PR
@@ -74,7 +85,7 @@ export async function redispatch(
       sessionId: session.id,
     });
 
-    return null;
+    return { skipped: false };
   } catch (error) {
     emit({
       type: 'error',
@@ -83,7 +94,7 @@ export async function redispatch(
     });
   }
 
-  return null;
+  return { skipped: false };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -200,3 +211,37 @@ function buildRedispatchContext(
   return lines.join('\n');
 }
 
+// ── Dedup Guard ──────────────────────────────────────────────────────
+
+/** Cooldown window: skip redispatch if one occurred within this many ms */
+const REDISPATCH_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+
+/** Redispatch marker found in PR body when fleet-merge closes a PR */
+const REDISPATCH_MARKER = '⚠️ Closed by fleet-merge';
+
+/**
+ * Checks whether a PR was recently redispatched by scanning its comments
+ * for the redispatch marker. Returns true if a recent marker is found.
+ */
+async function wasRecentlyRedispatched(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<boolean> {
+  try {
+    const { data: comments } = await octokit.rest.issues.listComments({
+      owner,
+      repo,
+      issue_number: prNumber,
+    });
+    const now = Date.now();
+    return comments.some((c: any) => {
+      if (!c.body?.includes(REDISPATCH_MARKER)) return false;
+      const commentTime = new Date(c.created_at).getTime();
+      return now - commentTime < REDISPATCH_COOLDOWN_MS;
+    });
+  } catch {
+    return false; // Non-fatal — assume no prior redispatch
+  }
+}
