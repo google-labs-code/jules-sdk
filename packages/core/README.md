@@ -4,6 +4,12 @@
 
 Orchestrate complex, long-running coding tasks to an ephemeral cloud environment integrated with a GitHub repo.
 
+## Examples
+
+- [Advanced Session](./examples/advanced-session/README.md)
+- [Webhook Integration](./examples/webhook/README.md)
+- [GitHub Actions](./examples/github-actions/README.md)
+
 ## Send work to a Cloud based session
 
 ```ts
