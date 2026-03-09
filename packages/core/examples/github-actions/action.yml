@@ -1,0 +1,13 @@
+name: 'Jules Agent Action'
+description: 'Run a Jules coding agent session on your repository'
+author: 'Google'
+inputs:
+  prompt:
+    description: 'The instructions for the Jules agent'
+    required: true
+outputs:
+  pr-url:
+    description: 'The URL of the Pull Request created by the agent, if any'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
