@@ -1,5 +1,5 @@
 ---
-milestone: "3"
+milestone: "2"
 ---
 
 ## Add Practical Jules TypeScript SDK Examples
