@@ -1,0 +1,17 @@
+{
+  "name": "webhook",
+  "version": "1.0.0",
+  "description": "Example demonstrating how to trigger a Jules session via a webhook.",
+  "main": "index.ts",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "@hono/node-server": "^1.11.1",
+    "hono": "^4.3.11"
+  },
+  "devDependencies": {
+    "bun-types": "^1.1.8"
+  }
+}
