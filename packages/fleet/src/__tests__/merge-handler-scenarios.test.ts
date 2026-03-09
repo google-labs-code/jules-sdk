@@ -167,6 +167,35 @@ describe('Independent PR scenarios', () => {
       expect(result.data.redispatched.some((r) => r.oldPr === 1)).toBe(true);
     }
   });
+
+  // Regression: redispatch dedup guard — prevents cascading PR creation.
+  // When a PR was already redispatched recently (has a comment with the marker),
+  // the handler should skip creating a new Jules session.
+  it('1.9: conflict + recent redispatch comment → skipped, no new session', async () => {
+    const { handler, mocks } = new MergeTestHarness()
+      .withPRs([1])
+      .updateBranchResult(1, 'conflict')
+      .build();
+
+    // Simulate a recent redispatch comment on the PR
+    mocks.listComments.mockResolvedValue({
+      data: [{
+        body: '⚠️ Closed by fleet-merge: merge conflict detected. Task re-dispatched.',
+        created_at: new Date().toISOString(), // recent
+      }],
+    });
+
+    const result = await handler.execute({ ...BASE_INPUT, redispatch: true });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Should NOT have created a new Jules session
+      expect(mocks.julesSession).not.toHaveBeenCalled();
+      // PR should be skipped, not redispatched
+      expect(result.data.redispatched).toHaveLength(0);
+      expect(result.data.skipped).toContain(1);
+    }
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════
