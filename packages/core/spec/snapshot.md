@@ -78,7 +78,7 @@ interface SessionInsights {
   readonly completionAttempts: number; // sessionCompleted events
   readonly planRegenerations: number; // planGenerated events
   readonly userInterventions: number; // userMessaged events
-  readonly failedCommands: readonly Activity[]; // bashOutput with exitCode !== 0
+  readonly failedCommands: readonly Activity[]; // deprecated: always empty (bashOutput removed)
 }
 
 interface SerializedSnapshot {
@@ -172,7 +172,7 @@ interface SerializedSnapshot {
 | INS-01 | `completionAttempts` = count of `sessionCompleted` activities  | implemented |
 | INS-02 | `planRegenerations` = count of `planGenerated` activities      | implemented |
 | INS-03 | `userInterventions` = count of `userMessaged` activities       | implemented |
-| INS-04 | `failedCommands` = activities with `bashOutput.exitCode !== 0` | implemented |
+| INS-04 | `failedCommands` = always empty (bashOutput artifacts removed) | implemented |
 
 ---
 

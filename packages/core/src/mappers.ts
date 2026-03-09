@@ -17,7 +17,6 @@
 // src/mappers.ts
 import {
   MediaArtifact,
-  BashArtifact,
   ChangeSetArtifact,
   createGeneratedFiles,
   parseUnidiffWithContent,
@@ -61,9 +60,6 @@ export function mapRestArtifactToSdkArtifact(
   }
   if ('media' in restArtifact) {
     return new MediaArtifact(restArtifact.media, platform, activityId);
-  }
-  if ('bashOutput' in restArtifact) {
-    return new BashArtifact(restArtifact.bashOutput);
   }
   // This provides a fallback, though the API should always provide a known type.
   throw new Error(`Unknown artifact type: ${JSON.stringify(restArtifact)}`);

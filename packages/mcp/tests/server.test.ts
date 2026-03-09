@@ -93,7 +93,6 @@ describe('JulesMCPServer', () => {
       // Check that some expected tools exist
       const toolNames = result.tools.map((t: any) => t.name);
       expect(toolNames).toContain('get_session_state');
-      expect(toolNames).toContain('get_bash_outputs');
       expect(toolNames).toContain('query_cache');
     });
   });

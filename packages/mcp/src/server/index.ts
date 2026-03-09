@@ -101,11 +101,6 @@ export class JulesMCPServer {
     return tool.handler(this.julesClient, args);
   }
 
-  async handleGetBashOutputs(args: { sessionId: string }) {
-    const tool = tools.find((t) => t.name === 'get_bash_outputs');
-    if (!tool) throw new Error('Tool not found: get_bash_outputs');
-    return tool.handler(this.julesClient, args);
-  }
 
   async handleSelect(args: { query: unknown }) {
     const tool = tools.find((t) => t.name === 'query_cache');

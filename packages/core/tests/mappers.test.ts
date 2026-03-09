@@ -59,24 +59,6 @@ describe('mapRestArtifactToSdkArtifact', () => {
     expect(typeof (sdkArtifact as any).parsed).toBe('function');
   });
 
-  it('should map a bashOutput artifact correctly', () => {
-    const restArtifact = {
-      bashOutput: {
-        command: 'ls -l',
-        output: 'total 0',
-        exitCode: 0,
-      },
-    };
-    const sdkArtifact = mapRestArtifactToSdkArtifact(
-      restArtifact,
-      mockPlatform,
-    );
-    expect(sdkArtifact.type).toBe('bashOutput');
-    // After mapping, it's a rich object, not a raw one.
-    expect((sdkArtifact as any).command).toBe('ls -l');
-    expect((sdkArtifact as any).stdout).toBe('total 0');
-  });
-
   it('should throw for an unknown artifact type', () => {
     const restArtifact = { unknown: {} };
     expect(() =>
@@ -184,10 +166,13 @@ describe('mapRestActivityToSdkActivity', () => {
       progressUpdated: { title: 'Executing command' },
       artifacts: [
         {
-          bashOutput: {
-            command: 'npm install',
-            output: 'installing...',
-            exitCode: 0,
+          changeSet: {
+            source: 'sources/github/test/repo',
+            gitPatch: {
+              unidiffPatch: '--- a/file.ts\n+++ b/file.ts',
+              baseCommitId: 'abc',
+              suggestedCommitMessage: 'feat: add file',
+            },
           },
         },
       ],
@@ -197,7 +182,7 @@ describe('mapRestActivityToSdkActivity', () => {
       mockPlatform,
     );
     expect(sdkActivity.artifacts).toHaveLength(1);
-    expect(sdkActivity.artifacts[0].type).toBe('bashOutput');
+    expect(sdkActivity.artifacts[0].type).toBe('changeSet');
   });
 
   it('should throw for an unknown activity type', () => {

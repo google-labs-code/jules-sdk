@@ -18,7 +18,6 @@ import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 import { Buffer } from 'buffer';
 import type {
   RestMediaArtifact,
-  RestBashOutputArtifact,
   RestChangeSetArtifact,
 } from '../src/types.js';
 
@@ -27,7 +26,6 @@ import { mockPlatform } from './mocks/platform.js';
 describe('Artifacts', () => {
   // These modules will be dynamically imported to handle environment mocking
   let MediaArtifact: any;
-  let BashArtifact: any;
   let ChangeSetArtifact: any;
   let mapRestArtifactToSdkArtifact: any;
   let fs_promises: any;
@@ -45,7 +43,6 @@ describe('Artifacts', () => {
       fs_promises = await import('fs/promises');
 
       MediaArtifact = artifacts.MediaArtifact;
-      BashArtifact = artifacts.BashArtifact;
       ChangeSetArtifact = artifacts.ChangeSetArtifact;
       mapRestArtifactToSdkArtifact = mappers.mapRestArtifactToSdkArtifact;
 
@@ -120,38 +117,6 @@ describe('Artifacts', () => {
           mimeType,
         );
         expect(url).toBe(mockUrl);
-      });
-    });
-
-    describe('BashArtifact', () => {
-      it('should format toString() correctly with stdout', () => {
-        const artifact = new BashArtifact({
-          command: 'ls -l',
-          output: 'total 0',
-          exitCode: 0,
-        });
-        const expected = `$ ls -l\ntotal 0\n[exit code: 0]`;
-        expect(artifact.toString()).toBe(expected);
-      });
-
-      it('should format toString() correctly with stderr', () => {
-        const artifact = new BashArtifact({
-          command: 'grep foo nonexistent.txt',
-          output: 'File not found',
-          exitCode: 2,
-        });
-        const expected = `$ grep foo nonexistent.txt\nFile not found\n[exit code: 2]`;
-        expect(artifact.toString()).toBe(expected);
-      });
-
-      it('should format toString() correctly with no output and a null exit code', () => {
-        const artifact = new BashArtifact({
-          command: 'sleep 10',
-          output: '',
-          exitCode: null,
-        });
-        const expected = `$ sleep 10\n[exit code: N/A]`;
-        expect(artifact.toString()).toBe(expected);
       });
     });
 
@@ -347,20 +312,6 @@ deleted file mode 100644
         expect(sdkArtifact).toBeInstanceOf(MediaArtifact);
         expect(sdkArtifact.type).toBe('media');
         expect(typeof sdkArtifact.save).toBe('function');
-      });
-
-      it('should map REST bash artifact to a BashArtifact instance', () => {
-        const restArtifact: RestBashOutputArtifact = {
-          bashOutput: {
-            command: 'echo "hi"',
-            output: 'hi',
-            exitCode: 0,
-          },
-        };
-        const sdkArtifact = mapRestArtifactToSdkArtifact(restArtifact);
-        expect(sdkArtifact).toBeInstanceOf(BashArtifact);
-        expect(sdkArtifact.type).toBe('bashOutput');
-        expect(typeof sdkArtifact.toString).toBe('function');
       });
 
       it('should map REST changeset artifact to a ChangeSetArtifact instance', () => {
