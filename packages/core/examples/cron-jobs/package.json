@@ -1,0 +1,17 @@
+{
+  "name": "cron-jobs",
+  "version": "1.0.0",
+  "description": "Example demonstrating how to trigger a Jules session via a scheduled cron job.",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "bun-types": "^1.1.8"
+  }
+}
