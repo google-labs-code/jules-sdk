@@ -1,0 +1,15 @@
+{
+  "name": "ai-sdk-example",
+  "version": "1.0.0",
+  "description": "An example integrating Vercel AI SDK with Jules SDK",
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.1.13",
+    "@google/jules-sdk": "workspace:*",
+    "ai": "^4.1.45",
+    "zod": "^3.24.2"
+  }
+}
