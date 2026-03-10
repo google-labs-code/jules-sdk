@@ -1,13 +1,14 @@
-# Gitpatch Local Example
+# Gitpatch Local Example (CLI)
 
-This example demonstrates how to use the Jules SDK to create a session, retrieve a `changeSet` artifact, and apply the generated code modifications locally on your machine using Git.
+This example demonstrates how to use the Jules SDK to retrieve a `changeSet` artifact's GitPatch from a specific session and apply the generated code modifications locally on your machine using Git.
+
+It is structured as a **CLI application** using `citty` and follows the **Typed Service Contract** pattern. It separates validation (`spec.ts`) and impure side effects (`handler.ts`), and provides agent-friendly `json` output flags to demonstrate CLI agent best practices.
 
 It specifically showcases how to:
-- Create a simple text file locally to act as a target.
-- Spin up a local git branch.
-- Request Jules to modify the file content.
+- Pass a `sessionId` as a positional CLI argument.
+- Use `session.snapshot()` to retrieve the generated changes directly without relying on local cache queries.
 - Download the resulting `GitPatch` (`unidiffPatch`) and write it to a `.patch` file.
-- Use `git apply` to patch the code on the local machine and commit the changes.
+- Use safely executed `execFileSync` to spin up a local git branch, `git apply` to patch the code, and commit the changes.
 
 ## Requirements
 
@@ -15,6 +16,7 @@ It specifically showcases how to:
 - A Jules API Key (`JULES_API_KEY` environment variable)
 - `git` installed and available in your `PATH`
 - Must be executed inside a git repository (so `git checkout -b` and `git apply` work)
+- A valid Jules Session ID that contains a `changeSet` artifact.
 
 ## Setup
 
@@ -26,20 +28,28 @@ It specifically showcases how to:
 export JULES_API_KEY="your-api-key-here"
 ```
 
+3. Ensure example dependencies are installed:
+```bash
+bun install
+```
+
 ## Running the Example
 
 Using `bun`:
 
 ```bash
-bun run index.ts
+bun run index.ts <SESSION_ID>
 ```
 
-Using `npm` and `tsx` (or similar TypeScript runner):
+**Options:**
+- `--branch <name>`: Provide a custom name for the local git branch to be created (default is `jules-patch-test-<timestamp>`).
+- `--json`: Output the result of the operation as a strict JSON blob (ideal for AI Agent consumption).
 
+Example:
 ```bash
-npx tsx index.ts
+bun run index.ts jules:session:123456789 --branch test-patch-fix --json
 ```
 
 ## What it does
 
-The script creates a temporary file `test_patch_target.txt` and starts a local git branch. It creates a session using `jules.session` to ask an agent to change the second line of the file. Once complete, it searches the session activities for a `changeSet` artifact. It extracts the `unidiffPatch` from the artifact's `gitPatch` property, writes it to a `.patch` file locally, and uses standard `git apply` to patch the local file. It then cleans up by rolling back the git changes and deleting the temporary file.
+The CLI validates the input session ID using Zod. It then queries the Jules API for that session's snapshot data. It searches the snapshot for a `changeSet` artifact. It extracts the `unidiffPatch` from the artifact's `gitPatch` property, writes it to a `.patch` file locally, and uses standard `git apply` to patch the local git repository in the specified branch. Finally, it commits the applied patch. All side effects are encapsulated within a handler that returns a structured Result object (Success/Failure) rather than throwing raw exceptions.
