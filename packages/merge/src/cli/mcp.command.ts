@@ -12,7 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export * from './session-spec.js';
-export { SessionCheckHandler } from './session-handler.js';
-export * from './git-spec.js';
-export { GitCheckHandler } from './git-handler.js';
+import { defineCommand } from 'citty';
+
+export default defineCommand({
+  meta: {
+    name: 'mcp',
+    description: 'Start the Jules Merge MCP server on stdio',
+  },
+  args: {},
+  async run() {
+    const { createMergeServer } = await import('../mcp/server.js');
+    const { StdioServerTransport } = await import(
+      '@modelcontextprotocol/sdk/server/stdio.js'
+    );
+    const server = createMergeServer();
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error('Jules Merge MCP server running on stdio');
+  },
+});

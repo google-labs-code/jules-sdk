@@ -1,38 +1,22 @@
 # Jules Merge
 
-Detect and surface merge conflicts between a coding agent's changes and the base branch — before or during CI.
+Reconcile overlapping PR changes from parallel AI agents — scan, resolve, push, merge.
 
-## Check for conflicts in CI
+## Workflow
 
-```bash
-npx @google/jules-merge check-conflicts \
-  --repo your-org/your-repo \
-  --pr 42 \
-  --sha abc123
+```
+1. scan        — detect overlapping files and build the reconciliation manifest
+2. get-contents — fetch file versions (base, main, pr:<N>) for each hot zone
+3. stage-resolution — write resolved content for each conflicted file
+4. status      — confirm all files resolved (ready: true, pending is empty)
+5. push        — create the multi-parent reconciliation commit and PR
+6. merge       — merge the reconciliation PR using a merge commit
 ```
 
-When a merge has already been attempted, `check-conflicts` reads conflict markers from the filesystem and returns structured JSON with the affected files, their conflict markers, and a task directive that tells the agent exactly what to resolve.
-
-## Check for conflicts proactively
+## Quick Start
 
 ```bash
-npx @google/jules-merge check-conflicts \
-  --session 7439826373470093109 \
-  --repo your-org/your-repo
-```
-
-This queries the Jules SDK for the session's changed files and compares them against recent commits on the base branch. If files overlap, it returns the remote file content (`remoteShadowContent`) so the agent can resolve conflicts without needing `git pull`.
-
-## Generate a CI workflow
-
-```bash
-npx @google/jules-merge init
-```
-
-Writes `.github/workflows/jules-merge-check.yml` to your repo. The workflow runs on every pull request: it attempts a merge, and if conflicts exist, runs `check-conflicts` to produce structured output that Jules can act on.
-
-```bash
-npx @google/jules-merge init --base-branch develop --force
+npx @google/jules-merge scan --json '{"prs":[10,11],"repo":"owner/repo"}'
 ```
 
 ## Installation
@@ -41,154 +25,112 @@ npx @google/jules-merge init --base-branch develop --force
 npm i @google/jules-merge
 ```
 
-For session-based checks, set authentication:
+## Authentication
+
+Uses the same auth pattern as Fleet. The CLI resolves auth internally — no external decode steps.
+
+**GitHub App (recommended):**
 
 ```
-JULES_API_KEY         Required for session mode.
-GITHUB_TOKEN          Required. GitHub PAT with repo access.
+FLEET_APP_ID                    App ID
+FLEET_APP_PRIVATE_KEY_BASE64    Base64-encoded private key (canonical)
+FLEET_APP_INSTALLATION_ID       Installation ID
 ```
 
-Or use GitHub App authentication:
+Legacy names (`GITHUB_APP_*`) are accepted with a deprecation warning.
+
+**Token (fallback):**
 
 ```
-GITHUB_APP_ID                   App ID
-GITHUB_APP_PRIVATE_KEY_BASE64   Base64-encoded private key
-GITHUB_APP_INSTALLATION_ID      Installation ID
+GITHUB_TOKEN    or    GH_TOKEN
 ```
 
 ## CLI Reference
 
-### `jules-merge check-conflicts`
+All commands support `--json <payload>` for agent-first usage.
 
-Detect merge conflicts. Mode is inferred from the arguments provided.
+### `jules-merge scan`
 
-```
-jules-merge check-conflicts [options]
+Scan PRs for overlapping file changes and build the reconciliation manifest.
 
-Session mode (proactive):
-  --session <id>     Jules session ID
-  --repo <owner/repo>
-  --base <branch>    Base branch (default: main)
-
-Git mode (CI failure):
-  --pr <number>      Pull request number
-  --sha <sha>        Failing commit SHA
-  --repo <owner/repo>
+```bash
+jules-merge scan --json '{"prs":[10,11],"repo":"owner/repo","base":"main"}'
+jules-merge scan --prs 10,11 --repo owner/repo --base main
 ```
 
-**Session mode** queries the Jules SDK for changed files and compares them against remote commits. Returns `remoteShadowContent` for each conflicting file.
+### `jules-merge get-contents`
 
-**Git mode** reads `git status` for unmerged files and extracts conflict markers. Returns a `taskDirective` with resolution instructions.
+Fetch file content from base, main, or a specific PR.
 
-### `jules-merge init`
-
-Generate a GitHub Actions workflow for automated conflict detection.
-
+```bash
+jules-merge get-contents --json '{"filePath":"src/config.ts","source":"pr:10","repo":"owner/repo"}'
 ```
-jules-merge init [options]
 
-Options:
-  --output-dir <dir>         Directory to write into (default: .)
-  --workflow-name <name>     Filename without .yml (default: jules-merge-check)
-  --base-branch <branch>     Branch to check against (default: main)
-  --force                    Overwrite existing file
+### `jules-merge stage-resolution`
+
+Stage a resolved file for the reconciliation commit.
+
+```bash
+jules-merge stage-resolution --json '{"filePath":"src/config.ts","parents":["main","10","11"],"content":"resolved content"}'
+```
+
+### `jules-merge status`
+
+Show reconciliation manifest status.
+
+```bash
+jules-merge status
+```
+
+### `jules-merge push`
+
+Create the multi-parent reconciliation commit and PR.
+
+```bash
+jules-merge push --json '{"branch":"reconcile/batch","message":"Reconcile PRs","repo":"owner/repo"}'
+```
+
+Supports `--mergeStrategy sequential` (default, enables GitHub auto-close) or `octopus`.
+
+### `jules-merge merge`
+
+Merge the reconciliation PR. Always uses merge commit — never squash or rebase.
+
+```bash
+jules-merge merge --json '{"pr":999,"repo":"owner/repo"}'
+```
+
+### `jules-merge schema`
+
+Print JSON schema for command inputs/outputs.
+
+```bash
+jules-merge schema scan
+jules-merge schema --all
 ```
 
 ## Programmatic API
 
-All handlers are exported for use in scripts, CI pipelines, or other packages.
-
 ```ts
 import {
-  SessionCheckHandler,
-  GitCheckHandler,
-  InitHandler,
+  scanHandler,
+  getContentsHandler,
+  stageResolutionHandler,
+  statusHandler,
+  pushHandler,
+  mergeHandler,
+  createMergeOctokit,
 } from '@google/jules-merge';
+
+const octokit = createMergeOctokit();
+const scan = await scanHandler(octokit, { prs: [10, 11], repo: 'owner/repo' });
 ```
 
-### `SessionCheckHandler`
-
-Compares a Jules session's changed files against remote commits on the base branch.
-
-```ts
-const handler = new SessionCheckHandler(octokit, julesClient);
-const result = await handler.execute({
-  sessionId: '7439826373470093109',
-  repo: 'your-org/your-repo',
-  base: 'main',
-});
-
-if (result.success && result.data.status === 'conflict') {
-  for (const conflict of result.data.conflicts) {
-    console.log(`${conflict.filePath}: ${conflict.conflictReason}`);
-    console.log(conflict.remoteShadowContent);
-  }
-}
-```
-
-Returns `{ status: 'clean' | 'conflict', conflicts: [...] }` on success. Each conflict includes `filePath`, `conflictReason`, and `remoteShadowContent`.
-
-### `GitCheckHandler`
-
-Reads conflict markers from the local filesystem after a failed merge.
-
-```ts
-const handler = new GitCheckHandler();
-const result = await handler.execute({
-  repo: 'your-org/your-repo',
-  pullRequestNumber: 42,
-  failingCommitSha: 'abc123',
-});
-
-if (result.success) {
-  console.log(result.data.taskDirective);
-  for (const file of result.data.affectedFiles) {
-    console.log(`${file.filePath}: ${file.gitConflictMarkers}`);
-  }
-}
-```
-
-Returns `{ taskDirective, priority, affectedFiles: [...] }` on success. Each file includes `filePath`, `baseCommitSha`, and `gitConflictMarkers`.
-
-### `InitHandler`
-
-Generates a GitHub Actions workflow file.
-
-```ts
-const handler = new InitHandler();
-const result = await handler.execute({
-  outputDir: '.',
-  workflowName: 'jules-merge-check',
-  baseBranch: 'main',
-  force: false,
-});
-
-if (result.success) {
-  console.log(`Created: ${result.data.filePath}`);
-}
-```
-
-Returns `{ filePath, content }` on success.
-
-### `buildWorkflowYaml`
-
-Generate the workflow YAML string without writing to disk.
-
-```ts
-import { buildWorkflowYaml } from '@google/jules-merge';
-
-const yaml = buildWorkflowYaml({
-  workflowName: 'merge-check',
-  baseBranch: 'main',
-});
-```
+All handlers take an Octokit instance as the first argument (dependency injection).
 
 ## MCP Server
 
-The package exposes an MCP server with two tools:
-
-- **`check_conflicts`** — Detects merge conflicts (session or git mode)
-- **`init_workflow`** — Generates a CI workflow file
+7 tools: `scan_fleet`, `get_file_contents`, `stage_resolution`, `get_status`, `push_reconciliation`, `merge_reconciliation`, `get_schema`.
 
 ```bash
 jules-merge mcp

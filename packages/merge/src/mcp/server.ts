@@ -15,71 +15,32 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { SessionCheckInputSchema } from '../conflicts/session-spec.js';
-import { SessionCheckHandler } from '../conflicts/session-handler.js';
-import { GitCheckInputSchema } from '../conflicts/git-spec.js';
-import { GitCheckHandler } from '../conflicts/git-handler.js';
-import { createOctokit } from '../shared/github.js';
-import { createJulesClient } from '../shared/session.js';
+import { createMergeOctokit } from '../shared/auth.js';
+import { scanHandler } from '../reconcile/scan-handler.js';
+import { getContentsHandler } from '../reconcile/get-contents-handler.js';
+import { stageResolutionHandler } from '../reconcile/stage-resolution-handler.js';
+import { statusHandler } from '../reconcile/status-handler.js';
+import { pushHandler } from '../reconcile/push-handler.js';
+import { mergeHandler } from '../reconcile/merge-handler.js';
+import { schemaHandler } from '../reconcile/schema-handler.js';
 
 export function createMergeServer(): McpServer {
   const server = new McpServer({
     name: 'jules-merge',
-    version: '0.0.1',
+    version: '0.0.3',
   });
 
   server.tool(
-    'check_conflicts',
-    'Check for merge conflicts. Provide sessionId for proactive checks against remote, or pullRequestNumber + failingCommitSha for CI failure diagnosis.',
+    'scan_fleet',
+    'Scan fleet PRs for overlapping file changes and build the reconciliation manifest',
     {
-      // Common
+      prs: z.array(z.number()).describe('PR numbers to scan'),
       repo: z.string().describe('Repository in owner/repo format'),
-      // Session mode (proactive)
-      sessionId: z
-        .string()
-        .optional()
-        .describe('Jules session ID — triggers proactive session mode'),
-      base: z
-        .string()
-        .default('main')
-        .describe('Base branch name (session mode only)'),
-      // Git mode (CI failure)
-      pullRequestNumber: z
-        .number()
-        .optional()
-        .describe('Pull request number — triggers CI failure mode'),
-      failingCommitSha: z
-        .string()
-        .optional()
-        .describe('Failing commit SHA (CI failure mode only)'),
+      base: z.string().default('main').describe('Base branch name'),
     },
-    async ({ repo, sessionId, base, pullRequestNumber, failingCommitSha }) => {
-      let result: any;
-
-      if (sessionId) {
-        const input = SessionCheckInputSchema.parse({ sessionId, repo, base });
-        const handler = new SessionCheckHandler(createOctokit(), createJulesClient);
-        result = await handler.execute(input);
-      } else if (pullRequestNumber && failingCommitSha) {
-        const input = GitCheckInputSchema.parse({
-          repo,
-          pullRequestNumber,
-          failingCommitSha,
-        });
-        const handler = new GitCheckHandler();
-        result = await handler.execute(input);
-      } else {
-        result = {
-          success: false,
-          error: {
-            code: 'INVALID_INPUT',
-            message:
-              'Provide sessionId for proactive checks, or pullRequestNumber + failingCommitSha for CI failure diagnosis.',
-            recoverable: false,
-          },
-        };
-      }
-
+    async ({ prs, repo, base }) => {
+      const octokit = createMergeOctokit();
+      const result = await scanHandler(octokit, { prs, repo, base });
       return {
         content: [
           { type: 'text' as const, text: JSON.stringify(result, null, 2) },
@@ -89,33 +50,147 @@ export function createMergeServer(): McpServer {
   );
 
   server.tool(
-    'init_workflow',
-    'Generate a GitHub Actions workflow file for automated merge conflict detection.',
+    'get_file_contents',
+    'Fetch file contents from main, base, or a specific PR head',
     {
-      outputDir: z
+      filePath: z.string().describe('File path within the repo'),
+      source: z
         .string()
-        .default('.')
-        .describe('Directory to write .github/workflows/ into'),
-      workflowName: z
+        .describe('Content source: "base", "main", or "pr:<N>"'),
+      repo: z.string().describe('Repository in owner/repo format'),
+      baseSha: z
         .string()
-        .default('jules-merge-check')
-        .describe('Workflow filename (without .yml)'),
-      baseBranch: z
-        .string()
-        .default('main')
-        .describe('Base branch to check against'),
-      force: z
-        .boolean()
-        .default(false)
-        .describe('Overwrite existing workflow file'),
+        .optional()
+        .describe('Explicit base SHA (used with source=base)'),
     },
-    async ({ outputDir, workflowName, baseBranch, force }) => {
-      const { InitHandler } = await import('../init/init-handler.js');
-      const { InitInputSchema } = await import('../init/init-spec.js');
-      const input = InitInputSchema.parse({ outputDir, workflowName, baseBranch, force });
-      const handler = new InitHandler();
-      const result = await handler.execute(input);
+    async ({ filePath, source, repo, baseSha }) => {
+      const octokit = createMergeOctokit();
+      const result = await getContentsHandler(octokit, {
+        filePath,
+        source,
+        repo,
+        baseSha,
+      });
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    },
+  );
 
+  server.tool(
+    'stage_resolution',
+    'Record resolved file content in the reconciliation manifest',
+    {
+      filePath: z.string().describe('File path within the repo'),
+      parents: z
+        .array(z.string())
+        .describe('Parent sources: ["main", "10", "11"]'),
+      content: z
+        .string()
+        .optional()
+        .describe('Inline resolved content'),
+      fromFile: z
+        .string()
+        .optional()
+        .describe('Local file path containing the resolved content'),
+      note: z.string().optional().describe('Optional resolution note'),
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe('Validate without writing to the manifest'),
+    },
+    async (args) => {
+      const result = await stageResolutionHandler(args);
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'get_status',
+    'Get current reconciliation status — shows pending, resolved, and clean files',
+    {},
+    async () => {
+      const result = await statusHandler({});
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'push_reconciliation',
+    'Create the multi-parent reconciliation commit and PR via Git Data API',
+    {
+      branch: z
+        .string()
+        .describe('Branch name for the reconciliation PR'),
+      message: z.string().describe('Commit message'),
+      repo: z.string().describe('Repository in owner/repo format'),
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe('Validate without pushing'),
+      mergeStrategy: z
+        .enum(['sequential', 'octopus'])
+        .optional()
+        .describe('"sequential" (default) or "octopus"'),
+      prTitle: z.string().optional().describe('Custom PR title'),
+      prBody: z.string().optional().describe('Custom PR body'),
+    },
+    async (args) => {
+      const octokit = createMergeOctokit();
+      const result = await pushHandler(octokit, args);
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'merge_reconciliation',
+    'Merge the reconciliation PR using a merge commit. Always uses merge strategy — never squash or rebase — to preserve the ancestry chain that auto-closes fleet PRs.',
+    {
+      pr: z.number().describe('PR number to merge'),
+      repo: z.string().describe('Repository in owner/repo format'),
+    },
+    async ({ pr, repo }) => {
+      const octokit = createMergeOctokit();
+      const result = await mergeHandler(octokit, { pr, repo });
+      return {
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'get_schema',
+    'Get JSON schemas for command inputs/outputs',
+    {
+      command: z
+        .string()
+        .optional()
+        .describe(
+          'Command name: scan, get-contents, stage-resolution, status, push, merge',
+        ),
+      all: z
+        .boolean()
+        .optional()
+        .describe('Return all schemas at once'),
+    },
+    async ({ command, all }) => {
+      const result = schemaHandler(command, { all });
       return {
         content: [
           { type: 'text' as const, text: JSON.stringify(result, null, 2) },

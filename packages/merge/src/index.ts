@@ -12,13 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Conflict detection
-export * from './conflicts/index.js';
-
-// Init / workflow generation
-export * from './init/index.js';
-
-// Shared utilities
-export { ok, fail } from './shared/result.js';
-export { getSessionChangedFiles, createJulesClient } from './shared/session.js';
-export type { SessionFileInfo } from './shared/session.js';
+export * from './reconcile/index.js';
+export { createMergeOctokit, getAuthOptions } from './shared/auth.js';
+export { ConflictError, HardError, getExitCode, parseJsonInput } from './shared/errors.js';
+export { validateFilePath, validateBranchName } from './shared/validators.js';
+export * from './shared/github.js';

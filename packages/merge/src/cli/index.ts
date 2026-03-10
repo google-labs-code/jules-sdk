@@ -41,8 +41,8 @@ const subCommands = await discoverCommands();
 const main = defineCommand({
   meta: {
     name: 'jules-merge',
-    version: '0.0.1',
-    description: 'Predictive conflict detection for parallel AI agents',
+    version: '0.0.3',
+    description: 'Reconcile overlapping PR changes from parallel AI agents',
   },
   subCommands,
 });
