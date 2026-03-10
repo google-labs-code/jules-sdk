@@ -7,6 +7,14 @@ Orchestrate complex, long-running coding tasks to an ephemeral cloud environment
 ## Examples
 
 - [Basic Session](./examples/basic-session/README.md)
+- [Google Docs Context](./examples/google-docs/README.md)
+- [MCP Plan Generation](./examples/mcp-plan-generation/README.md)
+- [Database Triggers](./examples/database-triggers/README.md)
+- [File System Events](./examples/file-system-events/README.md)
+- [Hono Integration](./examples/hono/README.md)
+- [Express Integration](./examples/express/README.md)
+- [Stitch Integration](./examples/stitch/README.md)
+- [Cron Jobs](./examples/cron-jobs/README.md)
 - [Advanced Session](./examples/advanced-session/README.md)
 - [Agent Workflow](./examples/agent/README.md)
 - [Webhook Integration](./examples/webhook/README.md)
