@@ -1,11 +1,11 @@
 import { defineCommand } from 'citty';
-import { handleGenerateTestRequest } from './handler.js';
+import { handleCloudWorkerRequest } from './handler.js';
 import { niftty } from 'niftty';
 
 export default defineCommand({
   meta: {
-    name: 'generate-test',
-    description: 'Reads a local source file and automatically generates a unit test file next to it.',
+    name: 'cloud-worker',
+    description: 'Offloads complex tasks (web scraping, data analysis, scripting) to an autonomous serverless container.',
   },
   args: {
     json: {
@@ -17,22 +17,21 @@ export default defineCommand({
       description: 'Format of the output (e.g., "json" or "text"). Defaults to text for humans, but "json" is critical for agents.',
       default: 'text',
     },
-    filepath: {
+    task: {
       type: 'string',
-      description: 'Human-friendly flag for specifying the file path.',
+      description: 'A description of the complex task or script you want the worker to execute in the cloud.',
     },
-    framework: {
+    input: {
       type: 'string',
-      description: 'Testing framework to use (e.g. vitest, jest). Default: vitest',
-      default: 'vitest',
+      description: 'Optional path to a local file containing data you want to send to the worker.',
     },
-    instructions: {
+    'output-file': {
       type: 'string',
-      description: 'Additional instructions for the agent.',
+      description: 'Path where the worker should save the final processed result locally.',
     },
     'dry-run': {
       type: 'boolean',
-      description: 'Generate the test and print it to the console, but do not write it to disk.',
+      description: 'Execute the worker and fetch the result, but do not write it to the local disk.',
       default: false,
     },
   },
@@ -47,24 +46,28 @@ export default defineCommand({
         console.error(JSON.stringify({ status: 'error', error: 'Invalid JSON payload format' }));
         process.exit(1);
       }
-    } else if (args.filepath) {
-      payload.filepath = args.filepath;
-      payload.testFramework = args.framework;
-      if (args.instructions) payload.instructions = args.instructions;
+    } else if (args.task && args['output-file']) {
+      payload.task = args.task;
+      payload.outputFile = args['output-file'];
+      if (args.input) payload.inputFile = args.input;
       if (args['dry-run']) payload.dryRun = true;
     } else {
-      console.error(JSON.stringify({ status: 'error', error: 'Must provide either --json or --filepath' }));
+      console.error(JSON.stringify({ status: 'error', error: 'Must provide either --json or both --task and --output-file' }));
       process.exit(1);
     }
 
     const isJsonOutput = args.output === 'json' || process.env.OUTPUT_FORMAT === 'json';
 
     if (!isJsonOutput) {
-       console.log(`Analyzing file and generating test suite...\n`);
+       console.log(`\n☁️  Sending task to Cloud Worker container...\n`);
+       if (payload.inputFile) {
+         console.log(`Uploading local context: ${payload.inputFile}`);
+       }
+       console.log(`Waiting for worker to run scripts and return final output...\n`);
     }
 
     // Call the Typed Service Contract handler
-    const response = await handleGenerateTestRequest(payload);
+    const response = await handleCloudWorkerRequest(payload);
 
     if (isJsonOutput) {
       // Agent DX: Provide deterministic, machine-readable JSON
@@ -78,9 +81,9 @@ export default defineCommand({
 
       console.log(response.message);
 
-      if (response.data?.content && args['dry-run']) {
-        console.log('\n--- Generated Test Code ---');
-        console.log(niftty(`\`\`\`\n${response.data.content}\n\`\`\``));
+      if (response.data?.contentPreview) {
+        console.log('\n--- Output Preview ---');
+        console.log(niftty(`\`\`\`\n${response.data.contentPreview}\n\`\`\``));
       }
     }
 
