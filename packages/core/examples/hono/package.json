@@ -1,0 +1,16 @@
+{
+  "name": "jules-hono-example",
+  "version": "1.0.0",
+  "description": "An example of integrating the Jules SDK with a Hono backend.",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "bun index.ts",
+    "dev": "bun --watch index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14"
+  }
+}
