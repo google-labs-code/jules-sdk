@@ -11,6 +11,7 @@ Orchestrate complex, long-running coding tasks to an ephemeral cloud environment
 - [Agent Workflow](./examples/agent/README.md)
 - [Webhook Integration](./examples/webhook/README.md)
 - [GitHub Actions](./examples/github-actions/README.md)
+- [Gitpatch Improve](./examples/gitpatch-improve/README.md)
 
 ## Send work to a Cloud based session
 
