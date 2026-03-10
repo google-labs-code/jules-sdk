@@ -9,7 +9,7 @@
   "dependencies": {
     "@ai-sdk/google": "^1.1.17",
     "@google/jules-sdk": "workspace:*",
-    "ai": "^4.1.45",
+    "ai": "^6.0.116",
     "citty": "^0.1.6",
     "zod": "^3.24.2"
   }
