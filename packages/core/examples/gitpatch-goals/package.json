@@ -1,0 +1,18 @@
+{
+  "name": "gitpatch-goals",
+  "version": "1.0.0",
+  "description": "Example demonstrating how to evaluate generated code using a GitPatch.",
+  "main": "index.ts",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "citty": "^0.1.6",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "bun-types": "^1.1.8"
+  }
+}

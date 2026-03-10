@@ -1,0 +1,5 @@
+name: 'Jules Agent Skills Generator'
+description: 'Analyze repository for Agent Skills using a scheduled GitHub Action cron job'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

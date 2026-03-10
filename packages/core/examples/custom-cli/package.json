@@ -1,0 +1,15 @@
+{
+  "name": "jules-custom-cli-example",
+  "version": "1.0.0",
+  "description": "Custom CLI Example for the Jules SDK",
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "citty": "^0.1.6",
+    "niftty": "^0.1.3",
+    "zod": "^3.24.0"
+  }
+}
