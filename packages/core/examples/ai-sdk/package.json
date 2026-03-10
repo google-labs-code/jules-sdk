@@ -4,12 +4,13 @@
   "description": "An example integrating Vercel AI SDK with Jules SDK",
   "type": "module",
   "scripts": {
-    "start": "bun run index.ts"
+    "start": "bun run src/cli.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^1.1.13",
+    "@ai-sdk/google": "^1.1.17",
     "@google/jules-sdk": "workspace:*",
     "ai": "^4.1.45",
+    "citty": "^0.1.6",
     "zod": "^3.24.2"
   }
 }
