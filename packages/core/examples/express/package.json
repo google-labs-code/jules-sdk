@@ -1,0 +1,19 @@
+{
+  "name": "jules-express-example",
+  "version": "1.0.0",
+  "description": "An example of integrating the Jules SDK in an Express application",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
