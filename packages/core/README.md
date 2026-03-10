@@ -7,6 +7,7 @@ Orchestrate complex, long-running coding tasks to an ephemeral cloud environment
 ## Examples
 
 - [Basic Session](./examples/basic-session/README.md)
+- [MCP Plan Generation](./examples/mcp-plan-generation/README.md)
 - [Advanced Session](./examples/advanced-session/README.md)
 - [Agent Workflow](./examples/agent/README.md)
 - [Webhook Integration](./examples/webhook/README.md)
