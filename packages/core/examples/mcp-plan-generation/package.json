@@ -1,0 +1,20 @@
+{
+  "name": "mcp-plan-generation-example",
+  "version": "1.0.0",
+  "description": "Example demonstrating how to create an MCP server for generating highly detailed plans using the Jules SDK",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mcp-plan-generation": "./index.ts"
+  },
+  "scripts": {
+    "start": "bun run index.ts",
+    "build": "bun build index.ts --target=node"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.2.0",
+    "citty": "^0.2.1",
+    "zod": "^3.23.0"
+  }
+}

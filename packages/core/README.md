@@ -22,6 +22,14 @@ Orchestrate complex, long-running coding tasks to an ephemeral cloud environment
 - [Gitpatch Goals](./examples/gitpatch-goals/README.md)
 - [Gitpatch Review](./examples/gitpatch-review/README.md)
 - [Gitpatch Local](./examples/gitpatch-local/README.md)
+- [Google Docs Context](./examples/google-docs/README.md)
+- [MCP Plan Generation](./examples/mcp-plan-generation/README.md)
+- [Database Triggers](./examples/database-triggers/README.md)
+- [File System Events](./examples/file-system-events/README.md)
+- [Stitch Integration](./examples/stitch/README.md)
+- [Cron Jobs](./examples/cron-jobs/README.md)
+- [Hono Integration](./examples/hono/README.md)
+- [Express Integration](./examples/express/README.md)
 
 ## Send work to a Cloud based session
 
@@ -334,5 +342,6 @@ if (myRepo) {
 Apache-2.0
 
 > **Note:** This is not an officially supported Google product. This project is not eligible for the [Google Open Source Software Vulnerability Rewards Program](https://bughunters.google.com/open-source-security).
+
 
 

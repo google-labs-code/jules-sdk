@@ -1,0 +1,17 @@
+{
+  "name": "file-system-events",
+  "version": "1.0.0",
+  "description": "Example demonstrating how to trigger a Jules session from file system events using chokidar.",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "chokidar": "^5.0.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.1.8"
+  }
+}
