@@ -10,6 +10,17 @@ import { reviewCode } from './review.js';
 export class ReviewHandler implements ReviewSpec {
   async execute(input: ReviewInput): Promise<ReviewResult> {
     try {
+      if (input.dryRun) {
+        console.error('--- DRY RUN ENABLED: Simulating Code Generation & Review ---');
+        return {
+          success: true,
+          data: {
+            reviewMessage: '[DRY RUN] Generated code successfully met the original goals.',
+            patchSize: 42,
+          },
+        };
+      }
+
       // 1. Generation phase
       const genSession = await generateCode(input.prompt);
       const genOutcome = await genSession.result();

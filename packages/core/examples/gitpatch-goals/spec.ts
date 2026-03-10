@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const ReviewInputSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
+  dryRun: z.boolean().default(false).describe('Simulates the command without making API calls.'),
 });
 
 export type ReviewInput = z.infer<typeof ReviewInputSchema>;

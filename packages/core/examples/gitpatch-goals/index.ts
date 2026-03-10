@@ -1,4 +1,5 @@
 import { defineCommand, runMain } from 'citty';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { ReviewInputSchema } from './spec.js';
 import { ReviewHandler } from './handler.js';
 
@@ -24,14 +25,33 @@ const main = defineCommand({
       description: 'Output the result as JSON',
       default: false,
     },
+    'dry-run': {
+      type: 'boolean',
+      description: 'Simulates the command without making API calls',
+      default: false,
+    },
+    describe: {
+      type: 'boolean',
+      description: 'Prints the JSON schema for this command and exits',
+      default: false,
+    },
   },
   async run({ args }) {
+    if (args.describe) {
+      const schema = zodToJsonSchema(ReviewInputSchema, 'ReviewInput');
+      console.log(JSON.stringify(schema, null, 2));
+      process.exit(0);
+    }
+
     if (!process.env.JULES_API_KEY) {
       console.error('Error: JULES_API_KEY environment variable is missing.');
       process.exit(1);
     }
 
-    const parseResult = ReviewInputSchema.safeParse({ prompt: args.prompt });
+    const parseResult = ReviewInputSchema.safeParse({
+      prompt: args.prompt,
+      dryRun: args['dry-run'],
+    });
     if (!parseResult.success) {
       console.error('Invalid input:', parseResult.error.format());
       process.exit(1);
