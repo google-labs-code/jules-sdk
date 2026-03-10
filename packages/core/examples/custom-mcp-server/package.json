@@ -1,0 +1,14 @@
+{
+  "name": "custom-mcp-server-example",
+  "version": "1.0.0",
+  "description": "Example demonstrating how to create custom MCP servers with the Jules SDK",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.2.0"
+  }
+}
