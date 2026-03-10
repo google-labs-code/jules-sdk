@@ -11,6 +11,17 @@ Orchestrate complex, long-running coding tasks to an ephemeral cloud environment
 - [Agent Workflow](./examples/agent/README.md)
 - [Webhook Integration](./examples/webhook/README.md)
 - [GitHub Actions](./examples/github-actions/README.md)
+- [Ai Sdk Integration](./examples/ai-sdk/README.md)
+- [Nextjs Integration](./examples/nextjs/README.md)
+- [Custom Mcp Server](./examples/custom-mcp-server/README.md)
+- [Custom Cli Tools](./examples/custom-cli/README.md)
+- [Github Action Agentskills](./examples/github-action-agentskills/README.md)
+- [Gitpatch Improve](./examples/gitpatch-improve/README.md)
+- [Google Sheets Context](./examples/google-sheets/README.md)
+- [Cloudflare Workers](./examples/cloudflare-workers/README.md)
+- [Gitpatch Goals](./examples/gitpatch-goals/README.md)
+- [Gitpatch Review](./examples/gitpatch-review/README.md)
+- [Gitpatch Local](./examples/gitpatch-local/README.md)
 
 ## Send work to a Cloud based session
 
@@ -323,4 +334,5 @@ if (myRepo) {
 Apache-2.0
 
 > **Note:** This is not an officially supported Google product. This project is not eligible for the [Google Open Source Software Vulnerability Rewards Program](https://bughunters.google.com/open-source-security).
+
 
