@@ -5,7 +5,8 @@
   "main": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "bun run index.ts"
+    "start": "bun run index.ts",
+    "test:e2e": "bun run e2e-test.ts"
   },
   "dependencies": {
     "@google/jules-sdk": "workspace:*",
@@ -13,6 +14,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "bun-types": "^1.1.8"
+    "bun-types": "^1.1.8",
+    "execa": "^9.6.1"
   }
 }

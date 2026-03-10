@@ -28,7 +28,17 @@ export class ReviewHandler implements ReviewSpec {
 
       this.log(`Code Generation Session ID: ${codeGenSession.id}`, input.json);
 
-      await this.streamSessionActivities(codeGenSession, 'Code Gen', input.json);
+      // If the session isn't immediately finished, stream it until it is
+      const genInfo = await codeGenSession.info();
+      if (genInfo.state !== 'completed' && genInfo.state !== 'failed') {
+         try {
+             await this.streamSessionActivities(codeGenSession, 'Code Gen', input.json);
+         } catch(e) {
+             // Occasionally activities return 404 momentarily immediately after session creation
+             // in some environments. Ignore and fall through to wait on result().
+         }
+      }
+
       const genOutcome = await codeGenSession.result();
 
       if (genOutcome.state === 'failed') {
@@ -113,12 +123,19 @@ ${gitPatchStr}
 
       let reviewMessage = '';
 
-      // We will listen for the final agent message from the stream
-      for await (const activity of reviewSession.stream()) {
-        this.logActivity(activity, 'Review', input.json);
-        if (activity.type === 'agentMessaged') {
-             reviewMessage = activity.message;
-        }
+      // Stream to get live updates and block until finished
+      const revInfo = await reviewSession.info();
+      if (revInfo.state !== 'completed' && revInfo.state !== 'failed') {
+          try {
+              for await (const activity of reviewSession.stream()) {
+                 this.logActivity(activity, 'Review', input.json);
+                 if (activity.type === 'agentMessaged') {
+                      reviewMessage = activity.message;
+                 }
+              }
+          } catch(e) {
+              // Ignore stream fetch errors
+          }
       }
 
       const reviewOutcome = await reviewSession.result();
