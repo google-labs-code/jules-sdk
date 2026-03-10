@@ -152,12 +152,19 @@ export class MergeHandler implements MergeSpec {
               );
 
               if (resolveResult.success) {
-                for (const pr of failedPRs) {
-                  redispatched.push({
-                    oldPr: pr.number,
-                    sessionId: resolveResult.sessionId,
-                  });
-                  skipped.push(pr.number);
+                if (!resolveResult.skipped) {
+                  for (const pr of failedPRs) {
+                    redispatched.push({
+                      oldPr: pr.number,
+                      sessionId: resolveResult.sessionId,
+                    });
+                    skipped.push(pr.number);
+                  }
+                } else {
+                  // Dedup guard fired — just skip, don't redispatch
+                  for (const pr of failedPRs) {
+                    skipped.push(pr.number);
+                  }
                 }
               } else {
                 // Fall back to per-PR redispatch

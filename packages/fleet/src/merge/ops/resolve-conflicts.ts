@@ -37,6 +37,8 @@ export interface BatchResolveSuccess {
   success: true;
   sessionId: string;
   resolvedPRs: number[];
+  /** True if skipped due to existing reconcile PR */
+  skipped?: boolean;
 }
 
 export interface BatchResolveFailure {
@@ -70,6 +72,18 @@ export async function batchResolveConflicts(
     prNumbers: conflictingPRs.map((p) => p.number),
     sharedFiles,
   });
+
+  // Dedup guard: skip if there's already an open reconcile PR covering these PRs
+  const existingReconcile = await findExistingReconcilePR(octokit, owner, repo, conflictingPRs);
+  if (existingReconcile) {
+    emit({
+      type: 'merge:batch-resolve:skipped',
+      reason: 'existing-reconcile-pr',
+      existingPR: existingReconcile,
+      prNumbers: conflictingPRs.map((p) => p.number),
+    } as any);
+    return { success: true, sessionId: '', resolvedPRs: [], skipped: true };
+  }
 
   // 1. Fetch diffs for all conflicting PRs (non-fatal per-PR)
   const diffs = await fetchAllDiffs(octokit, owner, repo, conflictingPRs);
@@ -137,10 +151,46 @@ export async function batchResolveConflicts(
     success: true,
     sessionId,
     resolvedPRs: conflictingPRs.map((p) => p.number),
+    skipped: false,
   };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Checks whether an open reconcile PR already exists that covers
+ * at least one of the conflicting PRs. If so, returns the PR number;
+ * otherwise returns null.
+ */
+async function findExistingReconcilePR(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  conflictingPRs: PR[],
+): Promise<number | null> {
+  try {
+    const { data: openPRs } = await octokit.rest.pulls.list({
+      owner,
+      repo,
+      state: 'open',
+    });
+    const conflictNumbers = new Set(conflictingPRs.map((p) => p.number));
+    for (const pr of openPRs) {
+      const title = (pr as any).title ?? '';
+      const body = pr.body ?? '';
+      // Match PRs with 'reconcile' in title or 'Batch conflict resolution' in body
+      const isReconcile = /reconcile/i.test(title) || /batch conflict resolution/i.test(body);
+      if (!isReconcile) continue;
+      // Check if this reconcile PR mentions any of the conflicting PRs
+      const mentionedPRs = [...(body.matchAll(/#(\d+)/g))].map((m) => Number(m[1]));
+      const overlaps = mentionedPRs.some((n) => conflictNumbers.has(n));
+      if (overlaps) return pr.number;
+    }
+    return null;
+  } catch {
+    return null; // Non-fatal — assume no existing reconcile
+  }
+}
 
 /**
  * Fetches the diff for each PR. Returns a map of PR number → diff string.
