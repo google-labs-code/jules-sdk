@@ -1,6 +1,8 @@
-# Google Sheets Context Example
+# Google Sheets Context Example CLI
 
-This example demonstrates how to extract tabular data from a Google Sheet using the `googleapis` library and pass it as context into an interactive Jules session prompt.
+This example demonstrates how to extract tabular data from a Google Sheet using the `googleapis` library and pass it as context into an interactive Jules session prompt using a Command Line Interface (CLI).
+
+It implements the [Typed Service Contract](https://raw.githubusercontent.com/davideast/stitch-mcp/refs/heads/main/.gemini/skills/typed-service-contract/skill.md) pattern and follows [Agent CLI Best Practices](https://justin.poehnelt.com/posts/rewrite-your-cli-for-ai-agents.md) with a dedicated `--json` output format.
 
 ## Requirements
 
@@ -23,25 +25,35 @@ This example demonstrates how to extract tabular data from a Google Sheet using 
    export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-file.json"
    ```
 
-4. (Optional) Provide your own spreadsheet ID. By default, it uses a public sample sheet:
-   ```bash
-   export SPREADSHEET_ID="your-spreadsheet-id"
-   ```
+## Running the CLI
 
-## Running the Example
-
-Navigate to this directory and use `bun` to run the file:
+Navigate to this directory and use `bun` to run the file. Use the `--help` flag to see available options:
 
 ```bash
-bun run index.ts
+bun run index.ts --help
 ```
 
-Using `npm` and `tsx` (or similar TypeScript runner):
+### Basic Usage
+
+Provide the spreadsheet ID, range, and your prompt for the AI agent:
 
 ```bash
-npx tsx index.ts
+bun run index.ts \
+  --spreadsheetId "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" \
+  --range "Class Data!A2:E" \
+  --prompt "Analyze the following student data from a Google Sheet and provide a brief summary of the key demographics and trends."
+```
+
+### Agent / Machine-Readable Mode
+
+To output the result as a strictly formatted JSON object suitable for agents and downstream parsing, use the `--json` flag:
+
+```bash
+bun run index.ts --spreadsheetId "..." --range "..." --prompt "..." --json
 ```
 
 ## What it does
 
-The script authenticates with Google Cloud using Application Default Credentials to retrieve rows from the provided spreadsheet ID using the range `Class Data!A2:E`. It extracts this information, converts the rows into comma-separated text grouped by newlines, and appends it to a prompt given to an AI agent in `jules.session`. It waits for the agent to complete the task and displays the final analysis response.
+The script uses `citty` to parse arguments and `zod` to validate input schemas (Spec and Handler pattern). It authenticates with Google Cloud using Application Default Credentials to retrieve rows from the provided spreadsheet ID and range.
+
+It converts the rows into comma-separated text, appends it to your prompt, and starts a `jules.session()`. It waits for the agent to complete the task and displays the final analysis response or output files, returning structured errors on failure without throwing unhandled exceptions.
