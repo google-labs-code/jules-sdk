@@ -1,164 +1,82 @@
-import { jules } from '@google/jules-sdk';
+import { defineCommand, runMain } from 'citty';
+import { ReviewHandler } from './src/handler.js';
+import { ReviewInputSchema } from './src/spec.js';
 
-/**
- * GitPatch Review Example
- *
- * Demonstrates how to use the Jules SDK to generate a code change
- * and then review its GitPatch content. This is useful for analyzing
- * generated code before applying it, checking it against coding standards,
- * or using it to drive further automation.
- */
-async function main() {
-  if (!process.env.JULES_API_KEY) {
-    console.error('Error: JULES_API_KEY environment variable is not set.');
-    console.error('Please set it using: export JULES_API_KEY="your-api-key"');
-    process.exit(1);
-  }
-
-  // Define the target repository and base branch
-  const source = { github: 'davideast/dataprompt', baseBranch: 'main' };
-
-  console.log('1. Starting a new session to generate code...');
-
-  try {
-    // Start a session to generate some changes. We instruct the agent to
-    // intentionally write bad code so we have something obvious to review.
-    const codeGenSession = await jules.session({
-      prompt: `Create a new file called 'bad_math.ts' with a poorly implemented
-function that adds two numbers together. Include no comments and terrible variable names.`,
-      source,
+const main = defineCommand({
+  meta: {
+    name: 'jules-gitpatch-review',
+    version: '1.0.0',
+    description: 'Use Jules to review generated code patches against GitHub repo context.',
+  },
+  args: {
+    repository: {
+      type: 'string',
+      description: 'The target GitHub repository (e.g. owner/repo)',
+      required: true,
+      alias: 'r',
+    },
+    baseBranch: {
+      type: 'string',
+      description: 'The base branch of the repository',
+      default: 'main',
+      alias: 'b',
+    },
+    prompt: {
+      type: 'string',
+      description: 'The prompt to generate the code change',
+      required: true,
+      alias: 'p',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Output the final result as JSON',
+      default: false,
+    },
+  },
+  async run({ args }) {
+    // 1. Validate Input (Parse, don't validate)
+    const inputResult = ReviewInputSchema.safeParse({
+      repository: args.repository,
+      baseBranch: args.baseBranch,
+      prompt: args.prompt,
+      json: args.json,
     });
 
-    console.log(`Code Generation Session ID: ${codeGenSession.id}`);
-    console.log('Waiting for the code generation to complete...');
-
-    // Await the completion of the session
-    const genOutcome = await codeGenSession.result();
-
-    if (genOutcome.state !== 'completed' && genOutcome.state !== 'succeeded') {
-      console.error(`Code generation session failed or did not complete. State: ${genOutcome.state}`);
-      return;
+    if (!inputResult.success) {
+      console.error('Invalid arguments provided:');
+      console.error(inputResult.error.format());
+      process.exit(1);
     }
 
-    // Retrieve the activities to find the changeset artifact
-    console.log('\n2. Retrieving GitPatch data from the session...');
-    const activities = await jules.select({
-      from: 'activities',
-      where: { 'session.id': codeGenSession.id },
-      order: 'desc',
-    });
+    // 2. Instantiate the Handler
+    const handler = new ReviewHandler();
 
-    let gitPatchStr = '';
+    // 3. Execute Business Logic
+    const result = await handler.execute(inputResult.data);
 
-    // Iterate through activities to find a ChangeSet artifact
-    for (const activity of activities) {
-      if (activity.artifacts) {
-        for (const artifact of activity.artifacts) {
-          if (artifact.type === 'changeSet') {
-             // In the SDK, the underlying structure for ChangeSet includes the gitPatch.
-             // We can extract the unidiffPatch from the raw artifact data.
-             const parsed = artifact.parsed();
-             // Often, you might want the raw patch string to send to another agent or tool.
-             // We'll reconstruct a simple patch string from the parsed diff for this example.
-
-             for(const file of parsed.files) {
-                 gitPatchStr += `--- a/${file.path}\n+++ b/${file.path}\n`;
-                 for(const chunk of file.chunks) {
-                     gitPatchStr += `@@ -${chunk.oldStart},${chunk.oldLines} +${chunk.newStart},${chunk.newLines} @@\n`;
-                     for(const change of chunk.changes) {
-                         if(change.type === 'add') gitPatchStr += `+${change.content}\n`;
-                         if(change.type === 'del') gitPatchStr += `-${change.content}\n`;
-                         if(change.type === 'normal') gitPatchStr += ` ${change.content}\n`;
-                     }
-                 }
-             }
-          }
+    // 4. Handle Results Deterministically
+    if (!result.success) {
+      if (args.json) {
+        console.error(JSON.stringify(result.error, null, 2));
+      } else {
+        console.error(`\n[ERROR] ${result.error.code}: ${result.error.message}`);
+        if (result.error.suggestion) {
+          console.error(`Suggestion: ${result.error.suggestion}`);
         }
       }
+      process.exit(1);
     }
 
-    if (!gitPatchStr) {
-      console.log('No GitPatch found. The agent might not have written any code.');
-      // If no gitpatch was found in activities, sometimes the final state has it on the outcome snapshot.
-      const snapshot = codeGenSession.snapshot();
-      const changeSet = snapshot?.changeSet();
-      if(changeSet) {
-         console.log("Found ChangeSet on session snapshot.");
-         // Note: in a real scenario you would access the raw gitpatch string if the API exposes it directly,
-         // but for the SDK's abstraction, parsing the diff is the recommended way.
-         const parsed = changeSet.parsed();
-         for(const file of parsed.files) {
-             gitPatchStr += `File: ${file.path} (Additions: ${file.additions}, Deletions: ${file.deletions})\n`;
-         }
-      }
-    }
-
-    if(!gitPatchStr) {
-        console.log("Could not find any changes. Exiting.");
-        return;
-    }
-
-    console.log('\n--- Extracted Patch Content ---');
-    console.log(gitPatchStr);
-    console.log('-------------------------------\n');
-
-    console.log('3. Starting a new session to review the GitPatch...');
-
-    // Now, create a second session to review the patch generated by the first session.
-    // This demonstrates using Jules to evaluate code against coding standards.
-    const reviewSession = await jules.session({
-        prompt: `Review the following code change patch and determine if it adheres to clean coding standards.
-Provide a short summary of the issues found and how they should be fixed.
-
-## Git Patch
-\`\`\`diff
-${gitPatchStr}
-\`\`\`
-`,
-        // We can optionally attach the same source repo context if the review needs to know about other files
-        source
-    });
-
-    console.log(`Review Session ID: ${reviewSession.id}`);
-    console.log('Waiting for the review to complete...');
-
-    const reviewOutcome = await reviewSession.result();
-
-    if (reviewOutcome.state === 'completed' || reviewOutcome.state === 'succeeded') {
-        // Find the agent's review message
-        const reviewActivities = await jules.select({
-            from: 'activities',
-            where: { type: 'agentMessaged', 'session.id': reviewSession.id },
-            order: 'desc',
-            limit: 1,
-        });
-
-        if (reviewActivities.length > 0) {
-            console.log('\n--- Review Agent Analysis ---');
-            console.log(reviewActivities[0].message);
-            console.log('-----------------------------');
-        } else {
-             // Fallback if the agent wrote the review to a file instead of a message
-             const files = reviewOutcome.generatedFiles();
-             if (files.size > 0) {
-                 console.log('\n--- Review Agent Analysis (Files) ---');
-                 for (const [filename, content] of files.entries()) {
-                     console.log(`\nFile: ${filename}`);
-                     console.log(content.content);
-                 }
-                 console.log('-------------------------------------');
-             } else {
-                 console.log("The review agent completed but didn't leave a message or file.");
-             }
-        }
+    // 5. Output Success State
+    if (args.json) {
+      console.log(JSON.stringify(result.data, null, 2));
     } else {
-        console.error(`Review session failed or did not complete. State: ${reviewOutcome.state}`);
+      console.log('\n=======================================');
+      console.log('         REVIEW COMPLETE');
+      console.log('=======================================\n');
+      console.log(result.data.reviewMessage);
     }
+  },
+});
 
-  } catch (error) {
-    console.error('An error occurred during the process:', error);
-  }
-}
-
-// Run the example
-main();
+runMain(main);

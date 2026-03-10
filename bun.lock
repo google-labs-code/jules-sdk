@@ -70,6 +70,8 @@
       "version": "1.0.0",
       "dependencies": {
         "@google/jules-sdk": "workspace:*",
+        "citty": "^0.1.6",
+        "zod": "^3.23.0",
       },
       "devDependencies": {
         "bun-types": "^1.1.8",
