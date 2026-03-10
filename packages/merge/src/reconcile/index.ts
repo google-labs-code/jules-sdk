@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export * from './init-spec.js';
-export { InitHandler } from './init-handler.js';
-export { buildWorkflowYaml } from './templates.js';
-export type { WorkflowTemplateOptions } from './templates.js';
+export * from './schemas.js';
+export * from './manifest.js';
+export { scanHandler } from './scan-handler.js';
+export { getContentsHandler } from './get-contents-handler.js';
+export { stageResolutionHandler } from './stage-resolution-handler.js';
+export { statusHandler } from './status-handler.js';
+export { pushHandler } from './push-handler.js';
+export { mergeHandler } from './merge-handler.js';
+export { schemaHandler } from './schema-handler.js';

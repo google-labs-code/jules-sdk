@@ -19,12 +19,12 @@ const shared = {
   format: 'esm' as const,
   root: './src',
   external: [
-    '@google/jules-sdk',
     '@octokit/auth-app',
     '@octokit/rest',
     '@modelcontextprotocol/sdk',
     'citty',
     'zod',
+    'zod-to-json-schema',
   ],
   outdir: './dist',
   naming: '[dir]/[name].mjs',

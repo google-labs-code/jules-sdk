@@ -2,7 +2,7 @@
   "name": "@google/jules-merge",
   "version": "0.0.3",
   "type": "module",
-  "description": "Predictive conflict detection for parallel AI agents",
+  "description": "Reconcile overlapping PR changes from parallel AI agents",
   "types": "./dist/merge/src/index.d.ts",
   "bin": {
     "jules-merge": "./dist/cli/index.mjs"
@@ -37,11 +37,11 @@
     "access": "public"
   },
   "dependencies": {
-    "@google/jules-sdk": "^0.1.0",
     "@octokit/auth-app": "^8.2.0",
     "@octokit/rest": "^21.0.0",
     "citty": "^0.1.6",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.24.0"
   },
   "peerDependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1"
