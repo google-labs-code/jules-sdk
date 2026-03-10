@@ -9,6 +9,7 @@ Orchestrate complex, long-running coding tasks to an ephemeral cloud environment
 - [Basic Session](./examples/basic-session/README.md)
 - [Advanced Session](./examples/advanced-session/README.md)
 - [Agent Workflow](./examples/agent/README.md)
+- [Google Sheets Context](./examples/google-sheets/README.md)
 - [Webhook Integration](./examples/webhook/README.md)
 - [GitHub Actions](./examples/github-actions/README.md)
 

@@ -1,0 +1,11 @@
+{
+  "name": "google-sheets-context-example",
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@google/jules-sdk": "workspace:*",
+    "googleapis": "^171.4.0"
+  }
+}
