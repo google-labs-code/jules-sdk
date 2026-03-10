@@ -1,11 +1,11 @@
 import { defineCommand } from 'citty';
-import { handleSessionRequest } from './handler.js';
+import { handleGenerateTestRequest } from './handler.js';
 import { niftty } from 'niftty';
 
 export default defineCommand({
   meta: {
-    name: 'session',
-    description: 'Executes a Jules Session, optimized for Agents.',
+    name: 'generate-test',
+    description: 'Reads a local source file and automatically generates a unit test file next to it.',
   },
   args: {
     json: {
@@ -17,9 +17,23 @@ export default defineCommand({
       description: 'Format of the output (e.g., "json" or "text"). Defaults to text for humans, but "json" is critical for agents.',
       default: 'text',
     },
-    prompt: {
+    filepath: {
       type: 'string',
-      description: 'Human-friendly flag for simple tasks.',
+      description: 'Human-friendly flag for specifying the file path.',
+    },
+    framework: {
+      type: 'string',
+      description: 'Testing framework to use (e.g. vitest, jest). Default: vitest',
+      default: 'vitest',
+    },
+    instructions: {
+      type: 'string',
+      description: 'Additional instructions for the agent.',
+    },
+    'dry-run': {
+      type: 'boolean',
+      description: 'Generate the test and print it to the console, but do not write it to disk.',
+      default: false,
     },
   },
   async run({ args }) {
@@ -33,21 +47,24 @@ export default defineCommand({
         console.error(JSON.stringify({ status: 'error', error: 'Invalid JSON payload format' }));
         process.exit(1);
       }
-    } else if (args.prompt) {
-      payload.prompt = args.prompt;
+    } else if (args.filepath) {
+      payload.filepath = args.filepath;
+      payload.testFramework = args.framework;
+      if (args.instructions) payload.instructions = args.instructions;
+      if (args['dry-run']) payload.dryRun = true;
     } else {
-      console.error(JSON.stringify({ status: 'error', error: 'Must provide either --json or --prompt' }));
+      console.error(JSON.stringify({ status: 'error', error: 'Must provide either --json or --filepath' }));
       process.exit(1);
     }
 
     const isJsonOutput = args.output === 'json' || process.env.OUTPUT_FORMAT === 'json';
 
     if (!isJsonOutput) {
-       console.log(`Executing session...\n`);
+       console.log(`Analyzing file and generating test suite...\n`);
     }
 
     // Call the Typed Service Contract handler
-    const response = await handleSessionRequest(payload);
+    const response = await handleGenerateTestRequest(payload);
 
     if (isJsonOutput) {
       // Agent DX: Provide deterministic, machine-readable JSON
@@ -59,16 +76,11 @@ export default defineCommand({
         process.exit(1);
       }
 
-      if (response.data?.agentMessages?.length) {
-        console.log('--- Agent Response ---');
-        console.log(niftty(response.data.agentMessages[0]));
-      }
+      console.log(response.message);
 
-      if (response.data?.files) {
-        for (const [filename, content] of Object.entries(response.data.files)) {
-          console.log(`\nFile: ${filename}`);
-          console.log(niftty(`\`\`\`\n${content}\n\`\`\``));
-        }
+      if (response.data?.content && args['dry-run']) {
+        console.log('\n--- Generated Test Code ---');
+        console.log(niftty(`\`\`\`\n${response.data.content}\n\`\`\``));
       }
     }
 
