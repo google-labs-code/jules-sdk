@@ -196,32 +196,27 @@ describe('Workflow Template Guardrails', () => {
 
   // ── Secret naming consistency ──────────────────────────────────────
 
-  it('PRIVATE_KEY env var always maps to FLEET_APP_PRIVATE_KEY secret', () => {
+  it('templates use canonical FLEET_APP_PRIVATE_KEY_BASE64 env var', () => {
     for (const template of ALL_TEMPLATES) {
       const parsed = yaml.parse(template.content);
       const steps = extractSteps(parsed);
       for (const step of steps) {
         const env = (step as Record<string, unknown>).env as Record<string, string> | undefined;
         if (!env) continue;
-        const privateKeyVar = env['FLEET_APP_PRIVATE_KEY'];
-        if (privateKeyVar) {
-          expect(privateKeyVar).toContain('FLEET_APP_PRIVATE_KEY');
+        if (env['FLEET_APP_PRIVATE_KEY_BASE64']) {
+          expect(env['FLEET_APP_PRIVATE_KEY_BASE64']).toContain('FLEET_APP_PRIVATE_KEY_BASE64');
         }
       }
     }
   });
 
-  // ── Auth=app templates ─────────────────────────────────────────────
+  // ── Auth-agnostic templates ────────────────────────────────────────
 
-  it('auth=app templates are valid YAML', () => {
-    const appTemplates = buildWorkflowTemplates(60, 'app');
-    for (const t of appTemplates) {
-      expect(() => yaml.parse(t.content)).not.toThrow();
+  it('templates are auth-agnostic (no decode-key or create-github-app-token steps)', () => {
+    for (const template of ALL_TEMPLATES) {
+      expect(template.content).not.toContain('Decode private key');
+      expect(template.content).not.toContain('create-github-app-token');
+      expect(template.content).not.toContain('base64 -d');
     }
-  });
-
-  it('auth=app templates have same count as default templates', () => {
-    const appTemplates = buildWorkflowTemplates(60, 'app');
-    expect(appTemplates.length).toBe(ALL_TEMPLATES.length);
   });
 });

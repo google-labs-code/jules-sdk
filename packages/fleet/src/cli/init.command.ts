@@ -133,7 +133,7 @@ export default defineCommand({
 
     // ── 2. Dry run ──
     if (args['dry-run']) {
-      const files = buildWorkflowTemplates(input.intervalMinutes, input.auth).map((t) => t.repoPath);
+      const files = buildWorkflowTemplates(input.intervalMinutes).map((t) => t.repoPath);
       files.push('.fleet/goals/example.md');
       const format = resolveOutputFormat(args);
       const dryRunResult = { success: true as const, data: { dryRun: true, files } };

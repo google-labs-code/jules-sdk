@@ -19,20 +19,25 @@
  *   1. Raw PEM (with real newlines or literal \n strings)
  *   2. Base64-encoded PEM (`base64 < key.pem | tr -d '\n'`)
  *
- * @param base64Value - GITHUB_APP_PRIVATE_KEY_BASE64
- * @param rawValue    - GITHUB_APP_PRIVATE_KEY
+ * Auto-detects the format: if the value starts with `-----BEGIN`,
+ * it's treated as raw PEM regardless of the env var name.
  */
 export function resolvePrivateKey(
   base64Value: string | undefined,
   rawValue: string | undefined,
 ): string {
-  if (base64Value) {
-    return Buffer.from(base64Value, 'base64').toString('utf-8');
+  const value = base64Value || rawValue;
+  if (!value) {
+    throw new Error(
+      'No private key provided. Set FLEET_APP_PRIVATE_KEY_BASE64 (recommended).',
+    );
   }
-  if (rawValue) {
-    return rawValue.replace(/\\n/g, '\n');
+
+  // Auto-detect: if it looks like PEM, use it directly
+  if (value.trimStart().startsWith('-----BEGIN')) {
+    return value.replace(/\\n/g, '\n');
   }
-  throw new Error(
-    'No private key provided. Set GITHUB_APP_PRIVATE_KEY_BASE64 (recommended) or GITHUB_APP_PRIVATE_KEY.',
-  );
+
+  // Otherwise, treat as base64
+  return Buffer.from(value, 'base64').toString('utf-8');
 }

@@ -32,7 +32,7 @@ export async function resolveTemplates(
   octokit: Octokit,
   input: InitInput,
 ): Promise<readonly WorkflowTemplate[] | InitResult> {
-  let templates = buildWorkflowTemplates(input.intervalMinutes, input.auth);
+  let templates = buildWorkflowTemplates(input.intervalMinutes);
 
   if (input.features) {
     const { owner, repoName: repo } = input;

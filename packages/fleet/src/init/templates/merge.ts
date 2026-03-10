@@ -14,9 +14,9 @@
 
 import type { WorkflowTemplate } from './types.js';
 import { buildCron, mergeInterval } from './cron.js';
-import { fleetAppEnv, fleetAppSteps, githubTokenExpr } from './auth-snippets.js';
+import { fleetEnvBlock } from './auth-snippets.js';
 
-export function buildMergeTemplate(intervalMinutes: number, auth: 'token' | 'app' = 'token'): WorkflowTemplate {
+export function buildMergeTemplate(intervalMinutes: number): WorkflowTemplate {
   const cron = buildCron(mergeInterval(intervalMinutes));
   return {
     repoPath: '.github/workflows/fleet-merge.yml',
@@ -62,16 +62,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'${fleetAppSteps(auth)}
+          node-version: '22'
       - run: |
           REDISPATCH_FLAG="--redispatch"
           if [ "\${{ inputs.redispatch }}" = "false" ]; then
             REDISPATCH_FLAG=""
           fi
           npx -y --package=@google/jules-fleet jules-fleet merge --mode \${{ inputs.mode || 'label' }} --run-id "\${{ inputs.fleet_run_id }}" \$REDISPATCH_FLAG
-        env:
-          GITHUB_TOKEN: \${{ ${githubTokenExpr(auth)} }}
-          JULES_API_KEY: \${{ secrets.JULES_API_KEY }}${fleetAppEnv(auth)}
+        env:${fleetEnvBlock()}
 `,
   };
 }
