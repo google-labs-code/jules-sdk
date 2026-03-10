@@ -1,10 +1,10 @@
 import { defineCommand } from 'citty';
-import { handleCloudWorkerRequest } from './handler.js';
+import { handleRunTaskRequest } from './handler.js';
 import { niftty } from 'niftty';
 
 export default defineCommand({
   meta: {
-    name: 'cloud-worker',
+    name: 'run',
     description: 'Offloads complex tasks (web scraping, data analysis, scripting) to an autonomous serverless container.',
   },
   args: {
@@ -17,21 +17,21 @@ export default defineCommand({
       description: 'Format of the output (e.g., "json" or "text"). Defaults to text for humans, but "json" is critical for agents.',
       default: 'text',
     },
-    task: {
+    instruction: {
       type: 'string',
-      description: 'A description of the complex task or script you want the worker to execute in the cloud.',
+      description: 'A description of the complex task or script you want the compute instance to execute in the cloud.',
     },
     input: {
       type: 'string',
-      description: 'Optional path to a local file containing data you want to send to the worker.',
+      description: 'Optional path to a local file containing data you want to send to the compute instance.',
     },
     'output-file': {
       type: 'string',
-      description: 'Path where the worker should save the final processed result locally.',
+      description: 'Path where the compute instance should save the final processed result locally.',
     },
     'dry-run': {
       type: 'boolean',
-      description: 'Execute the worker and fetch the result, but do not write it to the local disk.',
+      description: 'Execute the compute instance and fetch the result, but do not write it to the local disk.',
       default: false,
     },
   },
@@ -46,28 +46,28 @@ export default defineCommand({
         console.error(JSON.stringify({ status: 'error', error: 'Invalid JSON payload format' }));
         process.exit(1);
       }
-    } else if (args.task && args['output-file']) {
-      payload.task = args.task;
+    } else if (args.instruction && args['output-file']) {
+      payload.instruction = args.instruction;
       payload.outputFile = args['output-file'];
       if (args.input) payload.inputFile = args.input;
       if (args['dry-run']) payload.dryRun = true;
     } else {
-      console.error(JSON.stringify({ status: 'error', error: 'Must provide either --json or both --task and --output-file' }));
+      console.error(JSON.stringify({ status: 'error', error: 'Must provide either --json or both --instruction and --output-file' }));
       process.exit(1);
     }
 
     const isJsonOutput = args.output === 'json' || process.env.OUTPUT_FORMAT === 'json';
 
     if (!isJsonOutput) {
-       console.log(`\n☁️  Sending task to Cloud Worker container...\n`);
+       console.log(`\n☁️  Sending task to Cloud Compute container...\n`);
        if (payload.inputFile) {
          console.log(`Uploading local context: ${payload.inputFile}`);
        }
-       console.log(`Waiting for worker to run scripts and return final output...\n`);
+       console.log(`Waiting for serverless execution to run scripts and return final output...\n`);
     }
 
     // Call the Typed Service Contract handler
-    const response = await handleCloudWorkerRequest(payload);
+    const response = await handleRunTaskRequest(payload);
 
     if (isJsonOutput) {
       // Agent DX: Provide deterministic, machine-readable JSON

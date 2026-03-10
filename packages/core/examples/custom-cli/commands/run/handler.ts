@@ -1,19 +1,19 @@
 import { jules } from '@google/jules-sdk';
-import { CloudWorkerRequest, CloudWorkerResponse, cloudWorkerRequestSchema } from './spec.js';
+import { RunTaskRequest, RunTaskResponse, runTaskRequestSchema } from './spec.js';
 import { z } from 'zod';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 /**
- * Treats Jules as a powerful, on-demand serverless worker.
+ * Treats Jules as a powerful, on-demand serverless compute instance.
  * Sends local file context to a cloud environment where an AI agent
  * runs scripts (e.g., Python scraping, data analysis), and writes the
  * final processed output back to the local file system.
  */
-export async function handleCloudWorkerRequest(input: unknown): Promise<CloudWorkerResponse> {
+export async function handleRunTaskRequest(input: unknown): Promise<RunTaskResponse> {
   try {
     // 1. Input Hardening
-    const validParams = cloudWorkerRequestSchema.parse(input);
+    const validParams = runTaskRequestSchema.parse(input);
 
     if (!process.env.JULES_API_KEY) {
       return {
@@ -47,26 +47,26 @@ ${content}
       }
     }
 
-    // 3. Formulate the "Serverless Worker" Prompt
+    // 3. Formulate the "Serverless Compute" Prompt
     // We strictly instruct the agent on its environment capabilities and output constraints.
     const EXPECTED_OUTPUT_FILE = 'final_output.txt';
     const prompt = `
-You are an autonomous Cloud Worker operating within a secure serverless container.
+You are an autonomous Cloud Compute Agent operating within a secure serverless container.
 You have access to a full Linux environment with Node.js, Python, Rust, and Bun installed.
 You have unrestricted outbound internet access.
 
-## Your Task
-${validParams.task}
+## Your Objective
+${validParams.instruction}
 ${fileContext}
 
-## Instructions
-1. You may write and execute scripts (e.g., Python, Node) to solve this task. This includes scraping websites, processing data, querying APIs, or running analysis.
+## Execution Rules
+1. You may write and execute scripts (e.g., Python, Node) to solve this objective. This includes scraping websites, processing data, querying APIs, or running analysis.
 2. DO NOT just write the script and ask me to run it. YOU MUST run the script yourself in your container to get the final result.
 3. Install any necessary dependencies using your environment's package managers (npm, pip).
-4. Once you have the final, processed result for the user's task, you MUST write that final text/JSON result to a file named \`${EXPECTED_OUTPUT_FILE}\` in your current working directory.
-5. Do not include conversational filler in \`${EXPECTED_OUTPUT_FILE}\`, only the exact output requested by the task.
+4. Once you have the final, processed result for the user's objective, you MUST write that final text/JSON result to a file named \`${EXPECTED_OUTPUT_FILE}\` in your current working directory.
+5. Do not include conversational filler in \`${EXPECTED_OUTPUT_FILE}\`, only the exact output requested by the objective.
 
-Remember: The success of this task relies entirely on you generating and populating \`${EXPECTED_OUTPUT_FILE}\`.
+Remember: The success of this objective relies entirely on you generating and populating \`${EXPECTED_OUTPUT_FILE}\`.
     `;
 
     // 4. Delegate to the Jules SDK Cloud Session
@@ -76,7 +76,7 @@ Remember: The success of this task relies entirely on you generating and populat
     if (outcome.state !== 'completed') {
       return {
         status: 'error',
-        error: `The cloud worker session failed or timed out. Status: ${outcome.state}`,
+        error: `The cloud compute session failed or timed out. Status: ${outcome.state}`,
       };
     }
 
@@ -107,7 +107,7 @@ Remember: The success of this task relies entirely on you generating and populat
     if (!finalOutputContent) {
       return {
         status: 'error',
-        error: `Cloud worker completed but failed to produce the expected output data.`,
+        error: `Cloud compute session completed but failed to produce the expected output data.`,
       };
     }
 

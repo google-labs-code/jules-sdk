@@ -1,16 +1,16 @@
 import { z } from 'zod';
 
-export const cloudWorkerRequestSchema = z.object({
-  task: z.string().min(1, 'Task description is required.'),
+export const runTaskRequestSchema = z.object({
+  instruction: z.string().min(1, 'Task instruction is required.'),
   inputFile: z.string().optional(),
   outputFile: z.string().min(1, 'Output file path is required to save the result.'),
   timeoutMins: z.number().optional().default(5),
   dryRun: z.boolean().optional().default(false),
 });
 
-export type CloudWorkerRequest = z.infer<typeof cloudWorkerRequestSchema>;
+export type RunTaskRequest = z.infer<typeof runTaskRequestSchema>;
 
-export const cloudWorkerResponseSchema = z.object({
+export const runTaskResponseSchema = z.object({
   status: z.enum(['success', 'error']),
   message: z.string().optional(),
   data: z.object({
@@ -22,4 +22,4 @@ export const cloudWorkerResponseSchema = z.object({
   error: z.string().optional(),
 });
 
-export type CloudWorkerResponse = z.infer<typeof cloudWorkerResponseSchema>;
+export type RunTaskResponse = z.infer<typeof runTaskResponseSchema>;
