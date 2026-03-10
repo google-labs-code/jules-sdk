@@ -107,44 +107,23 @@ describe('buildDispatchTemplate', () => {
   });
 });
 
-describe('buildDispatchTemplate with auth=app', () => {
-  const template = buildDispatchTemplate(360, 'app');
+describe('buildDispatchTemplate (auth-agnostic)', () => {
+  const template = buildDispatchTemplate(360);
 
-  it('content is valid YAML', () => {
-    expect(() => yaml.parse(template.content)).not.toThrow();
-  });
-
-  it('includes a Decode private key step', () => {
-    const parsed = yaml.parse(template.content);
-    const steps = parsed.jobs.dispatch.steps;
-    const decodeStep = steps.find((s: { name?: string }) => s.name === 'Decode private key');
-    expect(decodeStep).toBeDefined();
-    expect(decodeStep.run).toContain('base64 -d');
-    expect(decodeStep.run).toContain('GITHUB_OUTPUT');
-  });
-
-  it('includes create-github-app-token step', () => {
-    const parsed = yaml.parse(template.content);
-    const steps = parsed.jobs.dispatch.steps;
-    const tokenStep = steps.find((s: { uses?: string }) => s.uses?.includes('create-github-app-token'));
-    expect(tokenStep).toBeDefined();
-    expect(tokenStep.with['app-id']).toContain('FLEET_APP_ID');
-    expect(tokenStep.with['private-key']).toContain('decode-key.outputs.pem');
-  });
-
-  it('uses app token as GITHUB_TOKEN', () => {
+  it('always includes FLEET_APP_PRIVATE_KEY_BASE64 env var', () => {
     const parsed = yaml.parse(template.content);
     const runStep = parsed.jobs.dispatch.steps.find(
       (s: { run?: string }) => s.run?.includes('jules-fleet'),
     );
-    expect(runStep.env.GITHUB_TOKEN).toContain('app-token.outputs.token');
+    expect(runStep.env.FLEET_APP_PRIVATE_KEY_BASE64).toContain('FLEET_APP_PRIVATE_KEY_BASE64');
   });
 
-  it('uses FLEET_APP_PRIVATE_KEY secret name', () => {
+  it('uses secrets.GITHUB_TOKEN (not app token)', () => {
     const parsed = yaml.parse(template.content);
     const runStep = parsed.jobs.dispatch.steps.find(
       (s: { run?: string }) => s.run?.includes('jules-fleet'),
     );
-    expect(runStep.env.FLEET_APP_PRIVATE_KEY).toContain('FLEET_APP_PRIVATE_KEY');
+    expect(runStep.env.GITHUB_TOKEN).toContain('secrets.GITHUB_TOKEN');
   });
 });
+

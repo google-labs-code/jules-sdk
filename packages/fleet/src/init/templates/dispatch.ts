@@ -14,9 +14,9 @@
 
 import type { WorkflowTemplate } from './types.js';
 import { buildCron, dispatchOffset } from './cron.js';
-import { fleetAppEnv, fleetAppSteps, githubTokenExpr } from './auth-snippets.js';
+import { fleetEnvBlock } from './auth-snippets.js';
 
-export function buildDispatchTemplate(intervalMinutes: number, auth: 'token' | 'app' = 'token'): WorkflowTemplate {
+export function buildDispatchTemplate(intervalMinutes: number): WorkflowTemplate {
   const cron = buildCron(intervalMinutes, dispatchOffset(intervalMinutes));
   return {
     repoPath: '.github/workflows/fleet-dispatch.yml',
@@ -72,11 +72,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'${fleetAppSteps(auth)}
+          node-version: '22'
       - run: npx -y --package=@google/jules-fleet jules-fleet dispatch --milestone \${{ matrix.milestone }}
-        env:
-          GITHUB_TOKEN: \${{ ${githubTokenExpr(auth)} }}
-          JULES_API_KEY: \${{ secrets.JULES_API_KEY }}${fleetAppEnv(auth)}
+        env:${fleetEnvBlock()}
 `,
   };
 }

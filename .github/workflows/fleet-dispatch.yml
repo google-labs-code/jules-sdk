@@ -5,7 +5,7 @@ name: Fleet Dispatch
 
 on:
   schedule:
-    - cron: '0 3-23/6 * * *'
+    - cron: '30 */6 * * *'
   workflow_dispatch:
     inputs:
       milestone:
@@ -18,8 +18,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  dispatch:
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      milestones: ${{ steps.list.outputs.milestones }}
+    steps:
+      - name: Resolve milestones
+        id: list
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_MILESTONE: ${{ inputs.milestone }}
+        run: |
+          if [ -n "$INPUT_MILESTONE" ]; then
+            echo "milestones=[\"$INPUT_MILESTONE\"]" >> "$GITHUB_OUTPUT"
+          else
+            milestones=$(gh api repos/${{ github.repository }}/milestones --jq '[.[].number | tostring]')
+            echo "milestones=$milestones" >> "$GITHUB_OUTPUT"
+          fi
+
+  dispatch:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        milestone: ${{ fromJSON(needs.discover.outputs.milestones) }}
     permissions:
       contents: read
       issues: write
@@ -28,28 +50,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Decode private key
-        id: decode-key
-        run: |
-          echo "${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}" | base64 -d > /tmp/fleet-app-key.pem
-          {
-            echo "pem<<PEMEOF"
-            cat /tmp/fleet-app-key.pem
-            echo "PEMEOF"
-          } >> "$GITHUB_OUTPUT"
-          rm /tmp/fleet-app-key.pem
-      - name: Generate Fleet App token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.FLEET_APP_ID }}
-          private-key: ${{ steps.decode-key.outputs.pem }}
-      - run: |
-          npm install --prefix /tmp/fleet @google/jules-fleet
-          /tmp/fleet/node_modules/.bin/jules-fleet dispatch --milestone ${{ inputs.milestone }}
+      - run: npx -y --package=@google/jules-fleet jules-fleet dispatch --milestone ${{ matrix.milestone }}
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-          GITHUB_APP_ID: ${{ secrets.FLEET_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.FLEET_APP_INSTALLATION_ID }}
+          FLEET_APP_ID: ${{ secrets.FLEET_APP_ID }}
+          FLEET_APP_PRIVATE_KEY_BASE64: ${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
+          FLEET_APP_INSTALLATION_ID: ${{ secrets.FLEET_APP_INSTALLATION_ID }}

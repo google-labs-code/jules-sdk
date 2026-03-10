@@ -15,26 +15,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getAuthOptions } from '../shared/auth/octokit.js';
 
+const FAKE_PEM = '-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----';
+const FAKE_PEM_B64 = Buffer.from(FAKE_PEM).toString('base64');
+
 describe('getAuthOptions', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    // Clear all relevant vars
+    // Clear ALL auth env vars
+    delete process.env.FLEET_APP_ID;
+    delete process.env.FLEET_APP_PRIVATE_KEY;
+    delete process.env.FLEET_APP_PRIVATE_KEY_BASE64;
+    delete process.env.FLEET_APP_INSTALLATION_ID;
     delete process.env.GITHUB_APP_ID;
     delete process.env.GITHUB_APP_PRIVATE_KEY;
     delete process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
     delete process.env.GITHUB_APP_INSTALLATION_ID;
     delete process.env.GITHUB_TOKEN;
+    delete process.env.GH_TOKEN;
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
     process.env = originalEnv;
   });
 
-  it('uses App auth when all App env vars are set', () => {
+  // ── Existing tests (preserved) ──────────────────────────────────────
+
+  it('uses App auth when all GITHUB_APP_* env vars are set', () => {
     process.env.GITHUB_APP_ID = '12345';
-    process.env.GITHUB_APP_PRIVATE_KEY = '-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----';
+    process.env.GITHUB_APP_PRIVATE_KEY = FAKE_PEM;
     process.env.GITHUB_APP_INSTALLATION_ID = '67890';
 
     const options = getAuthOptions();
@@ -43,15 +54,14 @@ describe('getAuthOptions', () => {
     expect(options).toHaveProperty('auth.installationId', 67890);
   });
 
-  it('uses App auth with base64 key when set', () => {
-    const fakeKey = '-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----';
+  it('uses App auth with GITHUB_APP_PRIVATE_KEY_BASE64', () => {
     process.env.GITHUB_APP_ID = '12345';
-    process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = Buffer.from(fakeKey).toString('base64');
+    process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = FAKE_PEM_B64;
     process.env.GITHUB_APP_INSTALLATION_ID = '67890';
 
     const options = getAuthOptions();
     expect(options).toHaveProperty('authStrategy');
-    expect(options).toHaveProperty('auth.privateKey', fakeKey);
+    expect(options).toHaveProperty('auth.privateKey', FAKE_PEM);
   });
 
   it('falls back to PAT when GITHUB_TOKEN is set', () => {
@@ -63,5 +73,79 @@ describe('getAuthOptions', () => {
 
   it('throws when no auth is configured', () => {
     expect(() => getAuthOptions()).toThrow('GitHub auth not configured');
+  });
+
+  // ── NEW: Canonical FLEET_APP_* names ────────────────────────────────
+
+  it('uses App auth with canonical FLEET_APP_PRIVATE_KEY_BASE64', () => {
+    process.env.FLEET_APP_ID = '12345';
+    process.env.FLEET_APP_PRIVATE_KEY_BASE64 = FAKE_PEM_B64;
+    process.env.FLEET_APP_INSTALLATION_ID = '67890';
+
+    const options = getAuthOptions();
+    expect(options).toHaveProperty('authStrategy');
+    expect(options).toHaveProperty('auth.privateKey', FAKE_PEM);
+  });
+
+  // ── NEW: Legacy name deprecation warnings ───────────────────────────
+
+  it('warns when using legacy FLEET_APP_PRIVATE_KEY', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+    process.env.FLEET_APP_ID = '12345';
+    process.env.FLEET_APP_PRIVATE_KEY = FAKE_PEM_B64;
+    process.env.FLEET_APP_INSTALLATION_ID = '67890';
+
+    const options = getAuthOptions();
+    expect(options).toHaveProperty('authStrategy');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('FLEET_APP_PRIVATE_KEY_BASE64'),
+    );
+  });
+
+  it('warns when using legacy GITHUB_APP_PRIVATE_KEY_BASE64', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+    process.env.FLEET_APP_ID = '12345';
+    process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = FAKE_PEM_B64;
+    process.env.FLEET_APP_INSTALLATION_ID = '67890';
+
+    const options = getAuthOptions();
+    expect(options).toHaveProperty('authStrategy');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('FLEET_APP_PRIVATE_KEY_BASE64'),
+    );
+  });
+
+  // ── NEW: Partial App config → hard error ────────────────────────────
+
+  it('throws on partial App config (ID set, key missing)', () => {
+    process.env.FLEET_APP_ID = '12345';
+    process.env.FLEET_APP_INSTALLATION_ID = '67890';
+    // No key set — but GITHUB_TOKEN IS set
+    process.env.GITHUB_TOKEN = 'ghp_fakepat123';
+
+    // Should NOT silently fall back to token auth
+    expect(() => getAuthOptions()).toThrow(/partial/i);
+  });
+
+  // ── NEW: GH_TOKEN fallback ──────────────────────────────────────────
+
+  it('falls back to GH_TOKEN when GITHUB_TOKEN is not set', () => {
+    process.env.GH_TOKEN = 'ghp_ghtoken456';
+
+    const options = getAuthOptions();
+    expect(options).toEqual({ auth: 'ghp_ghtoken456' });
+  });
+
+  // ── NEW: Auto-detect format ─────────────────────────────────────────
+
+  it('resolves raw PEM stored in FLEET_APP_PRIVATE_KEY_BASE64', () => {
+    // User accidentally stored raw PEM in the _BASE64 var — should still work
+    process.env.FLEET_APP_ID = '12345';
+    process.env.FLEET_APP_PRIVATE_KEY_BASE64 = FAKE_PEM;
+    process.env.FLEET_APP_INSTALLATION_ID = '67890';
+
+    const options = getAuthOptions();
+    expect(options).toHaveProperty('authStrategy');
+    expect(options).toHaveProperty('auth.privateKey', FAKE_PEM);
   });
 });

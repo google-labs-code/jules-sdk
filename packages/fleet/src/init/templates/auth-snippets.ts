@@ -13,45 +13,17 @@
 // limitations under the License.
 
 /**
- * Shared YAML snippets for GitHub App authentication in workflow templates.
+ * Auth-agnostic env block for workflow templates.
  *
- * These are only included when auth=app. In token mode, the workflow relies
- * on the runner's GITHUB_TOKEN, and getAuthOptions() should NOT see FLEET_APP_*
- * env vars (which would cause it to prefer App auth).
+ * All secrets are ALWAYS passed as env vars. The fleet CLI resolves auth
+ * internally via getAuthOptions() — no decode step or create-github-app-token
+ * action needed. Missing secrets are empty strings (harmless).
  */
-
-/** FLEET_APP_* env vars for the run step (only for auth=app). */
-export function fleetAppEnv(auth: 'token' | 'app'): string {
-  if (auth !== 'app') return '';
+export function fleetEnvBlock(): string {
   return `
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          JULES_API_KEY: \${{ secrets.JULES_API_KEY }}
           FLEET_APP_ID: \${{ secrets.FLEET_APP_ID }}
-          FLEET_APP_PRIVATE_KEY: \${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          FLEET_APP_PRIVATE_KEY_BASE64: \${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
           FLEET_APP_INSTALLATION_ID: \${{ secrets.FLEET_APP_INSTALLATION_ID }}`;
-}
-
-/** Decode-key + app-token steps (only for auth=app). */
-export function fleetAppSteps(auth: 'token' | 'app'): string {
-  if (auth !== 'app') return '';
-  return `
-      - name: Decode private key
-        id: decode-key
-        run: |
-          echo "\${{ secrets.FLEET_APP_PRIVATE_KEY }}" | base64 -d > /tmp/fleet-app-key.pem
-          {
-            echo "pem<<PEMEOF"
-            cat /tmp/fleet-app-key.pem
-            echo "PEMEOF"
-          } >> "\$GITHUB_OUTPUT"
-          rm /tmp/fleet-app-key.pem
-      - name: Generate Fleet App token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: \${{ secrets.FLEET_APP_ID }}
-          private-key: \${{ steps.decode-key.outputs.pem }}`;
-}
-
-/** GITHUB_TOKEN expression — app-token output for auth=app, secrets.GITHUB_TOKEN for token. */
-export function githubTokenExpr(auth: 'token' | 'app'): string {
-  return auth === 'app' ? 'steps.app-token.outputs.token' : 'secrets.GITHUB_TOKEN';
 }
