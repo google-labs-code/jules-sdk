@@ -262,6 +262,51 @@ describe('Conflict group scenarios', () => {
       expect(result.data.skipped).toContain(3);
     }
   });
+
+  it('2.4: conflict group + existing reconcile PR → skipped, no new session', async () => {
+    const { handler, mocks } = new MergeTestHarness()
+      .withPRs([1, 2])
+      .prFiles(1, ['shared.ts'])
+      .prFiles(2, ['shared.ts'])
+      .updateBranchResult(1, 'conflict')
+      .updateBranchResult(2, 'conflict')
+      .build();
+
+    // Simulate an existing open reconcile PR that covers this conflict group
+    mocks.pullsList.mockResolvedValue({
+      data: [
+        // The existing PRs from withPRs()
+        {
+          number: 1, head: { ref: 'branch-1', sha: 'sha-1' }, body: 'PR #1 body',
+          labels: [{ name: 'fleet-merge-ready' }],
+        },
+        {
+          number: 2, head: { ref: 'branch-2', sha: 'sha-2' }, body: 'PR #2 body',
+          labels: [{ name: 'fleet-merge-ready' }],
+        },
+        // An existing open reconcile PR — should trigger the dedup guard
+        {
+          number: 99, head: { ref: 'reconcile-fleet-1-2', sha: 'sha-99' },
+          body: 'Batch conflict resolution for PRs #1, #2',
+          title: 'reconcile: merge fleet PRs',
+          labels: [{ name: 'fleet-merge-ready' }],
+          user: { login: 'jules-fleet[bot]' },
+        },
+      ],
+    });
+
+    const result = await handler.execute({ ...BASE_INPUT, redispatch: true });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Should NOT have created a new Jules session for batch resolve
+      expect(mocks.julesSession).not.toHaveBeenCalled();
+      // PRs should be skipped, not redispatched
+      expect(result.data.redispatched).toHaveLength(0);
+      expect(result.data.skipped).toContain(1);
+      expect(result.data.skipped).toContain(2);
+    }
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════

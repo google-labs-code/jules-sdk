@@ -54,6 +54,7 @@ export const BASE_INPUT: MergeInput = {
   baseBranch: 'main',
   admin: false,
   redispatch: false,
+  dryRun: false,
   maxCIWaitSeconds: 1,
   maxRetries: 2,
   pollTimeoutSeconds: 1,
@@ -113,6 +114,7 @@ export class MergeTestHarness {
     mocks: {
       updateBranch: ReturnType<typeof vi.fn>;
       merge: ReturnType<typeof vi.fn>;
+      pullsList: ReturnType<typeof vi.fn>;
       pullsGet: ReturnType<typeof vi.fn>;
       pullsUpdate: ReturnType<typeof vi.fn>;
       julesSession: ReturnType<typeof vi.fn>;
@@ -256,6 +258,7 @@ export class MergeTestHarness {
       mocks: {
         updateBranch: updateBranchMock,
         merge: mergeMock,
+        pullsList: octokit.rest.pulls.list,
         pullsGet: pullsGetMock,
         pullsUpdate: pullsUpdateMock,
         julesSession: this.julesSessionMock,
