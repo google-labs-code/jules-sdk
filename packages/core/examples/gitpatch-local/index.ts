@@ -1,6 +1,7 @@
 import { defineCommand, runMain } from 'citty';
-import { ApplyPatchInputSchema } from './spec.js';
+import { ApplyPatchInputSchema, ApplyPatchResultSchema } from './spec.js';
 import { ApplyPatchHandler } from './handler.js';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 /**
  * Gitpatch Local Example
@@ -31,8 +32,35 @@ const main = defineCommand({
       required: false,
       default: false,
     },
+    'dry-run': {
+      type: 'boolean',
+      description: 'Simulate the operation without mutating local files or git state',
+      required: false,
+      default: false,
+    },
+    describe: {
+      type: 'boolean',
+      description: 'Output the JSON schemas for the input and output types for Agent introspection',
+      required: false,
+      default: false,
+    },
   },
   async run({ args }) {
+    // 0. Introspection (Agent Documentation)
+    if (args.describe) {
+      console.log(
+        JSON.stringify(
+          {
+            inputSchema: zodToJsonSchema(ApplyPatchInputSchema),
+            outputSchema: zodToJsonSchema(ApplyPatchResultSchema),
+          },
+          null,
+          2
+        )
+      );
+      process.exit(0);
+    }
+
     if (!process.env.JULES_API_KEY) {
       if (args.json) {
         console.error(JSON.stringify({ error: 'JULES_API_KEY environment variable is not set.' }));
@@ -47,6 +75,7 @@ const main = defineCommand({
     const inputResult = ApplyPatchInputSchema.safeParse({
       sessionId: args.sessionId,
       targetBranch: args.branch,
+      dryRun: args['dry-run'],
     });
 
     if (!inputResult.success) {

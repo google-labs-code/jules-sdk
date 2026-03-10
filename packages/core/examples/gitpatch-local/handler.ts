@@ -40,7 +40,20 @@ export class ApplyPatchHandler implements ApplyPatchSpec {
         };
       }
 
-      // 3. Checkout a new branch to apply the changes
+      commitMessage = gitPatch.suggestedCommitMessage || 'Applied changes from Jules';
+
+      // 3. Handle Dry Run Safety Rails
+      if (input.dryRun) {
+        return {
+          success: true,
+          data: {
+            branchName: `[DRY RUN] ${branchName}`,
+            commitMessage: `[DRY RUN] ${commitMessage}`,
+          },
+        };
+      }
+
+      // 4. Checkout a new branch to apply the changes
       try {
         execFileSync('git', ['checkout', '-b', branchName], { stdio: 'pipe' });
       } catch (e: any) {
@@ -54,11 +67,11 @@ export class ApplyPatchHandler implements ApplyPatchSpec {
         };
       }
 
-      // 4. Save the patch to disk
+      // 5. Save the patch to disk
       patchPath = join(process.cwd(), 'jules_changes.patch');
       writeFileSync(patchPath, gitPatch.unidiffPatch);
 
-      // 5. Apply the patch
+      // 6. Apply the patch
       try {
         execFileSync('git', ['apply', patchPath], { stdio: 'pipe' });
       } catch (e: any) {
@@ -72,8 +85,7 @@ export class ApplyPatchHandler implements ApplyPatchSpec {
         };
       }
 
-      // 6. Commit the applied changes
-      commitMessage = gitPatch.suggestedCommitMessage || 'Applied changes from Jules';
+      // 7. Commit the applied changes
       try {
         execFileSync('git', ['add', '.'], { stdio: 'pipe' });
         execFileSync('git', ['commit', '-m', commitMessage], { stdio: 'pipe' });
@@ -88,7 +100,7 @@ export class ApplyPatchHandler implements ApplyPatchSpec {
         };
       }
 
-      // 7. Success
+      // 8. Success
       return {
         success: true,
         data: {

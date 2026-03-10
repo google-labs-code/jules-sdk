@@ -1,8 +1,16 @@
 import { z } from 'zod';
 
+// 1. VALIDATION HELPERS (Input Hardening against hallucinations)
+export const SafeStringSchema = z.string()
+  .min(1, 'Cannot be empty')
+  .refine(s => !/[\x00-\x1F\x7F]/.test(s), "No control characters allowed")
+  .refine(s => !s.includes('..'), "No path traversal allowed")
+  .refine(s => !s.includes('?') && !s.includes('#'), "No query or hash parameters allowed");
+
 export const ApplyPatchInputSchema = z.object({
-  sessionId: z.string().min(1, 'Session ID cannot be empty'),
-  targetBranch: z.string().optional(),
+  sessionId: SafeStringSchema,
+  targetBranch: SafeStringSchema.optional(),
+  dryRun: z.boolean().default(false),
 });
 export type ApplyPatchInput = z.infer<typeof ApplyPatchInputSchema>;
 
@@ -32,9 +40,12 @@ export const ApplyPatchFailure = z.object({
   }),
 });
 
-export type ApplyPatchResult =
-  | z.infer<typeof ApplyPatchSuccess>
-  | z.infer<typeof ApplyPatchFailure>;
+export const ApplyPatchResultSchema = z.discriminatedUnion('success', [
+  ApplyPatchSuccess,
+  ApplyPatchFailure,
+]);
+
+export type ApplyPatchResult = z.infer<typeof ApplyPatchResultSchema>;
 
 export interface ApplyPatchSpec {
   execute(input: ApplyPatchInput): Promise<ApplyPatchResult>;
