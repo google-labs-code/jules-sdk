@@ -65,17 +65,6 @@
         "typescript": "^5.0.0",
       },
     },
-    "packages/core/examples/gitpatch-improve": {
-      "name": "gitpatch-improve",
-      "version": "1.0.0",
-      "dependencies": {
-        "@google/jules-sdk": "workspace:*",
-      },
-      "devDependencies": {
-        "tsx": "^4.19.2",
-        "typescript": "^5.7.3",
-      },
-    },
     "packages/core/examples/webhook": {
       "name": "webhook",
       "version": "1.0.0",
@@ -707,8 +696,6 @@
     "get-proto": ["get-proto@1.0.1", "", { "dependencies": { "dunder-proto": "^1.0.1", "es-object-atoms": "^1.0.0" } }, "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g=="],
 
     "get-tsconfig": ["get-tsconfig@4.13.0", "", { "dependencies": { "resolve-pkg-maps": "^1.0.0" } }, "sha512-1VKTZJCwBrvbd+Wn3AOgQP/2Av+TfTCOlE4AcRJE72W1ksZXbAx8PPBR9RzgTeSPzlPMHrbANMH3LbltH73wxQ=="],
-
-    "gitpatch-improve": ["gitpatch-improve@workspace:packages/core/examples/gitpatch-improve"],
 
     "glob": ["glob@13.0.0", "", { "dependencies": { "minimatch": "^10.1.1", "minipass": "^7.1.2", "path-scurry": "^2.0.0" } }, "sha512-tvZgpqk6fz4BaNZ66ZsRaZnbHvP/jG3uKJvAZOwEVUL4RTA5nJeeLYfyN9/VA8NX/V3IBG+hkeuGpKjvELkVhA=="],
 

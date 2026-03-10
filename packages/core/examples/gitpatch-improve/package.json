@@ -2,13 +2,15 @@
   "name": "gitpatch-improve",
   "version": "1.0.0",
   "private": true,
-  "description": "Example using Jules' GitPatch data to analyze how to improve or automate code in a repository.",
+  "description": "Example CLI using Jules' GitPatch data to analyze how to improve or automate code in a repository.",
   "type": "module",
   "scripts": {
-    "start": "tsx index.ts"
+    "start": "tsx cli.ts"
   },
   "dependencies": {
-    "@google/jules-sdk": "workspace:*"
+    "@google/jules-sdk": "workspace:*",
+    "citty": "^0.1.6",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
