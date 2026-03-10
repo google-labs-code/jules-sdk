@@ -23,3 +23,4 @@ runMain(main).catch((error) => {
   console.error('Fatal CLI Error:', error);
   process.exit(1);
 });
+
