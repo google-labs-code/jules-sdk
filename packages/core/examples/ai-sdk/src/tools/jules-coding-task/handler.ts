@@ -27,6 +27,19 @@ export class JulesCodingTaskHandler implements JulesCodingTaskSpec {
         sessionOptions.autoPr = true;
       }
 
+      // Agent DX: Dry run validation intercept
+      if (input.dryRun) {
+        return {
+          success: true,
+          data: {
+            sessionId: "dry-run-session",
+            state: "succeeded",
+            pullRequestUrl: "https://github.com/dry-run/mock-pr",
+            generatedFilesCount: 0,
+          }
+        };
+      }
+
       // Create and start the Jules session
       const session = await jules.session(sessionOptions);
 

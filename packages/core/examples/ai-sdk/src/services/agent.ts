@@ -5,6 +5,7 @@ import { executeCodingTask } from '../tools/jules-coding-task/index.js';
 export interface AgentRequest {
   prompt: string;
   repo?: string;
+  dryRun?: boolean;
 }
 
 export interface AgentResponse {
@@ -26,6 +27,9 @@ export async function runAgent(request: AgentRequest): Promise<AgentResponse> {
   try {
     const { text, toolCalls } = await generateText({
       model: google('gemini-3.1-flash-lite-preview'),
+      system: request.dryRun
+        ? "You are in dry-run mode. ALWAYS pass dryRun: true to any tools you execute."
+        : "",
       prompt: contextPrompt,
       tools: {
         executeCodingTask,

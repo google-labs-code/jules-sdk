@@ -22,6 +22,11 @@ export default defineCommand({
       description: 'Optional GitHub repository (e.g. "owner/repo").',
       required: false,
     },
+    'dry-run': {
+      type: 'boolean',
+      description: 'Validate input and logic without creating a real cloud session.',
+      default: false,
+    },
   },
   async run({ args }) {
     // 1. Logic Checks: Validate Environment Context explicitly before attempting external operations
@@ -39,6 +44,7 @@ export default defineCommand({
     const response = await runAgent({
       prompt: args.prompt,
       repo: args.repo,
+      dryRun: args['dry-run'],
     });
 
     // 3. Render payload strictly conforming to output format expectation (Agent DX vs Human)

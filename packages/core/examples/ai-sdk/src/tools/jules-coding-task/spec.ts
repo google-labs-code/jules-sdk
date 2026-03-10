@@ -1,10 +1,22 @@
 import { z } from 'zod';
 
-// 1. INPUT
+// 1. INPUT HARDENING (Agent DX)
+// Agents hallucinate and pass malformed inputs. We validate strictly at the boundary.
+const SafeStringSchema = z.string()
+  .refine(s => !/[\x00-\x1F]/.test(s), "Control characters are not allowed")
+  .refine(s => !s.includes('%'), "Pre-URL encoded strings are not allowed");
+
+const SafeRepoSchema = SafeStringSchema
+  .refine(r => !r.includes('..'), "Path traversals are not allowed in repo names")
+  .refine(r => !r.includes('?'), "Query parameters are not allowed in repo names")
+  .refine(r => !r.includes('#'), "Fragments are not allowed in repo names")
+  .refine(r => r.split('/').length === 2, "Repo must be in the format owner/repo");
+
 export const JulesCodingTaskInputSchema = z.object({
-  prompt: z.string().describe('Detailed instructions for the coding task, including what needs to be changed.'),
-  githubRepo: z.string().optional().describe('The GitHub repository in the format "owner/repo" (e.g. "google/jules-sdk"). If omitted, it runs a repoless session.'),
-  baseBranch: z.string().optional().describe('The base branch to make the changes against. Defaults to "main" if repo provided.'),
+  prompt: SafeStringSchema.describe('Detailed instructions for the coding task, including what needs to be changed.'),
+  githubRepo: SafeRepoSchema.optional().describe('The GitHub repository in the format "owner/repo" (e.g. "google/jules-sdk"). If omitted, it runs a repoless session.'),
+  baseBranch: SafeStringSchema.optional().describe('The base branch to make the changes against. Defaults to "main" if repo provided.'),
+  dryRun: z.boolean().default(false).describe('If true, validates the input and returns a success message without actually creating a Jules session.'),
 });
 
 export type JulesCodingTaskInput = z.infer<typeof JulesCodingTaskInputSchema>;
