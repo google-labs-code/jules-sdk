@@ -24,19 +24,21 @@ You can run this example using `bun`:
 
 ### Standard Human-Friendly Output
 ```bash
-bun start --prompt "Fix visibility issues by changing background colors to a zinc palette." --repo "your-org/your-repo"
+bun start start --prompt "Fix visibility issues by changing background colors to a zinc palette." --repo "your-org/your-repo"
 ```
 
 ### Agent-Friendly JSON Output (Agent DX)
 ```bash
-bun start --prompt "Fix visibility issues." --output json
+bun start start --prompt "Fix visibility issues." --output json
 ```
 
 ## Architecture
 
-This project is structured for predictability and predictability:
+This project is structured for predictability and minimizing merge conflicts:
 
-1.  **CLI Entrypoint (`src/cli.ts`)**: Built with `citty`, accepts arguments like `--output json` tailored for both humans and agent orchestrators. Uses `@ai-sdk/google` to talk to Gemini.
-2.  **Tool Spec (`src/tools/jules-coding-task/spec.ts`)**: The Contract boundary. Parses tool input using Zod and defines a strict `Result` return type.
-3.  **Tool Handler (`src/tools/jules-coding-task/handler.ts`)**: The impure business logic. It initiates `jules.session()`, waits for the session to complete, and evaluates the `session.result()`. It *never* throws errors; it returns formatted Failure/Success objects.
-4.  **Tool Wrapper (`src/tools/jules-coding-task/index.ts`)**: Maps the typed contract into a standard Vercel AI SDK `tool()` wrapper, keeping the `generateText` invocation completely isolated from the execution details.
+1.  **CLI Entrypoint (`src/cli.ts`)**: Minimal registration boundary built with `citty`. It lazily registers subcommands (e.g. `start`) to avoid central hotspots as the CLI scales.
+2.  **Command Modules (`src/commands/*.ts`)**: Isolated entrypoints for flags, CLI argument parsing, environment variable logic checks, and selecting the output format (`--output json`).
+3.  **Services (`src/services/agent.ts`)**: Encapsulates the Vercel AI SDK logic (`generateText` with `@ai-sdk/google`) to abstract the specific LLM interactions away from the CLI layer.
+4.  **Tool Spec (`src/tools/jules-coding-task/spec.ts`)**: The Contract boundary. Parses tool input using Zod and defines a strict `Result` return type.
+5.  **Tool Handler (`src/tools/jules-coding-task/handler.ts`)**: The impure business logic. It initiates `jules.session()`, waits for the session to complete, and evaluates the `session.result()`. It *never* throws errors.
+6.  **Tool Wrapper (`src/tools/jules-coding-task/index.ts`)**: Maps the typed contract into a standard Vercel AI SDK `tool()` wrapper.
