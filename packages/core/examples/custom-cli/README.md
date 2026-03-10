@@ -1,6 +1,12 @@
 # Custom CLI Tools Example
 
-This example demonstrates how to use the Jules SDK to create a custom command-line interface (CLI) tool. The tool takes a user prompt as an argument, uses a "Repoless" session to execute the task, and prints the generated output.
+This example demonstrates how to use the Jules SDK to create a custom command-line interface (CLI) tool. The tool uses `citty` for command structure and argument parsing, and `niftty` for rendering markdown and code outputs cleanly in the terminal.
+
+Crucially, this CLI is optimized for **Agent DX**. It follows best practices for building CLIs that are robust against agent hallucinations by:
+- Employing auto-discovery for scaling commands.
+- Defining a "Typed Service Contract" using Zod (`spec.ts` + `handler.ts`) for input hardening and API predictability.
+- Exposing a raw `--json` flag so agents can map directly to schemas.
+- Exposing an `--output json` flag so agents can parse outputs deterministically.
 
 ## Requirements
 
@@ -20,18 +26,35 @@ export JULES_API_KEY="your-api-key-here"
 
 ## Running the Example
 
-You can run the CLI tool using `bun` and passing your prompt as an argument:
+The CLI supports both a **Human DX** (interactive, readable output) and an **Agent DX** (raw JSON payloads and responses).
+
+### Human DX
+
+You can run the CLI tool passing your prompt as an argument. The `citty` framework handles basic help flags automatically.
 
 ```bash
-bun run index.ts "Translate 'Hello, how are you?' into French."
+bun run index.ts session --prompt="Translate 'Hello, how are you?' into French."
 ```
 
-Using `npm` and `tsx` (or similar TypeScript runner):
+Or view the help text:
 
 ```bash
-npx tsx index.ts "What is the capital of Australia?"
+bun run index.ts --help
+bun run index.ts session --help
 ```
 
-## What it does
+### Agent DX
 
-The script parses `process.argv` to get the user's prompt, creates a session using `jules.session`, and waits for the agent to complete. Once complete, it retrieves the generated files and the agent's messages, effectively acting as a simple, custom AI CLI tool powered by Jules.
+Agents are prone to hallucination when creating strings but are very good at forming JSON matching strict schemas. For best results, expose `--json` flags.
+
+```bash
+bun run index.ts session --json='{"prompt": "List the files in the directory", "autoPr": false}' --output="json"
+```
+
+## Architecture
+
+This project splits its logic to avoid monolithic file structures and merge conflicts:
+- **`index.ts`**: The auto-discovery entry point that dynamically mounts available sub-commands.
+- **`commands/*/spec.ts`**: The Zod schema defining the strict Typed Service Contract for a tool.
+- **`commands/*/handler.ts`**: The pure business logic that consumes the contract and never crashes directly, preferring structured return errors.
+- **`commands/*/index.ts`**: The `citty` command definition that parses flags and outputs data back to the environment.
