@@ -1,10 +1,8 @@
-# Custom MCP Server Example
+# Custom MCP Server CLI Example
 
-This example demonstrates how to create a custom MCP (Model Context Protocol) server that integrates with the Jules TypeScript SDK.
+This example demonstrates how to create a custom MCP (Model Context Protocol) server wrapped as a CLI tool using the Jules TypeScript SDK, `citty`, and the **Typed Service Contract** pattern.
 
-The custom MCP server provides tools to other AI assistants, allowing them to:
-1. Orchestrate Jules sessions locally or in the cloud.
-2. Query data, summarize files, or prepare plans to pass as context.
+Instead of basic data forwarding, it provides an `analyze_session` tool. It hydrates a Jules session snapshot, extracting the actual file states and final AI context, avoiding partial cache-only issues.
 
 ## Setup and Running
 
@@ -26,7 +24,7 @@ Example Claude Desktop Config:
 ```json
 {
   "mcpServers": {
-    "jules-custom": {
+    "jules-custom-cli": {
       "command": "bun",
       "args": ["run", "/absolute/path/to/this/example/index.ts"],
       "env": {
@@ -36,3 +34,9 @@ Example Claude Desktop Config:
   }
 }
 ```
+
+## Typed Service Contract Pattern
+
+This CLI implements the Vertical Slice Architecture using a strict `Spec` and `Handler` pattern in `src/commands/session-analysis/`:
+- **spec.ts**: Defines the input Schema using Zod (parsing input, enforcing boundaries), exhaustively declares error codes, and strictly types the return interface as a Discriminated Union `Result`.
+- **handler.ts**: The impure execution context. It implements the interface, interacts with the Jules SDK network layer, and maps runtime and API errors to the defined Spec failures instead of throwing them wildly.
