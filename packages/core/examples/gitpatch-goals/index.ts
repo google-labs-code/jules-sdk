@@ -1,148 +1,255 @@
 import { jules } from '@google/jules-sdk';
+import { defineCommand, runMain } from 'citty';
+import { z } from 'zod';
 
-/**
- * GitPatch Goals Review Example
- *
- * This example demonstrates how to evaluate an AI agent's output against
- * its original goals and coding standards by extracting the generated code
- * diff (GitPatch) and passing it to a second review session.
- */
-async function main() {
-  if (!process.env.JULES_API_KEY) {
-    console.error('Error: JULES_API_KEY environment variable is missing.');
-    process.exit(1);
-  }
+// ============================================================================
+// SPEC: Typed Service Contract
+// ============================================================================
 
-  console.log('--- Step 1: Initiating Code Generation Session ---');
+export const ReviewInputSchema = z.object({
+  prompt: z.string().min(1, 'Prompt is required'),
+});
 
-  const originalPrompt = `
-    Create a simple Node.js HTTP server.
-    Requirements:
-    - Listen on port 8080.
-    - Serve a "Hello, World!" plain text response for the root path (/).
-    - Return a 404 Not Found for all other paths.
-    - Use the built-in 'http' module.
-  `;
+export type ReviewInput = z.infer<typeof ReviewInputSchema>;
 
-  // 1. Create the generation session
-  const genSession = await jules.session({
-    prompt: originalPrompt,
-  });
+export const ReviewErrorCode = z.enum([
+  'GENERATION_FAILED',
+  'REVIEW_FAILED',
+  'NO_PATCH_FOUND',
+  'UNKNOWN_ERROR',
+]);
 
-  console.log(`Generation Session created! ID: ${genSession.id}`);
-  console.log('Waiting for the agent to generate code...');
+export const ReviewSuccessSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    reviewMessage: z.string(),
+    patchSize: z.number(),
+  }),
+});
 
-  const genOutcome = await genSession.result();
+export const ReviewFailureSchema = z.object({
+  success: z.literal(false),
+  error: z.object({
+    code: ReviewErrorCode,
+    message: z.string(),
+    recoverable: z.boolean(),
+  }),
+});
 
-  if (genOutcome.state !== 'completed') {
-    console.error(`Generation session failed with state: ${genOutcome.state}`);
-    process.exit(1);
-  }
+export type ReviewResult =
+  | z.infer<typeof ReviewSuccessSchema>
+  | z.infer<typeof ReviewFailureSchema>;
 
-  // 2. Extract the GitPatch (diff) of the generated code
-  let gitPatch = '';
+export interface ReviewSpec {
+  execute(input: ReviewInput): Promise<ReviewResult>;
+}
 
-  // Get activities for the session
-  const activities = await jules.select({
-      from: 'activities',
-      where: { 'session.id': genSession.id },
-      order: 'asc',
-  });
+// ============================================================================
+// HANDLER: Implementation
+// ============================================================================
 
-  for (const activity of activities) {
-      if (activity.type === 'progressUpdated' && activity.artifacts) {
-          for (const artifact of activity.artifacts) {
-             if (artifact.type === 'changeSet') {
-                 // The changeSet artifact has a raw content property representing the git diff
-                 if (artifact.content) {
-                    gitPatch += artifact.content + '\n';
-                 }
-             }
+export class ReviewHandler implements ReviewSpec {
+  async execute(input: ReviewInput): Promise<ReviewResult> {
+    try {
+      console.error('--- Step 1: Initiating Code Generation Session ---');
+
+      const genSession = await jules.session({
+        prompt: input.prompt,
+      });
+
+      console.error(`Generation Session created! ID: ${genSession.id}`);
+      console.error('Waiting for the agent to generate code...');
+
+      const genOutcome = await genSession.result();
+
+      if (genOutcome.state !== 'completed') {
+        return {
+          success: false,
+          error: {
+            code: 'GENERATION_FAILED',
+            message: `Generation session failed with state: ${genOutcome.state}`,
+            recoverable: false,
+          },
+        };
+      }
+
+      // Extract GitPatch from outcome directly if changeSet is present
+      // Alternatively build from generated files as fallback
+      let gitPatch = '';
+
+      // Let's first check if changeSet is available on the snapshot
+      if (typeof genOutcome.changeSet === 'function') {
+         const patch = genOutcome.changeSet();
+         if (patch && typeof patch === 'string') {
+             gitPatch = patch;
+         }
+      }
+
+      // If we didn't find one via `changeSet()`, let's check generated files
+      if (!gitPatch) {
+        console.error('No direct changeSet found. Fallback to getting generated files.');
+        const files = genOutcome.generatedFiles();
+        if (files.size > 0) {
+          for (const [path, file] of files.entries()) {
+            const lineCount = file.content.split('\n').length;
+            gitPatch += `--- a/${path}\n+++ b/${path}\n@@ -0,0 +1,${lineCount} @@\n`;
+            gitPatch +=
+              file.content
+                .split('\n')
+                .map((l: string) => '+' + l)
+                .join('\n') + '\n';
           }
+        }
       }
-  }
 
-  if (!gitPatch) {
-    console.log('No GitPatch data found in the generation session.');
-    // Fallback to getting generated files
-    const files = genOutcome.generatedFiles();
-    if (files.size > 0) {
-      for (const [path, file] of files.entries()) {
-        gitPatch += `--- a/${path}\n+++ b/${path}\n@@ -0,0 +1,${file.content.split('\n').length} @@\n`;
-        gitPatch +=
-          file.content
-            .split('\n')
-            .map((l) => '+' + l)
-            .join('\n') + '\n';
+      if (!gitPatch) {
+        return {
+          success: false,
+          error: {
+            code: 'NO_PATCH_FOUND',
+            message: 'No GitPatch data or generated files found in the generation session.',
+            recoverable: false,
+          },
+        };
       }
-    } else {
-      console.error('No generated files found either. Exiting.');
-      process.exit(1);
+
+      console.error('\n--- Step 2: Extracted GitPatch ---');
+      console.error(gitPatch.substring(0, 500) + '...\n(truncated for brevity)');
+
+      console.error('\n--- Step 3: Initiating Review Session ---');
+
+      const reviewPrompt = `
+You are an expert code reviewer. Review the following GitPatch generated by an AI agent.
+
+### Original Goals and Requirements
+${input.prompt}
+
+### GitPatch to Review
+\`\`\`diff
+${gitPatch}
+\`\`\`
+
+### Task
+1. Determine if the generated code successfully meets ALL the Original Goals and Requirements.
+2. Determine if the code adheres to general Node.js coding standards and best practices.
+3. Provide a clear, structured markdown response with the following sections:
+   - **Goal Satisfaction**: Yes/No and why.
+   - **Code Quality**: Feedback on best practices.
+   - **Final Verdict**: Pass or Fail.
+`;
+
+      const reviewSession = await jules.session({
+        prompt: reviewPrompt,
+      });
+
+      console.error(`Review Session created! ID: ${reviewSession.id}`);
+      console.error('Waiting for the agent to review the code...');
+
+      const reviewOutcome = await reviewSession.result();
+
+      if (reviewOutcome.state !== 'completed') {
+        return {
+          success: false,
+          error: {
+            code: 'REVIEW_FAILED',
+            message: `Review session failed with state: ${reviewOutcome.state}`,
+            recoverable: false,
+          },
+        };
+      }
+
+      // Retrieve the final message from the review agent
+      let reviewMessage = 'No final message provided by the review agent.';
+
+      const activities = reviewOutcome.activities ?? [];
+      const agentMessages = activities.filter((a) => a.type === 'agentMessaged');
+
+      if (agentMessages.length > 0) {
+        // The activities array is ordered chronologically, so we take the last one
+        reviewMessage = agentMessages[agentMessages.length - 1].message;
+      } else {
+        const files = reviewOutcome.generatedFiles();
+        if (files.size > 0) {
+          reviewMessage = '';
+          for (const [filename, content] of files.entries()) {
+            reviewMessage += `\nFile: ${filename}\n${content.content}\n`;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          reviewMessage,
+          patchSize: gitPatch.length,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'UNKNOWN_ERROR',
+          message: error instanceof Error ? error.message : String(error),
+          recoverable: false,
+        },
+      };
     }
-  }
-
-  console.log('\n--- Step 2: Extracted GitPatch ---');
-  console.log(gitPatch.substring(0, 500) + '...\n(truncated for brevity)');
-
-  console.log('\n--- Step 3: Initiating Review Session ---');
-
-  const reviewPrompt = `
-    You are an expert code reviewer. Review the following GitPatch generated by an AI agent.
-
-    ### Original Goals and Requirements
-    ${originalPrompt}
-
-    ### GitPatch to Review
-    \`\`\`diff
-    ${gitPatch}
-    \`\`\`
-
-    ### Task
-    1. Determine if the generated code successfully meets ALL the Original Goals and Requirements.
-    2. Determine if the code adheres to general Node.js coding standards and best practices.
-    3. Provide a clear, structured markdown response with the following sections:
-       - **Goal Satisfaction**: Yes/No and why.
-       - **Code Quality**: Feedback on best practices.
-       - **Final Verdict**: Pass or Fail.
-  `;
-
-  // 3. Create the review session
-  const reviewSession = await jules.session({
-    prompt: reviewPrompt,
-  });
-
-  console.log(`Review Session created! ID: ${reviewSession.id}`);
-  console.log('Waiting for the agent to review the code...');
-
-  const reviewOutcome = await reviewSession.result();
-
-  console.log('\n--- Step 4: Review Results ---');
-
-  if (reviewOutcome.state === 'completed') {
-    // 4. Output the review results
-    const reviewActivities = await jules.select({
-      from: 'activities',
-      where: { type: 'agentMessaged', 'session.id': reviewSession.id },
-      order: 'desc',
-      limit: 1,
-    });
-
-    if (reviewActivities.length > 0) {
-      console.log(reviewActivities[0].message);
-    } else {
-       const files = reviewOutcome.generatedFiles();
-       if (files.size > 0) {
-           for (const [filename, content] of files.entries()) {
-               console.log(`\nReview File: ${filename}`);
-               console.log(content.content);
-           }
-       } else {
-           console.log('Review agent did not leave a final message or file.');
-       }
-    }
-  } else {
-    console.error(`Review session failed with state: ${reviewOutcome.state}`);
   }
 }
 
-main().catch(console.error);
+// ============================================================================
+// CLI CONFIGURATION (citty)
+// ============================================================================
+
+const main = defineCommand({
+  meta: {
+    name: 'gitpatch-goals',
+    description: 'Generates code and reviews it via GitPatch against original goals.',
+  },
+  args: {
+    prompt: {
+      type: 'string',
+      description: 'The initial prompt/goal for code generation',
+      default:
+        'Create a simple Node.js HTTP server that listens on port 8080 and serves "Hello, World!".',
+      alias: 'p',
+    },
+    json: {
+      type: 'boolean',
+      description: 'Output the result as JSON',
+      default: false,
+    },
+  },
+  async run({ args }) {
+    if (!process.env.JULES_API_KEY) {
+      console.error('Error: JULES_API_KEY environment variable is missing.');
+      process.exit(1);
+    }
+
+    const parseResult = ReviewInputSchema.safeParse({ prompt: args.prompt });
+    if (!parseResult.success) {
+      console.error('Invalid input:', parseResult.error.format());
+      process.exit(1);
+    }
+
+    const handler = new ReviewHandler();
+    const result = await handler.execute(parseResult.data);
+
+    if (args.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      if (result.success) {
+        console.log('\n======================================================');
+        console.log('REVIEW RESULTS');
+        console.log('======================================================\n');
+        console.log(result.data.reviewMessage);
+      } else {
+        console.error('\nFAILED:', result.error.message);
+      }
+    }
+
+    process.exit(result.success ? 0 : 1);
+  },
+});
+
+runMain(main);
