@@ -8,7 +8,8 @@
     "test": "echo \"Error: no test specified\""
   },
   "dependencies": {
-    "@google/jules-sdk": "workspace:*"
+    "@google/jules-sdk": "workspace:*",
+    "@google/stitch-sdk": "^0.0.3"
   },
   "devDependencies": {
     "tsx": "^4.7.1",
