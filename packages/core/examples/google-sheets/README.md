@@ -1,59 +1,51 @@
-# Google Sheets Context Example CLI
+# Google Sheets Context
 
-This example demonstrates how to extract tabular data from a Google Sheet using the `googleapis` library and pass it as context into an interactive Jules session prompt using a Command Line Interface (CLI).
+Fetches data from a Google Sheets range via the Sheets API and sends it to Jules as context for a repoless session. The agent can then analyze, transform, or generate code based on the spreadsheet data.
 
-It implements the [Typed Service Contract](https://raw.githubusercontent.com/davideast/stitch-mcp/refs/heads/main/.gemini/skills/typed-service-contract/skill.md) pattern and follows [Agent CLI Best Practices](https://justin.poehnelt.com/posts/rewrite-your-cli-for-ai-agents.md) with a dedicated `--json` output format.
-
-## Requirements
-
-- Node.js >= 18 or Bun
-- A Jules API Key (`JULES_API_KEY` environment variable)
-- Google Cloud Service Account Credentials configured for application default (`GOOGLE_APPLICATION_CREDENTIALS` environment variable)
-- Enable the Google Sheets API in your Google Cloud Project.
-
-## Setup
-
-1. Make sure you have installed the SDK dependencies in the project root by running `bun install`.
-
-2. Export your Jules API key:
-   ```bash
-   export JULES_API_KEY="your-api-key-here"
-   ```
-
-3. Export your Google Cloud Credentials JSON file path:
-   ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-file.json"
-   ```
-
-## Running the CLI
-
-Navigate to this directory and use `bun` to run the file. Use the `--help` flag to see available options:
+## Quick Start
 
 ```bash
-bun run index.ts --help
+export JULES_API_KEY="your-api-key"
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+
+# Analyze spreadsheet data
+bun run start --spreadsheet-id "your-spreadsheet-id" \
+  --range "Sheet1!A1:D10" \
+  --prompt "Generate a chart from this data"
 ```
 
-### Basic Usage
+## Fetching Sheet Data
 
-Provide the spreadsheet ID, range, and your prompt for the AI agent:
+The handler authenticates with Google's Sheets API and fetches the specified range:
 
-```bash
-bun run index.ts \
-  --spreadsheetId "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" \
-  --range "Class Data!A2:E" \
-  --prompt "Analyze the following student data from a Google Sheet and provide a brief summary of the key demographics and trends."
+```typescript
+const sheets = google.sheets({ version: 'v4', auth });
+const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
 ```
 
-### Agent / Machine-Readable Mode
+Each row is joined with commas, and rows are joined with newlines — simple CSV-like formatting that works well in prompts.
 
-To output the result as a strictly formatted JSON object suitable for agents and downstream parsing, use the `--json` flag:
+## Repoless Session with Spreadsheet Context
 
-```bash
-bun run index.ts --spreadsheetId "..." --range "..." --prompt "..." --json
+The formatted data is appended to the prompt and sent to a repoless session via `runRepolessSession()`:
+
+```typescript
+const outcome = await runRepolessSession(
+  `${input.prompt}\n\n## Source Data\n${sheetData}`,
+);
 ```
 
-## What it does
+## Typed Service Contract Pattern
 
-The script uses `citty` to parse arguments and `zod` to validate input schemas (Spec and Handler pattern). It authenticates with Google Cloud using Application Default Credentials to retrieve rows from the provided spreadsheet ID and range.
+| File | Purpose |
+|------|---------|
+| `spec.ts` | Zod schemas for `RunSessionInput` (spreadsheetId, range, prompt) and `RunSessionResult` |
+| `handler.ts` | `GoogleSheetsSessionHandler` — fetches data, runs session |
+| `index.ts` | CLI wrapper with `citty` |
 
-It converts the rows into comma-separated text, appends it to your prompt, and starts a `jules.session()`. It waits for the agent to complete the task and displays the final analysis response or output files, returning structured errors on failure without throwing unhandled exceptions.
+## Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JULES_API_KEY` | Yes | Jules API key |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Yes | Path to GCP service account JSON |

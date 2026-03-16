@@ -1,26 +1,42 @@
-# File System Events Example
+# File System Events
 
-This example demonstrates how to use the Jules TypeScript SDK in an event-driven workflow. It uses `chokidar` to monitor local file system events (e.g., when a file is added or changed) and automatically triggers a Jules coding session.
+Watches a local directory with `chokidar` and triggers a Jules session whenever a file is added or changed. The session receives the file content inline and reviews it for improvements.
 
-## Prerequisites
+## Quick Start
 
-- Bun installed
-- A valid `JULES_API_KEY` exported in your environment.
+```bash
+npm install
+export JULES_API_KEY="your-api-key"
+bun run index.ts
+```
 
-## Running the Example
+Creates `watched-directory/` and starts watching. Trigger a session:
 
-1. Install dependencies from the monorepo root:
-   ```bash
-   bun install
-   ```
-2. Start the watcher:
-   ```bash
-   bun run start
-   ```
-3. Trigger a file system event by modifying a file in the watched directory (e.g., creating `watched-directory/test.txt`):
-   ```bash
-   mkdir -p watched-directory
-   touch watched-directory/test.txt
-   ```
+```bash
+echo "console.log('hello')" > watched-directory/test.js
+```
 
-The watcher will detect the file change and automatically trigger a Jules session based on the contents of the changed file.
+## Event-Driven Session Creation
+
+On each file event, the handler reads the file content and embeds it in the prompt:
+
+```typescript
+const session = await jules.session({
+  prompt: `A file was ${event}.\nPath: ${filepath}\nContent:\n...\nReview and suggest improvements.`,
+  source,
+});
+```
+
+Each session streams progress via `logStream()` and logs results non-blocking via `session.result().then()`.
+
+## Automatic Repo Detection
+
+The repo source is resolved via `resolveSource()`: checks `GITHUB_REPO` env var → parses `git remote get-url origin` (SSH or HTTPS) → falls back to a hardcoded default.
+
+## Configuration
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JULES_API_KEY` | Yes | — | API key |
+| `GITHUB_REPO` | No | Auto-detected | Target repo (`owner/repo`) |
+| `BASE_BRANCH` | No | `main` | Base branch |

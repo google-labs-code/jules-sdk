@@ -1,52 +1,37 @@
-# Express Integration Example
+# Express Integration
 
-This example demonstrates how to integrate the Jules SDK into an Express application.
+REST API that wraps Jules session creation in an Express endpoint. Fire-and-forget — creates a session and returns the ID immediately.
 
-It covers a common pattern for starting Jules sessions from a REST API endpoint.
-
-## Prerequisites
-
-- A Jules API Key (`JULES_API_KEY` environment variable).
-
-## How to use in your Express app
-
-You can use the `POST /api/jules` endpoint pattern from `index.ts` to create a REST endpoint for your Express application to trigger Jules sessions.
-
-```typescript
-import express, { Request, Response } from 'express';
-import { jules } from '@google/jules-sdk';
-
-const app = express();
-app.use(express.json());
-
-app.post('/api/jules', async (req: Request, res: Response) => {
-  try {
-    const { githubUrl, taskDescription } = req.body;
-
-    const session = await jules.session({
-      prompt: taskDescription,
-      source: { github: githubUrl },
-    });
-
-    return res.status(200).json({ sessionId: session.id });
-  } catch (error) {
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-```
-
-## Running the Example Locally
-
-The `index.ts` file includes a runnable test script to verify that the Express endpoint works as expected.
-
-Ensure you have your API key set:
+## Quick Start
 
 ```bash
-export JULES_API_KEY="your-api-key-here"
-```
-
-Then, you can run the file using `bun` (or another runner like `tsx`):
-
-```bash
+npm install
+export JULES_API_KEY="your-api-key"
+export PORT=3000  # optional, defaults to 3000
 bun run index.ts
 ```
+
+Starts the server, runs a self-test request, and shuts down.
+
+## `POST /api/jules` Endpoint
+
+```bash
+curl -X POST http://localhost:3000/api/jules \
+  -H "Content-Type: application/json" \
+  -d '{"githubUrl": "owner/repo", "taskDescription": "Fix the login bug"}'
+```
+
+Returns `{ "sessionId": "abc123" }`. The session runs in the background — the client doesn't wait for completion.
+
+## Middleware and Self-Test
+
+A middleware layer on `/api` validates that `JULES_API_KEY` is set, returning 500 early if missing.
+
+When run directly, the script detects it via `import.meta.url`, starts the server, fires a test POST, logs the result, and shuts down. The app is also exported (`export default app`) so it can be imported as a module in larger applications.
+
+## Configuration
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JULES_API_KEY` | Yes | — | API key |
+| `PORT` | No | `3000` | Server port |

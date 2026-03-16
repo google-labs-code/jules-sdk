@@ -1,55 +1,46 @@
-# GitHub Action Agent Skills Example
+# GitHub Actions: Agent Skills Generator
 
-This example demonstrates how to use the Jules SDK on a scheduled GitHub Action cron job to analyze a repository and generate suggestions for Agent Skills that improve automation.
+A GitHub Action that analyzes a repository and generates [Agent Skills](https://agentskills.io) configuration files. Triggered when an issue is labeled, it creates a Jules session targeting the repo, references the Agent Skills specification and React Best Practices as examples, and opens a PR with the generated skills.
 
-## Overview
+## Quick Start
 
-The action reads the Agent Skills specification from [https://agentskills.io/specification.md](https://agentskills.io/specification.md) and instructs the Jules agent to:
-1. Review the repository structure and workflows.
-2. Identify areas where an Agent Skill could be beneficial.
-3. Create corresponding Agent Skills configuration files.
-4. Generate a pull request with the suggested changes.
-
-## Files
-
-- `index.ts`: The main action logic using the Jules SDK.
-- `package.json`: Dependencies for the action (`@actions/core`, `@actions/github`, `@google/jules-sdk`).
-
-## Usage
-
-You can use this action in your own GitHub workflows by referencing its path or publishing it.
-
-Here is an example workflow file (`.github/workflows/jules-agentskills.yml`) that triggers the agent on a weekly schedule:
+Add to `.github/workflows/agent-skills.yml`:
 
 ```yaml
-name: Jules Agent Skills Generator
-
+name: Generate Agent Skills
 on:
-  schedule:
-    # Run at 00:00 every Monday
-    - cron: '0 0 * * 1'
+  issues:
+    types: [labeled]
 
 jobs:
-  run-jules-agentskills:
+  generate:
+    if: github.event.label.name == 'generate-skills'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run Jules Agent Skills Analyzer
-        uses: ./packages/core/examples/github-action-agentskills
+      - uses: actions/checkout@v4
+      - uses: ./packages/core/examples/github-action-agentskills
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
 ```
 
-## Running the Example Locally
+## Repository Analysis and Skill Generation
 
-To compile the TypeScript action:
+The action reads the current repo/branch from the GitHub Actions context and creates a session that:
 
-```bash
-cd packages/core/examples/github-action-agentskills
-npm install
-npm run build
+1. Reviews the repository structure, code, and workflows
+2. Identifies 1–3 areas where an Agent Skill could help
+3. Creates the corresponding `AGENTS.md` configuration files
+4. Explains what each skill does and why it's useful
+
+The prompt references the Agent Skills specification and a React Best Practices skill as examples.
+
+## Actions Context Resolution
+
+The action resolves the repo and branch from multiple sources for robustness:
+
+```typescript
+const owner = context.repo.owner || process.env.GITHUB_REPOSITORY?.split('/')[0];
+const baseBranch = (context.ref || process.env.GITHUB_REF || 'refs/heads/main').replace('refs/heads/', '');
 ```
 
-The compiled JavaScript will be placed in `dist/index.js`, which is what GitHub Actions will execute.
+Session output (PR URL, file count) is set as action outputs via `core.setOutput()`, and failures call `core.setFailed()`.
