@@ -1,78 +1,78 @@
 import { jules } from '@google/jules-sdk';
+import { stitch } from '@google/stitch-sdk';
 import cron from 'node-cron';
+import '../_shared/check-env.js';
+import { logStream } from '../_shared/log-stream.js';
 
-/**
- * Cron Jobs Example
- *
- * Demonstrates how to trigger a Jules session from a scheduled cron job using `node-cron`.
- * This can be useful for regular tasks such as running a daily review or nightly automation script.
- */
-async function runTask() {
-  console.log(`[${new Date().toISOString()}] Cron job triggered! Creating a Jules session...`);
+if (!process.env.STITCH_API_KEY) {
+  console.error('Set STITCH_API_KEY to run this example.');
+  process.exit(1);
+}
 
-  try {
-    // For demonstration, we run a repoless session generating a simple joke.
-    // In a real-world scenario, you might pass a source repo and specific automation instructions.
+const STITCH_PROJECT_ID = process.env.STITCH_PROJECT_ID!;
+const GITHUB_REPO = process.env.GITHUB_REPO;
+const REACT_SKILL_URL = 'https://raw.githubusercontent.com/vercel-labs/agent-skills/refs/heads/main/skills/react-best-practices/AGENTS.md';
+
+// Track which screens have already been processed
+const processedScreenIds = new Set<string>();
+
+async function processNewScreens() {
+  console.log(`\n[${new Date().toISOString()}] Checking for new Stitch screens...`);
+
+  const project = stitch.project(STITCH_PROJECT_ID);
+  const screens = await project.screens();
+
+  const newScreens = screens.filter((s: { id: string }) => !processedScreenIds.has(s.id));
+  if (newScreens.length === 0) {
+    console.log('No new screens to process.');
+    return;
+  }
+
+  console.log(`Found ${newScreens.length} new screen(s).`);
+
+  for (const screen of newScreens) {
+    console.log(`\nProcessing screen: ${screen.id}`);
+    const html = await screen.getHtml();
+
     const session = await jules.session({
-      prompt: 'Write a short programmer joke.',
+      prompt: `Convert the following Stitch design to a React component using best practices.
+
+## Design Export
+${html}
+
+## Agent Skill
+Follow the React Best Practices skill at: ${REACT_SKILL_URL}
+
+1. Create a well-structured React component matching this design.
+2. Use TypeScript, semantic HTML, and CSS modules or styled-components.
+3. Ensure accessibility (ARIA labels, keyboard navigation).
+4. Export the component and its types.`,
+      ...(GITHUB_REPO && { source: { github: GITHUB_REPO, baseBranch: 'main' } }),
+      autoPr: true,
     });
 
-    console.log(`Session created! ID: ${session.id}`);
-    console.log('Waiting for the session to complete...');
+    console.log(`Session created: ${session.id}`);
 
-    const outcome = await session.result();
+    // Non-blocking result notification
+    session.result().then(outcome => {
+      console.log(`\n--- [${screen.id}] Result ---`);
+      console.log(`State: ${outcome.state}`);
+      console.log(`PR: ${outcome.pullRequest?.url ?? 'none'}`);
+      console.log(`Files: ${outcome.generatedFiles().all().length}`);
+    });
 
-    console.log('\n--- Session Result ---');
-    console.log(`State: ${outcome.state}`);
+    await logStream(session, {
+      agentMessaged: (a) => console.log(`  Agent: ${a.message.slice(0, 120)}`),
+      progressUpdated: (a) => console.log(`  Progress: ${a.title}`),
+    });
 
-    if (outcome.state === 'completed') {
-      const activities = await jules.select({
-        from: 'activities',
-        where: { type: 'agentMessaged', 'session.id': session.id },
-        order: 'desc',
-        limit: 1,
-      });
-
-      if (activities.length > 0) {
-        console.log('\nAgent Response:');
-        console.log(activities[0].message);
-      } else {
-        const files = outcome.generatedFiles();
-        if (files.size > 0) {
-            console.log('\nGenerated Files:');
-            for (const [filename, content] of files.entries()) {
-                console.log(`\nFile: ${filename}`);
-                console.log(content.content);
-            }
-        } else {
-            console.log('\nThe agent did not leave a final message or file.');
-        }
-      }
-    } else {
-      console.error('The session did not complete successfully.');
-    }
-  } catch (error) {
-    console.error('An error occurred during the scheduled session:', error);
+    processedScreenIds.add(screen.id);
+    console.log(`Screen ${screen.id} processed and marked.`);
   }
 }
 
-function main() {
-  if (!process.env.JULES_API_KEY) {
-    console.error('Error: JULES_API_KEY environment variable is not set.');
-    console.error('Please set it using: export JULES_API_KEY="your-api-key"');
-    process.exit(1);
-  }
+console.log('Stitch→Jules cron scheduler started (every 5 min). Ctrl+C to exit.');
 
-  // Schedule a task to run every minute for demonstration purposes.
-  // The cron expression '* * * * *' means "every minute".
-  console.log('Starting cron job scheduler. It will trigger every minute...');
-  console.log('Press Ctrl+C to exit.');
-
-  cron.schedule('* * * * *', () => {
-    // Avoid unhandled promise rejections by wrapping the async call in a catch block if needed
-    // However, runTask has its own try/catch block.
-    runTask();
-  });
-}
-
-main();
+cron.schedule('*/5 * * * *', () => {
+  processNewScreens().catch(console.error);
+});

@@ -1,5 +1,7 @@
 import { execa } from 'execa';
 import { z } from 'zod';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ReviewSuccess } from './src/spec.js';
 
 /**
@@ -12,6 +14,9 @@ import { ReviewSuccess } from './src/spec.js';
  *    a valid JSON payload matching the `ReviewSuccess` schema.
  * 4. Progress logs are successfully piped to `stderr` and don't corrupt the JSON.
  */
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 async function runE2E() {
   const apiKey = process.env.JULES_API_KEY;
 
@@ -38,7 +43,7 @@ async function runE2E() {
     ], {
       env: { JULES_API_KEY: apiKey },
       timeout: 900000, // 15 minute timeout for two LLM sessions
-      cwd: import.meta.dir // Ensure we run relative to this e2e script
+      cwd: __dirname // Ensure we run relative to this e2e script
     });
 
     // Pipe stderr to our current console so we can watch the progress logs live
@@ -76,17 +81,17 @@ async function runE2E() {
     console.log(`- Review Session ID: ${data.reviewSessionId}`);
 
     if (data.gitPatchStr && data.gitPatchStr.length > 0) {
-        console.log(`- Git Patch Extracted: YES (${data.gitPatchStr.split('\\n').length} lines)`);
+      console.log(`- Git Patch Extracted: YES (${data.gitPatchStr.split('\\n').length} lines)`);
     } else {
-         console.error('❌ E2E Test Failed: No Git Patch string was found in the output.');
-         process.exit(1);
+      console.error('❌ E2E Test Failed: No Git Patch string was found in the output.');
+      process.exit(1);
     }
 
     if (data.reviewMessage && data.reviewMessage.length > 0) {
-        console.log(`- Review Message Generated: YES`);
+      console.log(`- Review Message Generated: YES`);
     } else {
-         console.error('❌ E2E Test Failed: No Review Message was found in the output.');
-         process.exit(1);
+      console.error('❌ E2E Test Failed: No Review Message was found in the output.');
+      process.exit(1);
     }
 
     console.log('\n🎉 E2E Test Completed Successfully!');
@@ -94,7 +99,7 @@ async function runE2E() {
   } catch (error: any) {
     console.error('\n❌ E2E Test Failed with an exception:');
     if (error.shortMessage) {
-       console.error(error.shortMessage); // execa formatting
+      console.error(error.shortMessage); // execa formatting
     }
     console.error(error.message);
     process.exit(1);

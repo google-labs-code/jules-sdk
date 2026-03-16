@@ -1,89 +1,168 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { jules } from '@google/jules-sdk';
+import { marked } from 'marked';
+import { logStream } from '../_shared/log-stream.js';
 
-async function run() {
+/**
+ * GitHub Action: `/jules` Slash Command
+ *
+ * Responds to `/jules <message>` in issue/PR comments.
+ * Routes to an existing session on Jules-created PRs,
+ * or creates a new session otherwise.
+ */
+
+// --- Domain Types ---
+
+interface JulesCommand {
+  message: string;
+  owner: string;
+  repo: string;
+}
+
+interface ReplyTarget {
+  sessionId: string;
+  sha?: string;
+}
+
+// --- Parsing ---
+
+/** Extracts `/jules <message>` from a comment body using a proper markdown parser. */
+export function parseCommand(body: string): string | null {
+  const tokens = marked.lexer(body);
+
+  for (const token of tokens) {
+    // Only inspect paragraph tokens — code, blockquote, heading, etc. are excluded
+    if (token.type !== 'paragraph') continue;
+
+    const text = token.text.trim();
+
+    if (text === '/jules') return '';
+    if (text.startsWith('/jules ')) {
+      return text.slice('/jules '.length).trim();
+    }
+  }
+
+  return null;
+}
+
+/** Extracts a session ID from a Jules branch name (e.g., `jules/fix-bug-1234567`). */
+function parseReplyTarget(context: typeof github.context): ReplyTarget | null {
+  const branch = context.payload.pull_request?.head?.ref ?? '';
+  const parts = branch.split('-');
+  const lastPart = parts[parts.length - 1];
+
+  // Jules session IDs are numeric strings of 7+ digits
+  if (lastPart && /^\d{7,}$/.test(lastPart)) {
+    return {
+      sessionId: lastPart,
+      sha: context.payload.pull_request?.head?.sha,
+    };
+  }
+
+  return null;
+}
+
+// --- CI Context ---
+
+/** Fetches failed CI check summaries for a commit SHA. */
+async function fetchFailedChecks(owner: string, repo: string, sha?: string): Promise<string | null> {
+  if (!sha || !process.env.GITHUB_TOKEN) return null;
+
   try {
-    // 1. Read inputs defined in action.yml
-    const prompt = core.getInput('prompt', { required: true });
+    const octokit = github.getOctokit(process.env.GITHUB_TOKEN);
+    const { data } = await octokit.rest.checks.listForRef({ owner, repo, ref: sha });
 
-    // 2. The Jules SDK requires JULES_API_KEY environment variable.
-    // GitHub Actions can pass this via `env:` or `with:` which sets an input.
-    // If you prefer not to use the environment variable, you can initialize
-    // the client specifically:
-    // const julesClient = jules.with({ apiKey: core.getInput('api-key') });
+    const failures = data.check_runs
+      .filter(run => run.conclusion === 'failure')
+      .map(run => `- **${run.name}**: ${run.output?.summary ?? 'Failed'}`);
 
-    // We will assume JULES_API_KEY is available in the environment,
-    // which is the default behavior of the `jules` instance.
-    if (!process.env.JULES_API_KEY) {
-      throw new Error('JULES_API_KEY environment variable is missing.');
-    }
-
-    // 3. Get context about the current repository from the GitHub Action payload
-    const context = github.context;
-    const owner = context.repo.owner;
-    const repo = context.repo.repo;
-    const ref = context.ref;
-
-    // Convert refs/heads/main to main
-    let baseBranch = 'main';
-    if (ref.startsWith('refs/heads/')) {
-      baseBranch = ref.replace('refs/heads/', '');
-    }
-
-    core.info(`Starting Jules session for ${owner}/${repo} on branch ${baseBranch}`);
-    core.info(`Prompt: ${prompt}`);
-
-    // 4. Create a new Jules session
-    const session = await jules.session({
-      prompt: prompt,
-      source: {
-        github: `${owner}/${repo}`,
-        baseBranch: baseBranch,
-      },
-      // Automatically create a PR when the session is complete
-      autoPr: true,
-    });
-
-    core.info(`Session created successfully. ID: ${session.id}`);
-
-    // 5. Monitor the progress
-    for await (const activity of session.stream()) {
-      switch (activity.type) {
-        case 'planGenerated':
-          core.info(`[Plan Generated] ${activity.plan.steps.length} steps.`);
-          break;
-        case 'progressUpdated':
-          core.info(`[Progress Updated] ${activity.title}`);
-          break;
-        case 'sessionCompleted':
-          core.info(`[Session Completed]`);
-          break;
-      }
-    }
-
-    // 6. Wait for the final outcome
-    const outcome = await session.result();
-
-    if (outcome.state === 'failed') {
-      core.setFailed(`Session failed.`);
-      return;
-    }
-
-    core.info(`Session finished successfully.`);
-
-    if (outcome.pullRequest) {
-      core.info(`Pull Request created: ${outcome.pullRequest.url}`);
-      // Set an output that other steps in the workflow can use
-      core.setOutput('pr-url', outcome.pullRequest.url);
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      core.setFailed(`Action failed with error: ${error.message}`);
-    } else {
-      core.setFailed(`Action failed with an unknown error.`);
-    }
+    return failures.length > 0 ? failures.join('\n') : null;
+  } catch {
+    return null;
   }
 }
 
-run();
+// --- Session Handlers ---
+
+/** Sends a message (with optional CI context) to an existing Jules session. */
+async function replyToSession(cmd: JulesCommand, target: ReplyTarget): Promise<void> {
+  core.info(`Replying to session: ${target.sessionId}`);
+
+  const session = jules.session(target.sessionId);
+
+  const ciContext = await fetchFailedChecks(cmd.owner, cmd.repo, target.sha);
+  const fullMessage = ciContext
+    ? `${cmd.message}\n\n## Failed CI Checks\n${ciContext}`
+    : cmd.message;
+
+  await session.send(fullMessage);
+  core.info('Message sent.');
+  core.setOutput('session-id', target.sessionId);
+}
+
+/** Creates a new Jules session and streams it to completion. */
+async function createNewSession(cmd: JulesCommand, baseBranch: string): Promise<void> {
+  core.info(`Creating session for ${cmd.owner}/${cmd.repo} on ${baseBranch}`);
+
+  const session = await jules.session({
+    prompt: cmd.message,
+    source: { github: `${cmd.owner}/${cmd.repo}`, baseBranch },
+    autoPr: true,
+  });
+
+  core.info(`Session created: ${session.id}`);
+  core.setOutput('session-id', session.id);
+
+  session.result().then(outcome => {
+    core.info(`State: ${outcome.state}`);
+    if (outcome.pullRequest) {
+      core.info(`PR: ${outcome.pullRequest.url}`);
+      core.setOutput('pr-url', outcome.pullRequest.url);
+    }
+  });
+
+  await logStream(session, {
+    planGenerated: (a) => core.info(`[Plan] ${a.plan.steps.length} steps`),
+    progressUpdated: (a) => core.info(`[Progress] ${a.title}`),
+    sessionCompleted: () => core.info('[Complete]'),
+  });
+}
+
+// --- Entry Point ---
+
+function resolveBaseBranch(context: typeof github.context): string {
+  if (context.payload.pull_request?.base?.ref) return context.payload.pull_request.base.ref;
+  if (context.payload.issue) return 'main';
+  return context.ref.replace('refs/heads/', '');
+}
+
+async function run() {
+  if (!process.env.JULES_API_KEY) {
+    return core.setFailed('JULES_API_KEY is missing.');
+  }
+
+  const context = github.context;
+  const commentBody = context.payload.comment?.body ?? '';
+
+  const message = parseCommand(commentBody);
+  if (message === null) {
+    return core.info('No /jules command found. Skipping.');
+  }
+
+  const cmd: JulesCommand = {
+    message,
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+  };
+
+  const replyTarget = parseReplyTarget(context);
+
+  if (replyTarget) {
+    await replyToSession(cmd, replyTarget);
+  } else {
+    await createNewSession(cmd, resolveBaseBranch(context));
+  }
+}
+
+run().catch(e => core.setFailed(e instanceof Error ? e.message : 'Unknown error'));

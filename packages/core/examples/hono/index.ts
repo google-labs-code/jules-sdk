@@ -17,11 +17,12 @@ app.post('/api/sessions/create', async (c) => {
     // Start a basic session
     // In a real application, you might save the session.id to your database
     const session = await jules.session({ prompt });
+    const info = await session.info();
 
     return c.json({
       message: 'Session created successfully',
       sessionId: session.id,
-      status: session.info().state,
+      status: info.state,
     });
   } catch (error) {
     console.error('Failed to create session:', error);
@@ -36,7 +37,7 @@ app.get('/api/sessions/:id/status', async (c) => {
   try {
     // Retrieve an existing session by ID
     const session = jules.session(sessionId);
-    const info = session.info();
+    const info = await session.info();
 
     return c.json({
       sessionId: session.id,
@@ -64,7 +65,6 @@ app.get('/api/sessions/:id/stream', async (c) => {
           timestamp: activity.createTime,
           // Safely pull relevant fields depending on activity type
           message: activity.type === 'agentMessaged' ? activity.message : undefined,
-          summary: activity.summary,
         });
 
         // Write the event to the stream in SSE format

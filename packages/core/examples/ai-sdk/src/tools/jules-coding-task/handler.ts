@@ -40,13 +40,24 @@ export class JulesCodingTaskHandler implements JulesCodingTaskSpec {
         };
       }
 
-      // Create and start the Jules session
+      // Create the Jules session
       const session = await jules.session(sessionOptions);
+      console.error(`\n  [Jules] Session created: ${session.id}`);
 
-      // Await final result (do not use cache/select for the current running task)
-      const outcome = await session.result();
+      // Stream activities as they arrive (the SDK handles 404 retry internally)
+      for await (const activity of session.stream()) {
+        if (activity.type === 'agentMessaged') {
+          const preview = activity.message.slice(0, 120);
+          console.error(`  [Jules] Agent: ${preview}${activity.message.length > 120 ? '...' : ''}`);
+        } else {
+          console.error(`  [Jules] ${activity.type}`);
+        }
+      }
 
-      if (outcome.state === 'failed') {
+      // Get the final snapshot
+      const snapshot = await session.snapshot();
+
+      if (snapshot.state === 'failed') {
         return {
           success: false,
           error: {
@@ -57,14 +68,16 @@ export class JulesCodingTaskHandler implements JulesCodingTaskSpec {
         };
       }
 
-      const prUrl = outcome.pullRequest?.url;
-      const filesCount = outcome.generatedFiles().size;
+      const prUrl = snapshot.pr?.url;
+      const filesCount = snapshot.generatedFiles.all().length;
+
+      console.error(`  [Jules] Complete: ${filesCount} files generated\n`);
 
       return {
         success: true,
         data: {
           sessionId: session.id,
-          state: outcome.state,
+          state: snapshot.state,
           pullRequestUrl: prUrl,
           generatedFilesCount: filesCount,
         },

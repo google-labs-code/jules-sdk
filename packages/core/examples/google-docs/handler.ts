@@ -1,154 +1,87 @@
-import { jules } from '@google/jules-sdk';
 import { google } from 'googleapis';
 import { RunSessionSpec, RunSessionInput, RunSessionResult } from './spec.js';
+import { runRepolessSession, SessionOutcome } from '../_shared/run-session.js';
+
+type ErrorCode = 'MISSING_CREDENTIALS' | 'DOCUMENT_NOT_FOUND_OR_EMPTY' | 'API_ERROR' | 'JULES_ERROR' | 'UNKNOWN_ERROR';
 
 export class GoogleDocsSessionHandler implements RunSessionSpec {
   async execute(input: RunSessionInput): Promise<RunSessionResult> {
     try {
-      if (!process.env.JULES_API_KEY) {
-        return {
-          success: false,
-          error: {
-            code: 'MISSING_CREDENTIALS',
-            message: 'JULES_API_KEY environment variable is not set.',
-            recoverable: true,
-          },
-        };
+      this.validateCredentials();
+
+      const docText = await this.fetchDocumentText(input.documentId);
+
+      if (!docText) {
+        return this.fail('DOCUMENT_NOT_FOUND_OR_EMPTY', 'No text in document.', true);
       }
 
-      const auth = new google.auth.GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/documents.readonly'],
-      });
+      const outcome = await runRepolessSession(
+        `${input.prompt}\n\n## Source Document Content\n${docText}`,
+      );
 
-      const docs = google.docs({ version: 'v1', auth });
-
-      let response;
-      try {
-        response = await docs.documents.get({
-          documentId: input.documentId,
-        });
-      } catch (authErr: any) {
-        if (authErr.message && authErr.message.includes('Could not load the default credentials')) {
-          return {
-            success: false,
-            error: {
-              code: 'MISSING_CREDENTIALS',
-              message: 'Google Application Default Credentials not found. Please set GOOGLE_APPLICATION_CREDENTIALS.',
-              recoverable: true,
-            },
-          };
-        }
-        return {
-          success: false,
-          error: {
-            code: 'API_ERROR',
-            message: `Google Docs API Error: ${authErr.message || String(authErr)}`,
-            recoverable: false,
-          },
-        };
-      }
-
-      const document = response.data;
-      if (!document || !document.body || !document.body.content) {
-        return {
-          success: false,
-          error: {
-            code: 'DOCUMENT_NOT_FOUND_OR_EMPTY',
-            message: 'No content found in the specified document.',
-            recoverable: true,
-          },
-        };
-      }
-
-      const extractText = (content: any[]): string => {
-        let text = '';
-        for (const element of content) {
-          if (element.paragraph && element.paragraph.elements) {
-            for (const pElement of element.paragraph.elements) {
-              if (pElement.textRun && pElement.textRun.content) {
-                text += pElement.textRun.content;
-              }
-            }
-          }
-        }
-        return text;
-      };
-
-      const docContext = extractText(document.body.content);
-      if (!docContext.trim()) {
-        return {
-          success: false,
-          error: {
-            code: 'DOCUMENT_NOT_FOUND_OR_EMPTY',
-            message: 'No text content found in the specified document.',
-            recoverable: true,
-          },
-        };
-      }
-
-      const finalPrompt = `${input.prompt}\n\n## Source Document Content\n${docContext}`;
-
-      let session;
-      try {
-        session = await jules.session({ prompt: finalPrompt });
-      } catch (julesErr: any) {
-         return {
-          success: false,
-          error: {
-            code: 'JULES_ERROR',
-            message: `Jules Session Creation Error: ${julesErr.message || String(julesErr)}`,
-            recoverable: false,
-          },
-        };
-      }
-
-      const outcome = await session.result();
-
-      let agentMessage = undefined;
-      let generatedFiles: Record<string, string> = {};
-
-      if (outcome.state === 'completed') {
-        try {
-           const activities = await jules.select({
-            from: 'activities',
-            where: { type: 'agentMessaged', 'session.id': session.id },
-            order: 'desc',
-            limit: 1,
-          });
-
-          if (activities.length > 0) {
-            agentMessage = activities[0].message;
-          } else {
-             const files = outcome.generatedFiles();
-             if (files.size > 0) {
-                 for (const [filename, content] of files.entries()) {
-                     generatedFiles[filename] = content.content;
-                 }
-             }
-          }
-        } catch (queryErr) {
-             console.error('Failed to query local cache for agent messages:', queryErr);
-        }
-      }
-
-      return {
-        success: true,
-        data: {
-          sessionId: session.id,
-          state: outcome.state,
-          agentMessage,
-          files: Object.keys(generatedFiles).length > 0 ? generatedFiles : undefined,
-        },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: {
-          code: 'UNKNOWN_ERROR',
-          message: error instanceof Error ? error.message : String(error),
-          recoverable: false,
-        },
-      };
+      return this.success(outcome);
+    } catch (error: any) {
+      return this.handleError(error);
     }
   }
+
+  // --- Data Source ---
+
+  /** Fetches and extracts plain text from a Google Doc. */
+  private async fetchDocumentText(documentId: string): Promise<string | null> {
+    const auth = new google.auth.GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/documents.readonly'],
+    });
+    const docs = google.docs({ version: 'v1', auth });
+    const response = await docs.documents.get({ documentId });
+
+    const elements = response.data?.body?.content;
+    if (!elements) return null;
+
+    const text = elements
+      .map(extractParagraphText)
+      .join('');
+
+    return text.trim() || null;
+  }
+
+  // --- Result Builders ---
+
+  private validateCredentials(): void {
+    if (!process.env.JULES_API_KEY) throw Object.assign(new Error('JULES_API_KEY is not set.'), { code: 'MISSING_CREDENTIALS' as const, recoverable: true });
+  }
+
+  private success(outcome: SessionOutcome): RunSessionResult {
+    return {
+      success: true,
+      data: {
+        sessionId: '',
+        state: 'completed',
+        agentMessage: outcome.agentMessage,
+        files: outcome.files,
+      },
+    };
+  }
+
+  private fail(code: ErrorCode, message: string, recoverable = false): RunSessionResult {
+    return { success: false as const, error: { code, message, recoverable } };
+  }
+
+  private handleError(error: any): RunSessionResult {
+    if (error.code === 'MISSING_CREDENTIALS') {
+      return this.fail('MISSING_CREDENTIALS', error.message, true);
+    }
+    if (error.message?.includes('Could not load the default credentials')) {
+      return this.fail('MISSING_CREDENTIALS', 'Set GOOGLE_APPLICATION_CREDENTIALS.', true);
+    }
+    return this.fail('UNKNOWN_ERROR', error.message ?? String(error));
+  }
+}
+
+/** Extracts plain text from a Google Doc structural element (paragraph). */
+function extractParagraphText(element: any): string {
+  const textRuns = element.paragraph?.elements ?? [];
+  return textRuns
+    .map((run: any) => run.textRun?.content ?? '')
+    .join('');
 }

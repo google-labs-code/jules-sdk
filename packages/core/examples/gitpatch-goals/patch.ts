@@ -1,11 +1,11 @@
-import { SessionOutcome } from '@google/jules-sdk';
+import { Outcome } from '@google/jules-sdk';
 
 /**
  * Extracts a GitPatch diff from a completed session outcome.
  * Prefers the native changeSet object but falls back to manually creating
  * a diff from generated files if necessary.
  */
-export function extractGitPatch(genOutcome: SessionOutcome): string | null {
+export function extractGitPatch(genOutcome: Outcome): string | null {
   console.error('\n--- Step 2: Extracting GitPatch ---');
 
   let gitPatch = '';
@@ -24,10 +24,11 @@ export function extractGitPatch(genOutcome: SessionOutcome): string | null {
       'No direct changeSet found. Fallback to getting generated files.'
     );
     const files = genOutcome.generatedFiles();
-    if (files.size > 0) {
-      for (const [path, file] of files.entries()) {
+    const allFiles = files.all();
+    if (allFiles.length > 0) {
+      for (const file of allFiles) {
         const lineCount = file.content.split('\n').length;
-        gitPatch += `--- a/${path}\n+++ b/${path}\n@@ -0,0 +1,${lineCount} @@\n`;
+        gitPatch += `--- a/${file.path}\n+++ b/${file.path}\n@@ -0,0 +1,${lineCount} @@\n`;
         gitPatch +=
           file.content
             .split('\n')

@@ -7,7 +7,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "rootDir": "..",
+    "baseUrl": ".",
+    "paths": {
+      "@google/jules-sdk": ["./node_modules/@google/jules-sdk"]
+    }
   },
-  "include": ["index.ts"]
+  "include": ["index.ts", "parse-command.test.ts", "../_shared/**/*.ts"]
 }

@@ -10,18 +10,21 @@ export class SessionAnalysisHandler implements SessionAnalysisSpec {
       const outcome = await session.info();
 
       let lastAgentMessage: string | undefined = undefined;
-      const history = await session.history().toArray();
+      const history: Array<{ type: string; message?: string }> = [];
+      for await (const activity of session.stream()) {
+        history.push(activity as any);
+      }
       const agentMessages = history.filter(a => a.type === 'agentMessaged');
       if (agentMessages.length > 0) {
         lastAgentMessage = agentMessages[agentMessages.length - 1].message;
       }
 
       // We rely on full session snapshot rather than partial cache queries
-      const snapshot = session.snapshot();
+      const snapshot = await session.snapshot();
       const files = snapshot?.generatedFiles;
       let generatedFilesCount = 0;
       if (files) {
-         generatedFilesCount = typeof files.entries === 'function' ? [...files.entries()].length : Object.keys(files).length;
+         generatedFilesCount = Array.isArray(files) ? files.length : 0;
       }
 
       let summary = `Session ${outcome.id} is ${outcome.state}.`;

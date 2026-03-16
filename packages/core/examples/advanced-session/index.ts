@@ -1,81 +1,45 @@
-import { jules, JulesError } from '@google/jules-sdk';
+import { jules } from '@google/jules-sdk';
+import '../_shared/check-env.js';
+import { logStream } from '../_shared/log-stream.js';
 
-/**
- * Advanced Session Example
- *
- * Demonstrates:
- * - Interactive session creation
- * - Waiting for plan approval
- * - Monitoring progress via reactive streams
- * - Handling code diffs (changeSet)
- */
-async function runAdvancedSession() {
-  try {
-    console.log('Starting advanced session...');
+const session = await jules.session({
+  prompt: `Create a simple python script that prints 'Hello Advanced Session!' and test it.`,
+});
 
-    // Interactive Sessions allow you to provide feedback and guide the process
-    const session = await jules.session({
-      prompt: `Create a simple python script that prints 'Hello Advanced Session!' and test it.`,
-      // For a repoless session, we don't provide a source
-    });
+console.log(`Session created: ${session.id}`);
 
-    console.log(`Session created: ${session.id}`);
+// Wait for plan approval
+await session.waitFor('awaitingPlanApproval');
+console.log('Plan ready. Approving...');
+await session.approve();
 
-    // Wait for the plan to be generated and ready for approval
-    console.log('Waiting for plan approval...');
-    await session.waitFor('awaitingPlanApproval');
+// Non-blocking result notification
+session.result().then(outcome => {
+  console.log(`\n--- Result ---`);
+  console.log(`State: ${outcome.state}`);
+  console.log(`PR: ${outcome.pullRequest?.url ?? 'none'}`);
+  console.log(`Files: ${outcome.generatedFiles().all().length}`);
+});
 
-    console.log('Plan is ready. Approving it now.');
-    await session.approve();
+// Stream all activities with typed handlers
+await logStream(session, {
+  planGenerated: (a) => console.log('Plan:', a.plan?.steps.map(s => s.title)),
+  agentMessaged: (a) => console.log('Agent:', a.message),
+  progressUpdated: (a) => console.log(`Progress: ${a.title}`),
+  sessionCompleted: () => console.log('Session complete!'),
+});
 
-    // Stream activities and artifacts
-    for await (const activity of session.stream()) {
-      switch (activity.type) {
-        case 'planGenerated':
-          console.log(
-            'Plan:',
-            activity.plan?.steps.map((s) => s.title)
-          );
-          break;
-        case 'agentMessaged':
-          console.log('Agent says:', activity.message);
-          break;
-        case 'progressUpdated':
-          console.log(`Progress: ${activity.title}`);
-          break;
-        case 'sessionCompleted':
-          console.log('Session complete!');
-          break;
-      }
+// After streaming, the cache is populated — demonstrate jules.select()
+const agentMessages = await jules.select({
+  from: 'activities',
+  where: { type: 'agentMessaged', sessionId: session.id },
+  order: 'desc',
+  limit: 3,
+});
 
-      // Check artifacts
-      for (const artifact of activity.artifacts ?? []) {
-        if (artifact.type === 'bashOutput') {
-          console.log(`[BASH] ${artifact.toString()}`);
-        }
-        if (artifact.type === 'changeSet') {
-          const parsed = artifact.parsed();
-          for (const file of parsed.files) {
-            console.log(
-              `[DIFF] ${file.path}: +${file.additions} -${file.deletions}`
-            );
-          }
-        }
-      }
-    }
-
-    const outcome = await session.result();
-    console.log(`Session finished with state: ${outcome.state}`);
-
-  } catch (error) {
-    if (error instanceof JulesError) {
-      console.error(`SDK error: ${error.message}`);
-    } else {
-      console.error('Unknown error:', error);
-    }
+console.log(`\n--- Cached Activities (${agentMessages.length} agent messages) ---`);
+for (const msg of agentMessages) {
+  if (msg.type === 'agentMessaged') {
+    console.log(`  ${msg.message.slice(0, 80)}...`);
   }
-}
-
-if (require.main === module) {
-  runAdvancedSession();
 }
