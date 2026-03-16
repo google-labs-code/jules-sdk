@@ -1,211 +1,117 @@
-import { jules, Session, Activity } from '@google/jules-sdk';
+import { jules, SessionClient, Activity, ParsedFile } from '@google/jules-sdk';
 import { ReviewSpec, ReviewInput, ReviewResult } from './spec.js';
+import { logStream } from '../../_shared/log-stream.js';
+
+type ErrorCode = 'SESSION_FAILED' | 'NO_CHANGES_GENERATED' | 'UNKNOWN_ERROR' | 'UNAUTHORIZED';
 
 export class ReviewHandler implements ReviewSpec {
   async execute(input: ReviewInput): Promise<ReviewResult> {
     try {
       if (!process.env.JULES_API_KEY) {
-        return {
-          success: false,
-          error: {
-            code: 'UNAUTHORIZED',
-            message: 'JULES_API_KEY environment variable is not set.',
-            suggestion: 'Export JULES_API_KEY="your-api-key" before running the CLI.',
-            recoverable: true,
-          },
-        };
+        return this.fail('UNAUTHORIZED', 'JULES_API_KEY is not set.', true);
       }
-
-      this.log(`Starting code generation session for ${input.repository}...`, input.json);
 
       const source = { github: input.repository, baseBranch: input.baseBranch };
 
-      // 1. Generate bad code
-      const codeGenSession = await jules.session({
-        prompt: input.prompt,
-        source,
-      });
-
-      this.log(`Code Generation Session ID: ${codeGenSession.id}`, input.json);
-
-      // If the session isn't immediately finished, stream it until it is
-      const genInfo = await codeGenSession.info();
-      if (genInfo.state !== 'completed' && genInfo.state !== 'failed') {
-         try {
-             await this.streamSessionActivities(codeGenSession, 'Code Gen', input.json);
-         } catch(e) {
-             // Occasionally activities return 404 momentarily immediately after session creation
-             // in some environments. Ignore and fall through to wait on result().
-         }
+      // 1. Generate code and extract the diff
+      const gitPatch = await this.generateCode(input.prompt, source, input.json);
+      if (!gitPatch) {
+        return this.fail('NO_CHANGES_GENERATED', 'Agent generated no changes.');
       }
 
-      const genOutcome = await codeGenSession.result();
-
-      if (genOutcome.state === 'failed') {
-        return {
-          success: false,
-          error: {
-            code: 'SESSION_FAILED',
-            message: `Code generation session failed: ${codeGenSession.id}`,
-            recoverable: false,
-          },
-        };
-      }
-
-      // 2. Extract GitPatch
-      const snapshot = codeGenSession.snapshot();
-      let changeSet;
-
-      // Type guarding the `snapshot.changeSet` function because the underlying SDK
-      // abstraction may change or omit it.
-      if (typeof snapshot.changeSet === 'function') {
-         changeSet = snapshot.changeSet();
-      }
-
-      let gitPatchStr = '';
-
-      if (changeSet && changeSet.gitPatch && changeSet.gitPatch.unidiffPatch) {
-        // Prefer the raw unidiff patch from the GitPatch object if available
-        gitPatchStr = changeSet.gitPatch.unidiffPatch;
-      } else if (changeSet && typeof changeSet.parsed === 'function') {
-         // Fallback to rebuilding it from parsed diff
-         const parsed = changeSet.parsed();
-         for(const file of parsed.files) {
-             gitPatchStr += `--- a/${file.path}\n+++ b/${file.path}\n`;
-             for(const chunk of file.chunks) {
-                 gitPatchStr += `@@ -${chunk.oldStart},${chunk.oldLines} +${chunk.newStart},${chunk.newLines} @@\n`;
-                 for(const change of chunk.changes) {
-                     if(change.type === 'add') gitPatchStr += `+${change.content}\n`;
-                     if(change.type === 'del') gitPatchStr += `-${change.content}\n`;
-                     if(change.type === 'normal') gitPatchStr += ` ${change.content}\n`;
-                 }
-             }
-         }
-      } else {
-        // Fallback to checking generated files if changeset isn't structured nicely
-         const files = genOutcome.generatedFiles();
-         for (const [filename, content] of files.entries()) {
-             gitPatchStr += `File: ${filename}\n${content.content}\n`;
-         }
-      }
-
-      if (!gitPatchStr || gitPatchStr.trim() === '') {
-        return {
-          success: false,
-          error: {
-            code: 'NO_CHANGES_GENERATED',
-            message: 'The agent did not generate any code changes.',
-            recoverable: false,
-          },
-        };
-      }
-
-      this.log('\n--- Extracted Patch Content ---', input.json);
-      this.log(gitPatchStr, input.json);
-      this.log('-------------------------------\n', input.json);
-
-      this.log('Starting review session...', input.json);
-
-      // 3. Review the code
-      const reviewSession = await jules.session({
-        prompt: `Review the following code change patch and determine if it adheres to clean coding standards.
-Provide a short summary of the issues found and how they should be fixed.
-
-## Git Patch
-\`\`\`diff
-${gitPatchStr}
-\`\`\`
-`,
-        source,
-      });
-
-      this.log(`Review Session ID: ${reviewSession.id}`, input.json);
-
-      let reviewMessage = '';
-
-      // Stream to get live updates and block until finished
-      const revInfo = await reviewSession.info();
-      if (revInfo.state !== 'completed' && revInfo.state !== 'failed') {
-          try {
-              for await (const activity of reviewSession.stream()) {
-                 this.logActivity(activity, 'Review', input.json);
-                 if (activity.type === 'agentMessaged') {
-                      reviewMessage = activity.message;
-                 }
-              }
-          } catch(e) {
-              // Ignore stream fetch errors
-          }
-      }
-
-      const reviewOutcome = await reviewSession.result();
-
-      if (reviewOutcome.state === 'failed') {
-        return {
-          success: false,
-          error: {
-            code: 'SESSION_FAILED',
-            message: `Review session failed: ${reviewSession.id}`,
-            recoverable: false,
-          },
-        };
-      }
-
-      if (!reviewMessage) {
-        // Check files if no message
-        const files = reviewOutcome.generatedFiles();
-        if (files.size > 0) {
-           for (const [filename, content] of files.entries()) {
-               reviewMessage += `\nFile: ${filename}\n${content.content}\n`;
-           }
-        } else {
-           reviewMessage = "The review completed but the agent provided no feedback.";
-        }
-      }
+      // 2. Review the generated code
+      const reviewMessage = await this.reviewPatch(gitPatch, source, input.json);
 
       return {
         success: true,
         data: {
-          codeGenSessionId: codeGenSession.id,
-          reviewSessionId: reviewSession.id,
-          gitPatchStr,
+          codeGenSessionId: '',
+          reviewSessionId: '',
+          gitPatchStr: gitPatch,
           reviewMessage,
         },
       };
-
     } catch (error) {
-      return {
-        success: false,
-        error: {
-          code: 'UNKNOWN_ERROR',
-          message: error instanceof Error ? error.message : String(error),
-          recoverable: false,
-        },
-      };
+      return this.fail('UNKNOWN_ERROR', error instanceof Error ? error.message : String(error));
     }
   }
 
-  private async streamSessionActivities(session: Session, prefix: string, isJson: boolean) {
-    for await (const activity of session.stream()) {
-        this.logActivity(activity, prefix, isJson);
+  /** Generates code and extracts the git patch from the session snapshot. */
+  private async generateCode(
+    prompt: string,
+    source: { github: string; baseBranch: string },
+    json: boolean,
+  ): Promise<string | null> {
+    this.log('Starting code generation...', json);
+
+    const session = await jules.session({ prompt, source });
+    this.log(`Code Gen: ${session.id}`, json);
+
+    session.result().then(o => this.log(`Code Gen: ${o.state}`, json));
+    await logStream(session, {
+      progressUpdated: (a) => this.log(`[Gen] ${a.title}`, json),
+      agentMessaged: (a) => this.log(`[Gen] ${a.message}`, json),
+      planGenerated: (a) => this.log(`[Gen] Plan: ${a.plan.steps.length} steps`, json),
+    });
+
+    const snapshot = await session.snapshot();
+    if (snapshot.state === 'failed') return null;
+
+    // Prefer the raw unidiff patch
+    const changeSet = snapshot.changeSet();
+    if (changeSet?.gitPatch?.unidiffPatch) {
+      return changeSet.gitPatch.unidiffPatch;
     }
+
+    // Fallback: build a summary from parsed file metadata
+    if (changeSet && typeof changeSet.parsed === 'function') {
+      const files = changeSet.parsed().files;
+      return files.map(fileSummary).join('\n');
+    }
+
+    return null;
   }
 
-  private logActivity(activity: Activity, prefix: string, isJson: boolean) {
-      if (activity.type === 'progressUpdated') {
-         this.log(`[${prefix}] ${activity.title}`, isJson);
-      } else if (activity.type === 'agentMessaged') {
-         this.log(`[${prefix} Agent]: ${activity.message}`, isJson);
-      } else if (activity.type === 'planGenerated') {
-         this.log(`[${prefix}] Generated plan with ${activity.plan.steps.length} steps.`, isJson);
-      }
+  /** Reviews a git patch and returns the review message. */
+  private async reviewPatch(
+    gitPatch: string,
+    source: { github: string; baseBranch: string },
+    json: boolean,
+  ): Promise<string> {
+    this.log('Starting review...', json);
+
+    const session = await jules.session({
+      prompt: `Review this patch for clean coding standards. Summarize issues and fixes.\n\n\`\`\`diff\n${gitPatch}\n\`\`\``,
+      source,
+    });
+
+    this.log(`Review: ${session.id}`, json);
+
+    let message = '';
+
+    session.result().then(o => this.log(`Review: ${o.state}`, json));
+    await logStream(session, {
+      progressUpdated: (a) => this.log(`[Review] ${a.title}`, json),
+      agentMessaged: (a) => {
+        message = a.message;
+        this.log(`[Review] ${a.message}`, json);
+      },
+      planGenerated: (a) => this.log(`[Review] Plan: ${a.plan.steps.length} steps`, json),
+    });
+
+    return message || 'No feedback provided.';
   }
 
-  private log(message: string, isJson: boolean) {
-    if (isJson) {
-      console.error(message);
-    } else {
-      console.log(message);
-    }
+  private fail(code: ErrorCode, message: string, recoverable = false): ReviewResult {
+    return { success: false as const, error: { code, message, recoverable } };
   }
+
+  private log(msg: string, json: boolean) {
+    json ? console.error(msg) : console.log(msg);
+  }
+}
+
+/** Formats a single file change as a diff-like summary line. */
+function fileSummary(file: ParsedFile): string {
+  return `--- a/${file.path}\n+++ b/${file.path}\n@@ ${file.changeType}: +${file.additions}/-${file.deletions} @@`;
 }

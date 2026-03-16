@@ -40,52 +40,49 @@ export default defineCommand({
       process.exit(1);
     }
 
-    // 2. Encapsulate execution in the service abstraction
-    const response = await runAgent({
-      prompt: args.prompt,
-      repo: args.repo,
-      dryRun: args['dry-run'],
-    });
+    const isJson = args.output === 'json';
 
-    // 3. Render payload strictly conforming to output format expectation (Agent DX vs Human)
-    if (args.output === 'json') {
-      if (response.success) {
-        console.log(
-          JSON.stringify(
-            {
-              success: true,
-              result: response.result,
-              toolCalls: response.toolCalls,
-            },
-            null,
-            2,
-          ),
-        );
-      } else {
-        console.error(
-          JSON.stringify(
-            {
-              success: false,
-              error: response.error,
-            },
-            null,
-            2,
-          ),
-        );
-        process.exit(1);
-      }
+    if (!isJson) {
+      console.log('--- Streaming Response ---\n');
+    }
+
+    // 2. Execute with streaming callbacks for human-readable output
+    const result = await runAgent(
+      {
+        prompt: args.prompt,
+        repo: args.repo,
+        dryRun: args['dry-run'],
+      },
+      // onTextChunk: stream text to stdout in real-time
+      isJson ? undefined : (text) => process.stdout.write(text),
+      // onToolCall: show when a tool is being invoked
+      isJson ? undefined : (name, input) => {
+        console.log(`\n\n🔧 Calling tool: ${name}`);
+        console.log(`   Input: ${JSON.stringify(input)}`);
+        console.log('   Waiting for result...\n');
+      },
+      // onToolResult: show the tool's output
+      isJson ? undefined : (name, output) => {
+        console.log(`\n✅ Tool result (${name}):`);
+        console.log(`   ${output}\n`);
+      },
+    );
+
+    // 3. Handle final output
+    if (isJson) {
+      console.log(JSON.stringify({
+        success: result.success,
+        text: result.text,
+        toolCalls: result.toolCalls,
+        error: result.error,
+      }, null, 2));
+      if (!result.success) process.exit(1);
     } else {
-      if (response.success) {
-        console.log('\n--- Final Response from AI ---');
-        console.log(response.result);
-        if (response.toolCalls && response.toolCalls.length > 0) {
-          console.log('\n--- Tools Invoked ---');
-          response.toolCalls.forEach((c) => console.log(`- ${c.name}`));
-        }
-      } else {
-        console.error('Execution Failed:', response.error);
+      if (!result.success) {
+        console.error('\n\nExecution Failed:', result.error);
         process.exit(1);
       }
+      console.log('\n');
     }
   },
 });

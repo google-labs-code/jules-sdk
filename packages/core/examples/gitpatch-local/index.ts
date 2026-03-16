@@ -51,8 +51,8 @@ const main = defineCommand({
       console.log(
         JSON.stringify(
           {
-            inputSchema: zodToJsonSchema(ApplyPatchInputSchema),
-            outputSchema: zodToJsonSchema(ApplyPatchResultSchema),
+            inputSchema: zodToJsonSchema(ApplyPatchInputSchema as any),
+            outputSchema: zodToJsonSchema(ApplyPatchResultSchema as any),
           },
           null,
           2

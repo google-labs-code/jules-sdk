@@ -1,11 +1,11 @@
 import { tool } from 'ai';
-import { JulesCodingTaskInputSchema } from './spec.js';
+import { JulesCodingTaskInputSchema, JulesCodingTaskInput } from './spec.js';
 import { JulesCodingTaskHandler } from './handler.js';
 
 export const executeCodingTask = tool({
   description: 'Executes a complex coding task in an ephemeral cloud environment and returns the result (like a PR URL).',
-  parameters: JulesCodingTaskInputSchema,
-  execute: async (input) => {
+  inputSchema: JulesCodingTaskInputSchema,
+  execute: async (input: JulesCodingTaskInput) => {
     const handler = new JulesCodingTaskHandler();
     const result = await handler.execute(input);
 

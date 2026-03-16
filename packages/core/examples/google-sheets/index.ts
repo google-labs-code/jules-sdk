@@ -39,9 +39,9 @@ const mainCommand = defineCommand({
 
     if (!inputResult.success) {
       if (args.json) {
-        console.error(JSON.stringify({ error: inputResult.error.errors }));
+        console.error(JSON.stringify({ error: inputResult.error.issues }));
       } else {
-        console.error('Validation Error:', inputResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '));
+        console.error('Validation Error:', inputResult.error.issues.map((e) => `${(e.path as string[]).join('.')}: ${e.message}`).join(', '));
       }
       process.exit(1);
     }

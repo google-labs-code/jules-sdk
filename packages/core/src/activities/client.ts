@@ -23,6 +23,7 @@ import { ActivityStorage } from '../storage/types.js';
 import { ActivityClient, ListOptions, SelectOptions } from './types.js';
 import { isSessionFrozen } from '../utils/page-token.js';
 import { Platform } from '../platform/types.js';
+import { withFirstRequestRetry } from '../retry-utils.js';
 
 /**
  * Creates a filter string for the Jules API to fetch activities
@@ -167,12 +168,25 @@ export class DefaultActivityClient implements ActivityClient {
 
     let count = 0;
     let nextPageToken: string | undefined;
+    let isFirstCall = true;
 
     do {
-      const response = await this.network.listActivities({
-        filter,
-        pageToken: nextPageToken,
-      });
+      // Wrap the first API call with retry logic to handle 404 errors
+      // from eventual consistency when a session is newly created.
+      // Subsequent paginated calls don't need retry since the endpoint
+      // is confirmed available after the first successful response.
+      const response = isFirstCall
+        ? await withFirstRequestRetry(() =>
+            this.network.listActivities({
+              filter,
+              pageToken: nextPageToken,
+            }),
+          )
+        : await this.network.listActivities({
+            filter,
+            pageToken: nextPageToken,
+          });
+      isFirstCall = false;
 
       // Batch check for existing activities to reduce I/O overhead.
       // The API filter should prevent us from receiving activities we already

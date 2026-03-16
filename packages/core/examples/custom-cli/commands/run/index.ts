@@ -1,6 +1,5 @@
 import { defineCommand } from 'citty';
 import { handleRunTaskRequest } from './handler.js';
-import { niftty } from 'niftty';
 
 export default defineCommand({
   meta: {
@@ -83,7 +82,7 @@ export default defineCommand({
 
       if (response.data?.contentPreview) {
         console.log('\n--- Output Preview ---');
-        console.log(niftty(`\`\`\`\n${response.data.contentPreview}\n\`\`\``));
+        console.log(response.data.contentPreview);
       }
     }
 

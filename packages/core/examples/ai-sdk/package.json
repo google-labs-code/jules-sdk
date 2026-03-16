@@ -7,7 +7,7 @@
     "start": "bun run src/cli.ts"
   },
   "dependencies": {
-    "@ai-sdk/google": "^1.1.17",
+    "@ai-sdk/google": "^3.0.43",
     "@google/jules-sdk": "workspace:*",
     "ai": "^6.0.116",
     "citty": "^0.1.6",
