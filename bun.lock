@@ -143,6 +143,7 @@
         "@actions/core": "^1.10.1",
         "@actions/github": "^6.0.0",
         "@google/jules-sdk": "workspace:*",
+        "marked": "^17.0.0",
       },
       "devDependencies": {
         "@types/node": "^20.0.0",
