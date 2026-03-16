@@ -10,5 +10,5 @@
     "outDir": "./dist",
     "rootDir": ".."
   },
-  "include": ["index.ts", "../_shared/**/*.ts"]
+  "include": ["index.ts", "../_shared/check-env.ts"]
 }

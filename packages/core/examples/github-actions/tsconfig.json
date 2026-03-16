@@ -8,7 +8,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
-    "rootDir": ".."
+    "rootDir": "..",
+    "baseUrl": ".",
+    "paths": {
+      "@google/jules-sdk": ["./node_modules/@google/jules-sdk"]
+    }
   },
   "include": ["index.ts", "parse-command.test.ts", "../_shared/**/*.ts"]
 }
