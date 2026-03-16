@@ -39,7 +39,7 @@ export type ApiClientOptions = {
 };
 
 export type ApiRequestOptions = {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'DELETE';
   body?: Record<string, unknown>;
   query?: Record<string, any>;
   headers?: Record<string, string>;

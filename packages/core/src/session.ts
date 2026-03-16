@@ -371,6 +371,37 @@ export class SessionClientImpl implements SessionClient {
   }
 
   /**
+   * Deletes the session permanently.
+   * This removes the session from both the Jules API and the local cache.
+   * Once deleted, the session cannot be recovered.
+   *
+   * **Side Effects:**
+   * - Sends a DELETE request to `sessions/{id}`.
+   * - Removes the session from the local cache.
+   *
+   * **Error Handling:**
+   * - If the API call fails, the local cache is NOT modified.
+   * - If the session is not found (404), the local cache is still cleaned up.
+   */
+  async delete(): Promise<void> {
+    // Step 1: Call the API to delete the session
+    try {
+      await this.request(`sessions/${this.id}`, {
+        method: 'DELETE',
+      });
+    } catch (error: any) {
+      // Re-throw all errors except 404 (session already deleted)
+      if (error.status !== 404) {
+        throw error;
+      }
+      // If 404, continue to clean up local cache
+    }
+
+    // Step 2: Clean up local cache (only if API succeeded or returned 404)
+    await this.sessionStorage.delete(this.id);
+  }
+
+  /**
    * Retrieves the latest state of the underlying session resource.
    * Implements "Iceberg" Read-Through caching.
    */
