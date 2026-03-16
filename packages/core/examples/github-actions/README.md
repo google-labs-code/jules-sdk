@@ -1,6 +1,6 @@
 # GitHub Actions: `/jules` Slash Command
 
-A GitHub Action that responds to `/jules <message>` comments on issues and PRs. On Jules-created PRs, it detects the existing session from the branch name and replies to it (optionally including failed CI context). On other issues/PRs, it creates a new session.
+A GitHub Action that responds to `/jules <message>` comments onissues and PRs. On Jules-created PRs, it detects the existing session from the branch name and replies to it (optionally including failed CI context). On other issues/PRs, it creates a new session.
 
 ## Quick Start
 
@@ -23,6 +23,21 @@ jobs:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
 ```
 
+### Upload API Keys to GitHub Actions Secret Storage
+
+1. Go to your GitHub repository settings
+2. Click on "Secrets and variables" → "Actions"
+3. Click "New repository secret"
+4. Enter `JULES_API_KEY` as the name and your Jules API key as the value
+
+`GITHUB_TOKEN` is provided automatically by GitHub Actions. To enable CI check fetching, add permissions to the workflow:
+
+```yaml
+permissions:
+  checks: read
+```
+
+
 ## Markdown-Safe Command Parsing
 
 The `/jules` command is extracted using `marked.lexer()`, which parses the comment as proper markdown. Only paragraph tokens are inspected — `/jules` inside code blocks, blockquotes, headings, or inline code is ignored:
@@ -39,11 +54,11 @@ export function parseCommand(body: string): string | null {
 }
 ```
 
-This is covered by 18 tests in `parse-command.test.ts`, including edge cases like fenced code, blockquotes, and mixed formatting.
+This is covered by tests in `parse-command.test.ts`, including edge cases like fenced code, blockquotes, and mixed formatting.
 
 ## Reply-to-Session on Jules PRs
 
-When the comment is on a PR created by Jules, the action detects the session ID from the branch name (e.g., `jules/fix-bug-1234567` → session `1234567`). It then replies to the existing session via `session.send()` instead of creating a new one.
+When the comment is on a PR created by Jules, the action detects the session ID from the branch name (e.g., `fix-bug-1234567` → session `1234567`). It then replies to the existing session via `session.send()` instead of creating a new one.
 
 If `GITHUB_TOKEN` is available, it also fetches failed CI checks for the PR's head commit and appends them to the message.
 

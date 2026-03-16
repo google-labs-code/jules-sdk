@@ -7,6 +7,7 @@ Minimal server that creates a Jules session whenever it receives an HTTP POST. B
 ```bash
 npm install
 export JULES_API_KEY="your-api-key"
+export PORT=3000  # optional, defaults to 3000
 bun run index.ts
 ```
 

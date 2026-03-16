@@ -6,12 +6,18 @@ Fetches the text content of a Google Doc via the Docs API and sends it to Jules 
 
 ```bash
 export JULES_API_KEY="your-api-key"
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 
 # Analyze a Google Doc
 bun run start --document-id "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2ktIg" \
   --prompt "Summarize the key points"
 ```
+
+### Google Auth
+
+This example requires a [Google Cloud project](https://console.cloud.google.com/) with the **Google Docs API** enabled. The SDK uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) to authenticate:
+
+- **OAuth (local dev):** `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/documents.readonly`
+- **Service account (CI/production):** `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"` — [Create a service account key](https://cloud.google.com/iam/docs/keys-create-delete)
 
 ## Fetching Document Content
 
@@ -47,4 +53,4 @@ const outcome = await runRepolessSession(
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `JULES_API_KEY` | Yes | Jules API key |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Yes | Path to GCP service account JSON |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No | Service account JSON (alternative to `gcloud auth`) |

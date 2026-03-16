@@ -14,9 +14,32 @@ bun run start
 bun run start --repo your-org/your-repo --limit 20
 ```
 
-## Finding GitPatch Data in the Local Cache
 
-The handler queries the local activity cache with `jules.select()` and extracts `ChangeSetArtifact` data:
+## Reviewing Recent Code Changes
+
+This example searches your recent Jules activity history for code changes, sends them to a new session for code review, and extracts the generated `review.md` with sections for Bugs, Optimizations, Style, and Verdict.
+
+### What's a GitPatch?
+
+When a Jules session modifies code, the changes are stored as a **GitPatch** — a standard unified diff attached to the session's activity artifacts. It's the same format `git diff` produces:
+
+```diff
+--- a/src/auth.ts
++++ b/src/auth.ts
+@@ -12,7 +12,10 @@
+ export async function validateToken(token: string) {
+-  const decoded = jwt.verify(token, SECRET);
+-  return decoded;
++  try {
++    const decoded = jwt.verify(token, SECRET);
++    return { valid: true, payload: decoded };
++  } catch (err) {
++    return { valid: false, error: err.message };
++  }
+ }
+```
+
+In the SDK, this diff lives at `ChangeSetArtifact.gitPatch.unidiffPatch`. The handler queries the local activity cache for a recent activity that has one:
 
 ```typescript
 const activities = await jules.select({
@@ -31,11 +54,7 @@ for (const activity of activities) {
 }
 ```
 
-This searches recent activities for one that produced a changeset with a unidiff patch.
-
-## Structured Code Review Output
-
-The diff is sent to a new Jules session with a prompt that asks for a structured `review.md` with sections: Bugs, Optimizations, Style, and Verdict. The generated file is extracted from the session outcome:
+Once found, the diff is sent to a new session for review. The generated `review.md` is extracted from the session outcome:
 
 ```typescript
 const reviewFile = outcome.generatedFiles().get('review.md');

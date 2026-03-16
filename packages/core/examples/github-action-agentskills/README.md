@@ -23,6 +23,13 @@ jobs:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
 ```
 
+### Upload API Key to GitHub Actions Secret Storage
+
+1. Go to your GitHub repository settings
+2. Click on "Secrets and variables" → "Actions"
+3. Click "New repository secret"
+4. Enter `JULES_API_KEY` as the name and your Jules API key as the value
+
 ## Repository Analysis and Skill Generation
 
 The action reads the current repo/branch from the GitHub Actions context and creates a session that:

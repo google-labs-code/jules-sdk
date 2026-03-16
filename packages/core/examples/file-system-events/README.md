@@ -7,14 +7,17 @@ Watches a local directory with `chokidar` and triggers a Jules session whenever 
 ```bash
 npm install
 export JULES_API_KEY="your-api-key"
+export WATCH_DIR="watched-directory"  # optional, defaults to watched-directory
 bun run index.ts
 ```
 
-Creates `watched-directory/` and starts watching. Trigger a session:
+Creates the watch directory and starts watching. Trigger a session:
 
 ```bash
 echo "console.log('hello')" > watched-directory/test.js
 ```
+
+`WATCH_DIR` must resolve inside the working directory — paths containing `..` that escape `cwd` are rejected to prevent path traversal.
 
 ## Event-Driven Session Creation
 

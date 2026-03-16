@@ -87,7 +87,7 @@ app.get('/api/sessions/:id/stream', async (c) => {
   });
 });
 
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 console.log(`Hono server running at http://localhost:${port}`);
 
 serve({

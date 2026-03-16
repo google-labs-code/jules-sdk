@@ -7,10 +7,11 @@ Hono backend with three endpoints covering the main Jules API patterns: session 
 ```bash
 npm install
 export JULES_API_KEY="your-api-key"
+export PORT=3000  # optional, defaults to 3000
 bun run index.ts
 ```
 
-Server starts on `http://localhost:3000`.
+Server starts on `http://localhost:$PORT`.
 
 ## Session Creation
 

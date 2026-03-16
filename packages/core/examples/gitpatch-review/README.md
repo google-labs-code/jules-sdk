@@ -1,6 +1,6 @@
 # GitPatch Review
 
-Full code review pipeline: creates a session to generate code, extracts the diff, then creates a second session to review it. Supports both unidiff patch extraction and fallback to parsed file metadata. Includes an E2E test.
+End-to-end code review pipeline: creates a session to generate code, extracts the resulting diff, then sends that diff to a second session for review. The two-session pattern lets you separate generation from evaluation.
 
 ## Quick Start
 
@@ -19,24 +19,53 @@ bun run start --prompt "Refactor utils" --repo owner/repo --dry-run
 
 ## Two-Session Generate → Review Pipeline
 
-1. **Code generation** — Creates a session with the prompt and GitHub source. Streams progress via `logStream()`.
+### 1. Code Generation
 
-2. **Patch extraction** — After streaming, calls `session.snapshot()` and extracts the diff. Tries `changeSet().gitPatch.unidiffPatch` first; if unavailable, falls back to `changeSet().parsed().files` for a file-level summary.
+Creates a session with the prompt and GitHub source. Streams progress via `logStream()`.
 
-3. **Code review** — Sends the diff to a second session that reviews it for clean coding standards. Captures the last `agentMessaged` activity as the review output.
+### 2. GitPatch Extraction
 
-## Parsed File Fallback
+After the session completes, `session.snapshot()` returns the full session state. The handler extracts the unidiff from `changeSet().gitPatch.unidiffPatch` — a standard unified diff:
 
-When the raw unidiff isn't available, the handler builds a summary from parsed file metadata:
+```diff
+--- a/src/utils.ts
++++ b/src/utils.ts
+@@ -5,6 +5,9 @@
+ export function parseInput(raw: string) {
+   const trimmed = raw.trim();
++  if (!trimmed) {
++    throw new Error('Input cannot be empty');
++  }
+   return JSON.parse(trimmed);
+ }
+```
+
+In code:
+
+```typescript
+const snapshot = await session.snapshot();
+const changeSet = snapshot.changeSet();
+const gitPatch = changeSet?.gitPatch?.unidiffPatch;
+```
+
+### 3. Fallback to Parsed File Metadata
+
+When the raw unidiff isn't available, the handler falls back to `changeSet().parsed().files`, which provides structured file-level change metadata:
 
 ```typescript
 const files = changeSet.parsed().files;
-return files.map(f => `--- a/${f.path}\n+++ b/${f.path}\n@@ ${f.changeType}: +${f.additions}/-${f.deletions} @@`).join('\n');
+return files.map(f =>
+  `--- a/${f.path}\n+++ b/${f.path}\n@@ ${f.changeType}: +${f.additions}/-${f.deletions} @@`
+).join('\n');
 ```
+
+### 4. Code Review
+
+The diff (or fallback summary) is sent to a second session that reviews it for coding standards. The last `agentMessaged` activity is captured as the review output.
 
 ## E2E Testing
 
-`e2e-test.ts` runs the full pipeline against a real repository, verifying that both sessions complete and produce output. Run with:
+`e2e-test.ts` runs the full pipeline against a real repository, verifying that both sessions complete and produce output:
 
 ```bash
 bun test
