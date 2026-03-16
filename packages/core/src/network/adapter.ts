@@ -19,6 +19,7 @@ import { NetworkClient } from '../activities/client.js';
 import { Activity } from '../types.js';
 import { ListOptions } from '../activities/types.js';
 import { mapRestActivityToSdkActivity } from '../mappers.js';
+import { withFirstRequestRetry } from '../retry-utils.js';
 
 import { Platform } from '../platform/types.js';
 
@@ -79,11 +80,21 @@ export class NetworkAdapter implements NetworkClient {
    * This stream never ends unless the process is terminated.
    */
   async *rawStream(): AsyncIterable<Activity> {
+    let isFirstPoll = true;
+
     while (true) {
       let pageToken: string | undefined = undefined;
 
       do {
-        const response = await this.listActivities({ pageToken });
+        // On the first poll, wrap with retry to handle 404 from eventual
+        // consistency when sessions are freshly created.
+        const response: { activities: Activity[]; nextPageToken?: string } = isFirstPoll
+          ? await withFirstRequestRetry(() =>
+              this.listActivities({ pageToken }),
+            )
+          : await this.listActivities({ pageToken });
+
+        isFirstPoll = false;
 
         for (const activity of response.activities) {
           yield activity;
