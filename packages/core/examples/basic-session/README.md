@@ -1,36 +1,45 @@
-# Basic Session Example
+# Basic Session
 
-This example demonstrates how to use the Jules SDK to create a simple interactive session. It will use the `jules.session` method to connect to the Jules API, create a session without a specific repository context (a "Repoless" session), provide a prompt to an AI agent, and wait for the results.
+Creates a repoless Jules session (no GitHub repository) and streams the agent's response in real time. The simplest starting point for the SDK — 25 lines covering session creation, streaming, and result handling.
 
-## Requirements
-
-- Node.js >= 18 or Bun
-- A Jules API Key (`JULES_API_KEY` environment variable)
-
-## Setup
-
-1. Make sure you have installed the SDK dependencies in the project root.
-
-2. Export your Jules API key:
+## Quick Start
 
 ```bash
-export JULES_API_KEY="your-api-key-here"
-```
-
-## Running the Example
-
-Using `bun`:
-
-```bash
+export JULES_API_KEY="your-api-key"
 bun run index.ts
 ```
 
-Using `npm` and `tsx` (or similar TypeScript runner):
+## Non-blocking Result Handling
 
-```bash
-npx tsx index.ts
+`session.result()` returns a promise that resolves when the session finishes. Calling `.then()` on it lets you collect the final state (PR URL, generated files) without blocking the activity stream:
+
+```typescript
+session.result().then(outcome => {
+  console.log(`State: ${outcome.state}`);
+  console.log(`PR: ${outcome.pullRequest?.url ?? 'none'}`);
+  console.log(`Files: ${outcome.generatedFiles().all().length}`);
+});
 ```
 
-## What it does
+## Typed Activity Streaming
 
-The script creates a session using `jules.session` and asks the agent to write a haiku. It then waits for the result and retrieves the output. This is a basic demonstration of the isolated core Jules API.
+`logStream()` subscribes to session events using a handler map. Each key is an activity type, each value is a callback with the correct type narrowed automatically:
+
+```typescript
+await logStream(session, {
+  agentMessaged: (a) => console.log(`Agent: ${a.message}`),
+  progressUpdated: (a) => console.log(`Progress: ${a.title}`),
+  planGenerated: (a) => console.log(`Plan: ${a.plan.steps.length} steps`),
+  sessionCompleted: () => console.log('Done!'),
+});
+```
+
+Unspecified activity types are silently ignored — no switch statements needed. This pattern comes from the shared `_shared/log-stream.ts` helper, which wraps `session.stream()`.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `index.ts` | Session creation, result handling, streaming |
+| `../_shared/log-stream.ts` | `logStream()` — typed handler map over `session.stream()` |
+| `../_shared/check-env.ts` | Guards against missing `JULES_API_KEY` |

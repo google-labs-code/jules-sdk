@@ -6,7 +6,15 @@ import '../_shared/check-env.js';
 import { resolveSource } from '../_shared/resolve-source.js';
 import { logStream } from '../_shared/log-stream.js';
 
-const WATCH_DIR = path.join(process.cwd(), 'watched-directory');
+const rawDir = process.env.WATCH_DIR || 'watched-directory';
+const WATCH_DIR = path.resolve(process.cwd(), rawDir);
+
+// Guard against path traversal (e.g., WATCH_DIR="../../etc")
+if (!WATCH_DIR.startsWith(process.cwd())) {
+  console.error(`Error: WATCH_DIR must resolve inside the working directory. Got: ${WATCH_DIR}`);
+  process.exit(1);
+}
+
 await fs.mkdir(WATCH_DIR, { recursive: true });
 
 const source = resolveSource();

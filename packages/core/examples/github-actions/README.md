@@ -1,59 +1,74 @@
-# GitHub Actions Example
+# GitHub Actions: `/jules` Slash Command
 
-This example demonstrates how to use the Jules SDK within a GitHub Action to automate workflows.
+A GitHub Action that responds to `/jules <message>` comments onissues and PRs. On Jules-created PRs, it detects the existing session from the branch name and replies to it (optionally including failed CI context). On other issues/PRs, it creates a new session.
 
-## Overview
+## Quick Start
 
-This example creates a custom GitHub Action that:
-1. Takes a `prompt` input.
-2. Reads the `JULES_API_KEY` from the environment.
-3. Automatically uses the current repository and branch as context.
-4. Starts a Jules session to perform the task.
-5. Monitors the progress and outputs the resulting Pull Request URL.
-
-## Files
-
-- `index.ts`: The main action logic using the Jules SDK.
-- `action.yml`: The metadata file that defines the action inputs, outputs, and runtime.
-- `package.json`: Dependencies for the action (`@actions/core`, `@actions/github`, `@google/jules-sdk`).
-
-## Usage
-
-You can use this action in your own GitHub workflows by referencing its path or publishing it.
-
-Here is an example workflow file (`.github/workflows/jules.yml`) that triggers the agent whenever an issue is labeled `agent-fix`:
+Add to `.github/workflows/jules.yml`:
 
 ```yaml
-name: Jules Agent Workflow
-
+name: Jules Agent
 on:
-  issues:
-    types: [labeled]
+  issue_comment:
+    types: [created]
 
 jobs:
-  run-jules:
-    if: github.event.label.name == 'agent-fix'
+  jules:
+    if: contains(github.event.comment.body, '/jules')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run Jules Agent
-        uses: ./packages/core/examples/github-actions # Path to where this action is located
+      - uses: actions/checkout@v4
+      - uses: ./packages/core/examples/github-actions
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-        with:
-          prompt: "Fix the following issue: ${{ github.event.issue.title }}\n\n${{ github.event.issue.body }}"
 ```
 
-## Running the Example Locally
+### Upload API Keys to GitHub Actions Secret Storage
 
-To compile the TypeScript action:
+1. Go to your GitHub repository settings
+2. Click on "Secrets and variables" → "Actions"
+3. Click "New repository secret"
+4. Enter `JULES_API_KEY` as the name and your Jules API key as the value
 
-```bash
-cd packages/core/examples/github-actions
-npm install
-npm run build
+`GITHUB_TOKEN` is provided automatically by GitHub Actions. To enable CI check fetching, add permissions to the workflow:
+
+```yaml
+permissions:
+  checks: read
 ```
 
-The compiled JavaScript will be placed in `dist/index.js`, which is what GitHub Actions will execute.
+
+## Markdown-Safe Command Parsing
+
+The `/jules` command is extracted using `marked.lexer()`, which parses the comment as proper markdown. Only paragraph tokens are inspected — `/jules` inside code blocks, blockquotes, headings, or inline code is ignored:
+
+```typescript
+export function parseCommand(body: string): string | null {
+  const tokens = marked.lexer(body);
+  for (const token of tokens) {
+    if (token.type !== 'paragraph') continue;
+    const text = token.text.trim();
+    if (text.startsWith('/jules ')) return text.slice('/jules '.length).trim();
+  }
+  return null;
+}
+```
+
+This is covered by tests in `parse-command.test.ts`, including edge cases like fenced code, blockquotes, and mixed formatting.
+
+## Reply-to-Session on Jules PRs
+
+When the comment is on a PR created by Jules, the action detects the session ID from the branch name (e.g., `fix-bug-1234567` → session `1234567`). It then replies to the existing session via `session.send()` instead of creating a new one.
+
+If `GITHUB_TOKEN` is available, it also fetches failed CI checks for the PR's head commit and appends them to the message.
+
+## Creating New Sessions
+
+On non-Jules issues/PRs, the action creates a new session with `autoPr: true` targeting the repo and base branch. Progress is streamed via `logStream()` and the PR URL is set as an action output.
+
+## Configuration
+
+| Input/Env | Required | Description |
+|-----------|----------|-------------|
+| `JULES_API_KEY` | Yes | Jules API key (set as repository secret) |
+| `GITHUB_TOKEN` | No | Enables fetching failed CI check context |

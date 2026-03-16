@@ -1,58 +1,56 @@
-# Google Docs Context Example CLI
+# Google Docs Context
 
-This example demonstrates how to extract text content from a Google Document using the `googleapis` library and pass it as context into an interactive Jules session prompt using a Command Line Interface (CLI).
+Fetches the text content of a Google Doc via the Docs API and sends it to Jules as context for a repoless session. The agent can then analyze, summarize, or act on the document content.
 
-It implements the [Typed Service Contract](https://raw.githubusercontent.com/davideast/stitch-mcp/refs/heads/main/.gemini/skills/typed-service-contract/skill.md) pattern and follows [Agent CLI Best Practices](https://justin.poehnelt.com/posts/rewrite-your-cli-for-ai-agents.md) with a dedicated `--json` output format.
-
-## Requirements
-
-- Node.js >= 18 or Bun
-- A Jules API Key (`JULES_API_KEY` environment variable)
-- Google Cloud Service Account Credentials configured for application default (`GOOGLE_APPLICATION_CREDENTIALS` environment variable)
-- Enable the Google Docs API in your Google Cloud Project.
-
-## Setup
-
-1. Make sure you have installed the SDK dependencies in the project root by running `bun install`.
-
-2. Export your Jules API key:
-   ```bash
-   export JULES_API_KEY="your-api-key-here"
-   ```
-
-3. Export your Google Cloud Credentials JSON file path:
-   ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-file.json"
-   ```
-
-## Running the CLI
-
-Navigate to this directory and use `bun` to run the file. Use the `--help` flag to see available options:
+## Quick Start
 
 ```bash
-bun run index.ts --help
+export JULES_API_KEY="your-api-key"
+
+# Analyze a Google Doc
+bun run start --document-id "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2ktIg" \
+  --prompt "Summarize the key points"
 ```
 
-### Basic Usage
+### Google Auth
 
-Provide the document ID and your prompt for the AI agent:
+This example requires a [Google Cloud project](https://console.cloud.google.com/) with the **Google Docs API** enabled. The SDK uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) to authenticate:
 
-```bash
-bun run index.ts \
-  --documentId "195j9e5Wezsq1Z-Jz3R8Q1R_1Z-Jz3R8Q1R_1Z-Jz3R" \
-  --prompt "Summarize the key points of this document."
+- **OAuth (local dev):** `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/documents.readonly`
+- **Service account (CI/production):** `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"` — [Create a service account key](https://cloud.google.com/iam/docs/keys-create-delete)
+
+## Fetching Document Content
+
+The handler authenticates with Google's Docs API using Application Default Credentials and fetches the document's structural elements:
+
+```typescript
+const docs = google.docs({ version: 'v1', auth });
+const response = await docs.documents.get({ documentId });
 ```
 
-### Agent / Machine-Readable Mode
+Each structural element's paragraphs are flattened into plain text via `extractParagraphText()`, which iterates `paragraph.elements[].textRun.content`.
 
-To output the result as a strictly formatted JSON object suitable for agents and downstream parsing, use the `--json` flag:
+## Repoless Session with Document Context
 
-```bash
-bun run index.ts --documentId "..." --prompt "..." --json
+The extracted text is appended to the user's prompt and sent to a repoless session via the shared `runRepolessSession()` helper:
+
+```typescript
+const outcome = await runRepolessSession(
+  `${input.prompt}\n\n## Source Document Content\n${docText}`,
+);
 ```
 
-## What it does
+## Typed Service Contract Pattern
 
-The script uses `citty` to parse arguments and `zod` to validate input schemas (Spec and Handler pattern). It authenticates with Google Cloud using Application Default Credentials to retrieve the text content from the provided document ID.
+| File | Purpose |
+|------|---------|
+| `spec.ts` | Zod schemas for `RunSessionInput` (documentId, prompt) and `RunSessionResult` |
+| `handler.ts` | `GoogleDocsSessionHandler` — fetches doc, runs session |
+| `index.ts` | CLI wrapper with `citty` |
 
-It extracts the text, appends it to your prompt, and starts a `jules.session()`. It waits for the agent to complete the task and displays the final analysis response or output files, returning structured errors on failure without throwing unhandled exceptions.
+## Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JULES_API_KEY` | Yes | Jules API key |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No | Service account JSON (alternative to `gcloud auth`) |

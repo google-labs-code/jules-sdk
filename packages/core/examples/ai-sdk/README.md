@@ -1,44 +1,75 @@
-# Vercel AI SDK Integration Example (Agent DX CLI)
+# Vercel AI SDK Integration
 
-This example demonstrates how to integrate the Jules SDK with the Vercel AI SDK to provide AI-powered coding capabilities within an AI application.
+CLI that uses the Vercel AI SDK's `streamText()` with Google's Gemini model to run an AI agent that can delegate coding tasks to Jules as a tool. The agent decides when to call Jules based on the prompt, streams its reasoning in real-time, and reports the results.
 
-Following **Agent DX best practices**, this example is packaged as a CLI built with `citty`. It utilizes the `generateText` function from the `ai` package and Google's `gemini-3.1-flash-lite-preview` model.
+## Quick Start
 
-The AI is given a composable, isolated tool called `executeCodingTask` that internally uses the Jules SDK to spin up a cloud environment and perform complex coding tasks. The tool is implemented using the **Typed Service Contract** pattern, providing rigorous type safety, input parsing (via Zod), and explicit error handling (Result Pattern).
-
-## Prerequisites
-
-- Node.js or Bun installed.
-- A Jules API Key. Set it using:
-  ```bash
-  export JULES_API_KEY=<your-api-key>
-  ```
-- A Google Generative AI API Key. Set it using:
-  ```bash
-  export GOOGLE_GENERATIVE_AI_API_KEY=<your-google-api-key>
-  ```
-
-## Running the Example
-
-You can run this example using `bun`:
-
-### Standard Human-Friendly Output
 ```bash
-bun start start --prompt "Fix visibility issues by changing background colors to a zinc palette." --repo "your-org/your-repo"
+npm install
+export JULES_API_KEY="your-api-key"
+export GOOGLE_GENERATIVE_AI_API_KEY="your-google-ai-key"
+
+# The agent decides if it needs Jules
+bun start start --prompt "Write a Python script that sorts a list of numbers"
+
+# Target a specific repo (enables auto-PR)
+bun start start --prompt "Add input validation" --repo owner/repo
+
+# JSON output for programmatic use
+bun start start --prompt "Fix the bug in auth.ts" --output json
+
+# Dry run (validates without creating real sessions)
+bun start start --prompt "Refactor the utils module" --dry-run
 ```
 
-### Agent-Friendly JSON Output (Agent DX)
-```bash
-bun start start --prompt "Fix visibility issues." --output json
+## Jules as a Vercel AI SDK Tool
+
+The `executeCodingTask` tool wraps a Jules session in the AI SDK's `tool()` format with Zod-validated inputs:
+
+```typescript
+const result = streamText({
+  model: google('gemini-3.1-flash-lite-preview'),
+  prompt,
+  tools: { executeCodingTask },
+  stopWhen: stepCountIs(3),
+});
 ```
 
-## Architecture
+When the model decides a coding task is needed, it calls the tool. The handler creates a Jules session, streams its activities, and returns the final state including PR URL and generated files.
 
-This project is structured for predictability and minimizing merge conflicts:
+## Input Hardening
 
-1.  **CLI Entrypoint (`src/cli.ts`)**: Minimal registration boundary built with `citty`. It lazily registers subcommands (e.g. `start`) to avoid central hotspots as the CLI scales.
-2.  **Command Modules (`src/commands/*.ts`)**: Isolated entrypoints for flags, CLI argument parsing, environment variable logic checks, and selecting the output format (`--output json`).
-3.  **Services (`src/services/agent.ts`)**: Encapsulates the Vercel AI SDK logic (`generateText` with `@ai-sdk/google`) to abstract the specific LLM interactions away from the CLI layer.
-4.  **Tool Spec (`src/tools/jules-coding-task/spec.ts`)**: The Contract boundary. Parses tool input using Zod and defines a strict `Result` return type.
-5.  **Tool Handler (`src/tools/jules-coding-task/handler.ts`)**: The impure business logic. It initiates `jules.session()`, waits for the session to complete, and evaluates the `session.result()`. It *never* throws errors.
-6.  **Tool Wrapper (`src/tools/jules-coding-task/index.ts`)**: Maps the typed contract into a standard Vercel AI SDK `tool()` wrapper.
+Zod schemas reject malicious or hallucinated inputs — control characters, pre-URL-encoded strings, path traversals, query params, and invalid repo formats are all caught at the boundary:
+
+```typescript
+const SafeRepoSchema = z.string()
+  .regex(/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/)
+  .refine(v => !v.includes('..'), 'Path traversal');
+```
+
+## Streaming Callbacks
+
+`runAgent()` accepts callbacks for real-time output:
+- `onTextChunk` — LLM text deltas as they arrive
+- `onToolCall` — when the model invokes `executeCodingTask`
+- `onToolResult` — when the Jules session returns
+
+## Configuration
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--prompt` | — | Required. The coding task |
+| `--repo` | — | GitHub repo (`owner/repo`, enables auto-PR) |
+| `--output` | `text` | Output format: `text` or `json` |
+| `--dry-run` | `false` | Validate without creating sessions |
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/cli.ts` | CLI entry with `citty` |
+| `src/commands/start.ts` | Env validation, calls `runAgent()` |
+| `src/services/agent.ts` | `streamText()` orchestration with Gemini |
+| `src/tools/jules-coding-task/handler.ts` | Jules session creation and streaming |
+| `src/tools/jules-coding-task/spec.ts` | Zod schemas with input hardening |
+| `src/tools/jules-coding-task/index.ts` | AI SDK `tool()` wrapper |

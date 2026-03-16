@@ -1,35 +1,52 @@
-# Custom MCP Server CLI Example
+# Custom MCP Server
 
-This example demonstrates how to create a custom MCP (Model Context Protocol) server wrapped as a CLI tool using the Jules TypeScript SDK, `citty`, and the **Typed Service Contract** pattern.
+An MCP server that exposes a `session_analysis` tool for analyzing Jules sessions. Given a session ID, it retrieves the session state, streams through all activities, collects the history, and returns a structured summary including activity count, generated files, and the last agent message.
 
-Instead of basic data forwarding, it provides an `analyze_session` tool. It hydrates a Jules session snapshot, extracting the actual file states and final AI context, avoiding partial cache-only issues.
+## Quick Start
 
-## Setup and Running
+```bash
+npm install
+export JULES_API_KEY="your-api-key"
+bun run start
+```
 
-1. Ensure your `JULES_API_KEY` is set in your environment:
-   ```bash
-   export JULES_API_KEY="your-jules-api-key"
-   ```
+Starts an MCP server on stdio transport.
 
-2. Run the example using Bun (or another TypeScript runner like `tsx`):
-   ```bash
-   bun run index.ts
-   ```
+## `session_analysis` Tool
 
-## Integration
+Given a session ID, the handler:
 
-You can add this server to your local MCP client configuration (e.g., Claude Desktop, Zed, or a VS Code MCP extension) to allow it to utilize Jules' agentic capabilities directly from your IDE or chat client.
+1. Reconnects to the session with `jules.session(sessionId)`
+2. Fetches session info with `session.info()` for current state
+3. Iterates `session.stream()` to collect the full activity history
+4. Calls `session.snapshot()` for generated file counts
+5. Returns a structured summary
 
-Example Claude Desktop Config:
+```typescript
+const session = jules.session(input.sessionId);
+const outcome = await session.info();
+
+const history = [];
+for await (const activity of session.stream()) {
+  history.push(activity);
+}
+
+const snapshot = await session.snapshot();
+```
+
+Errors (including `JulesApiError`) are caught and returned as typed error results instead of throwing.
+
+## Connecting to the Server
+
+Add to your MCP client configuration:
+
 ```json
 {
   "mcpServers": {
-    "jules-custom-cli": {
+    "jules-analysis": {
       "command": "bun",
-      "args": ["run", "/absolute/path/to/this/example/index.ts"],
-      "env": {
-        "JULES_API_KEY": "your-api-key"
-      }
+      "args": ["run", "/path/to/examples/custom-mcp-server/src/index.ts"],
+      "env": { "JULES_API_KEY": "your-key" }
     }
   }
 }
@@ -37,6 +54,8 @@ Example Claude Desktop Config:
 
 ## Typed Service Contract Pattern
 
-This CLI implements the Vertical Slice Architecture using a strict `Spec` and `Handler` pattern in `src/commands/session-analysis/`:
-- **spec.ts**: Defines the input Schema using Zod (parsing input, enforcing boundaries), exhaustively declares error codes, and strictly types the return interface as a Discriminated Union `Result`.
-- **handler.ts**: The impure execution context. It implements the interface, interacts with the Jules SDK network layer, and maps runtime and API errors to the defined Spec failures instead of throwing them wildly.
+| File | Purpose |
+|------|---------|
+| `src/commands/session-analysis/spec.ts` | Zod schemas: `SessionAnalysisInput`, `SessionAnalysisResult` |
+| `src/commands/session-analysis/handler.ts` | `SessionAnalysisHandler` — reconnects, streams, analyzes |
+| `src/index.ts` | MCP server setup with `registerTool()` |

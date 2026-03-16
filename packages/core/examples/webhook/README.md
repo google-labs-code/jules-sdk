@@ -1,36 +1,28 @@
-# Webhook Integration Example
+# Webhook Handler
 
-This example demonstrates how to create a simple webhook server using [Hono](https://hono.dev/) that listens for incoming HTTP `POST` requests and automatically creates a new Jules session.
+Minimal server that creates a Jules session whenever it receives an HTTP POST. Built with Hono — accepts any JSON payload and embeds it in the session prompt.
 
-This is particularly useful for event-driven workflows, such as automatically running an agent when a specific event occurs in another system (e.g., a GitHub issue being created, a new row added to a database, or a custom application event).
+## Quick Start
 
-## Prerequisites
+```bash
+npm install
+export JULES_API_KEY="your-api-key"
+export PORT=3000  # optional, defaults to 3000
+bun run index.ts
+```
 
-- Ensure you have [Bun](https://bun.sh/) installed, or another compatible runtime like Node.js.
-- Ensure you have your `JULES_API_KEY` set as an environment variable.
+```bash
+curl -X POST http://localhost:3000/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"event": "bug_report", "description": "Fix typo in README"}'
+```
 
-## Running the Example
+## Payload-Driven Session Creation
 
-1. Start the webhook server:
+The `/webhook` endpoint serializes the entire payload into the prompt via `JSON.stringify(payload)` and creates a session targeting a default GitHub repo. Returns the session ID immediately.
 
-   ```bash
-   bun install
-   bun run index.ts
-   ```
+## Production Considerations
 
-2. The server will start and listen on port `3000`.
-
-3. Send a test webhook payload using `curl` (or your preferred tool like Postman):
-
-   ```bash
-   curl -X POST http://localhost:3000/webhook \
-     -H "Content-Type: application/json" \
-     -d '{"event": "bug_report", "description": "Fix typo in README"}'
-   ```
-
-4. Check the server console logs. You should see the incoming payload and the ID of the newly created Jules session.
-
-## Notes
-
-- In a real-world scenario, you should validate the incoming webhook payload to ensure it comes from a trusted source (e.g., verifying a signature or secret token).
-- You can customize the `prompt` and `source` in `index.ts` to match your specific requirements and target repository.
+- Add webhook signature verification (e.g., GitHub's `X-Hub-Signature-256`)
+- Derive the target repo from the payload instead of hardcoding
+- Tailor the prompt template based on event type

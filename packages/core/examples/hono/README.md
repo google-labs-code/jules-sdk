@@ -1,98 +1,50 @@
-# Hono Integration Example
+# Hono Integration
 
-This example demonstrates how to integrate the Jules SDK with a [Hono](https://hono.dev/) backend application. It shows how to expose a lightweight API to manage and monitor long-running agent sessions.
+Hono backend with three endpoints covering the main Jules API patterns: session creation, status checking, and activity streaming via Server-Sent Events.
 
-## Features Illustrated
-
-1. **Creating Sessions**: A POST endpoint to create a new session based on user input.
-2. **Checking Status**: A GET endpoint to retrieve the latest state and information for an ongoing session.
-3. **Streaming Activities**: An endpoint using Server-Sent Events (SSE) to forward the agent's progress stream to the client in real time.
-
-## Requirements
-
-- Bun
-- A Jules API Key (`JULES_API_KEY` environment variable)
-
-## Setup
-
-1. Install dependencies from the monorepo root:
-
-   ```bash
-   bun install
-   ```
-
-2. Export your Jules API key:
-
-   ```bash
-   export JULES_API_KEY="your-api-key-here"
-   ```
-
-## Running the Example
-
-Start the Hono server:
+## Quick Start
 
 ```bash
-bun start
-# or bun dev for hot reloading
+npm install
+export JULES_API_KEY="your-api-key"
+export PORT=3000  # optional, defaults to 3000
+bun run index.ts
 ```
 
-The server will be running on `http://localhost:3000`.
+Server starts on `http://localhost:$PORT`.
 
-## Testing the Endpoints
+## Session Creation
 
-### 1. Create a session
-
-You can initiate a basic Repoless session by POSTing a prompt to `/api/sessions/create`.
+`POST /api/sessions/create` — accepts a prompt, creates a repoless session, and returns the session ID and initial state.
 
 ```bash
 curl -X POST http://localhost:3000/api/sessions/create \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "Write a short poem about the ocean"}'
+  -d '{"prompt": "Write a Python hello world script"}'
 ```
 
-**Expected Response:**
+Uses `jules.session({ prompt })` and fetches metadata with `session.info()`.
 
-```json
-{
-  "message": "Session created successfully",
-  "sessionId": "123456789...",
-  "status": "inProgress"
-}
-```
+## Session Status by ID
 
-### 2. Check session status
-
-Once you have a session ID, you can fetch its current state via the status endpoint.
+`GET /api/sessions/:id/status` — reconnects to an existing session with `jules.session(sessionId)` and returns its current state and creation time.
 
 ```bash
-curl http://localhost:3000/api/sessions/<your-session-id>/status
+curl http://localhost:3000/api/sessions/SESSION_ID/status
 ```
 
-**Expected Response:**
+## Activity Streaming via SSE
 
-```json
-{
-  "sessionId": "123456789...",
-  "state": "completed",
-  "createdAt": "2023-10-27T10:00:00Z"
-}
-```
-
-### 3. Stream session activities
-
-You can listen for real-time updates from an ongoing session using Server-Sent Events (SSE).
+`GET /api/sessions/:id/stream` — iterates `session.stream()` and forwards each activity as a Server-Sent Event using Hono's `streamSSE()`.
 
 ```bash
-curl -N http://localhost:3000/api/sessions/<your-session-id>/stream
+curl -N http://localhost:3000/api/sessions/SESSION_ID/stream
 ```
 
-**Expected Output (Stream):**
+Each event contains the activity type, timestamp, and type-specific fields (e.g., `message` for `agentMessaged`). A `done` event fires on completion.
 
-```text
-data: {"type":"sessionStarted","timestamp":"2023-10-27T10:00:00Z","summary":"Session started"}
-
-data: {"type":"agentMessaged","timestamp":"2023-10-27T10:00:05Z","message":"Here is the poem...","summary":"Agent replied"}
-
-event: done
-data: Session completed
+From a browser:
+```javascript
+const source = new EventSource('/api/sessions/SESSION_ID/stream');
+source.onmessage = (e) => console.log(JSON.parse(e.data));
 ```

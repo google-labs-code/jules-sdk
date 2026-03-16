@@ -1,69 +1,44 @@
-# Next.js Integration Example
+# Next.js Integration
 
-This example demonstrates how to integrate the Jules SDK into a Next.js application using the App Router.
+Two patterns for using Jules in a Next.js App Router application: a Server Action for form-based workflows and an API Route Handler for REST-style integrations.
 
-It covers two common patterns for starting Jules sessions from a Next.js application:
-1. **Server Actions:** Ideal for form submissions and simple mutations.
-2. **API Route Handlers:** Ideal for webhooks, external client integrations, or more complex APIs.
+## Quick Start
 
-## Prerequisites
+```bash
+npm install
+export JULES_API_KEY="your-api-key"
+bun run index.ts
+```
 
-- A Jules API Key (`JULES_API_KEY` environment variable).
+Runs a self-test exercising both patterns without a full Next.js server.
 
-## How to use in your Next.js app
+## Server Action Pattern
 
-### 1. Server Actions
-
-You can use the `triggerJulesTask` pattern from `index.ts` directly in your Next.js application.
-
-Create a file like `app/actions.ts` and add `'use server'` at the top:
+Drop into `app/actions.ts`. Creates a repoless session — good for form submissions where a user types a task:
 
 ```typescript
 'use server'
-
-import { jules } from '@google/jules-sdk';
-
 export async function triggerJulesTask(prompt: string) {
   const session = await jules.session({ prompt });
   return { success: true, sessionId: session.id };
 }
 ```
 
-Then, import and call this action from your Client Components or Server Components.
+## API Route Handler Pattern
 
-### 2. API Route Handlers
-
-You can copy the `POST` function pattern to a file like `app/api/jules/route.ts` to create a REST endpoint for your Next.js application.
+Drop into `app/api/jules/route.ts`. Creates a repo-based session — better for external clients and webhooks:
 
 ```typescript
-import { jules } from '@google/jules-sdk';
-
 export async function POST(req: Request) {
-  const body = await req.json();
+  const { githubUrl, taskDescription } = await req.json();
   const session = await jules.session({
-    prompt: body.taskDescription,
-    source: { github: body.githubUrl },
+    prompt: taskDescription,
+    source: { github: githubUrl, baseBranch: 'main' },
   });
-
-  return new Response(JSON.stringify({ sessionId: session.id }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return Response.json({ sessionId: session.id });
 }
 ```
 
-## Running the Example Locally
+## Self-Test Mode
 
-The `index.ts` file includes a runnable test script to verify that both the Server Action function and the API Route function work as expected.
-
-Ensure you have your API key set:
-
-```bash
-export JULES_API_KEY="your-api-key-here"
-```
-
-Then, you can run the file using `bun` (or another runner like `tsx`):
-
-```bash
-bun run index.ts
-```
+When run directly, the script detects it via `import.meta.url` and calls both patterns, logging the session IDs. The same file works as both a module and a standalone script.
