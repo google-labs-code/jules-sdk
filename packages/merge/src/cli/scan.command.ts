@@ -25,7 +25,7 @@ export default defineCommand({
   args: {
     json: {
       type: 'string',
-      description: 'Raw JSON payload: { "prs": [1,2], "repo": "owner/repo", "base": "main" }',
+      description: 'Raw JSON payload: { "prs": [1,2], "repo": "owner/repo", "base": "main" } or { "all": true, "repo": "owner/repo", "base": "main" }',
     },
     prs: {
       type: 'string',
@@ -40,13 +40,29 @@ export default defineCommand({
       description: 'Base branch name (default: main)',
       default: 'main',
     },
+    all: {
+      type: 'boolean',
+      description: 'Scan all open PRs targeting --base (requires --repo and --base)',
+      default: false,
+    },
+    maxPrs: {
+      type: 'string',
+      description: 'Max PRs to scan when using --all (default: 25)',
+    },
+    labels: {
+      type: 'string',
+      description: 'Comma-separated labels to filter PRs (only with --all)',
+    },
   },
   async run({ args }) {
     try {
       const octokit = createMergeOctokit();
       const input =
         parseJsonInput(args.json) || {
-          prs: args.prs?.split(',').map(Number) || [],
+          prs: args.prs?.split(',').map(Number),
+          all: args.all || undefined,
+          maxPrs: args.maxPrs ? Number(args.maxPrs) : undefined,
+          labels: args.labels?.split(','),
           repo: args.repo || '',
           base: args.base,
         };

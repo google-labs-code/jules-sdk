@@ -16,15 +16,29 @@ import { z } from 'zod';
 
 // ─── Scan ───────────────────────────────────────────────────────
 
-export const ScanInputSchema = z.object({
-  prs: z.array(z.number()),
-  repo: z.string(),
-  base: z.string().optional(),
-  includeClean: z.boolean().optional(),
-});
+export const ScanInputSchema = z
+  .object({
+    prs: z.array(z.number()).optional(),
+    all: z.boolean().optional(),
+    maxPrs: z.number().int().positive().optional(),
+    labels: z.array(z.string()).optional(),
+    repo: z.string(),
+    base: z.string().optional(),
+    includeClean: z.boolean().optional(),
+  })
+  .refine(
+    (data) => (data.prs && data.prs.length > 0) || data.all === true,
+    { message: 'Either prs or --all must be provided' },
+  )
+  .refine(
+    (data) => !(data.prs && data.prs.length > 0 && data.all === true),
+    { message: 'Cannot use both --prs and --all' },
+  );
 
 export const ScanOutputSchema = z.object({
   status: z.enum(['conflicts', 'clean']),
+  discoveredPrs: z.number().optional(),
+  scannedPrs: z.number().optional(),
   base: z.object({
     branch: z.string(),
     sha: z.string(),

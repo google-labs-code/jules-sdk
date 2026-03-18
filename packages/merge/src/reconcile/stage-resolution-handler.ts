@@ -20,20 +20,26 @@ import { readManifest, writeManifest } from './manifest.js';
 import { validateFilePath } from '../shared/validators.js';
 import crypto from 'crypto';
 import fs from 'fs';
+import { z } from 'zod';
 
-export async function stageResolutionHandler(rawInput: any) {
-  const input = StageResolutionInputSchema.parse(rawInput);
-  validateFilePath(input.filePath);
+type StageInput = z.infer<typeof StageResolutionInputSchema>;
 
-  let fileContent = '';
-  if (input.content !== undefined) {
-    fileContent = input.content;
-  } else if (input.fromFile) {
+/** Resolve file content from inline content, a file path, or default to empty. */
+function resolveFileContent(input: StageInput): string {
+  if (input.content !== undefined) return input.content;
+  if (input.fromFile) {
     if (!fs.existsSync(input.fromFile)) {
       throw new Error(`File not found: ${input.fromFile}`);
     }
-    fileContent = fs.readFileSync(input.fromFile, 'utf-8');
+    return fs.readFileSync(input.fromFile, 'utf-8');
   }
+  return '';
+}
+
+export async function stageResolutionHandler(rawInput: unknown) {
+  const input = StageResolutionInputSchema.parse(rawInput);
+  validateFilePath(input.filePath);
+  const fileContent = resolveFileContent(input);
 
   const manifest = readManifest();
   if (!manifest) {
