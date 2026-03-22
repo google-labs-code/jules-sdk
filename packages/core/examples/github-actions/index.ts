@@ -47,8 +47,29 @@ export function parseCommand(body: string): string | null {
 }
 
 /** Extracts a session ID from a Jules branch name (e.g., `jules/fix-bug-1234567`). */
-function parseReplyTarget(context: typeof github.context): ReplyTarget | null {
-  const branch = context.payload.pull_request?.head?.ref ?? '';
+async function parseReplyTarget(context: typeof github.context): Promise<ReplyTarget | null> {
+  let branch = context.payload.pull_request?.head?.ref;
+  let sha = context.payload.pull_request?.head?.sha;
+
+  // If it's an issue_comment on a PR, the pull_request object is missing from the payload.
+  // We need to fetch it to get the branch name and head SHA.
+  if (!branch && context.payload.issue?.pull_request && process.env.GITHUB_TOKEN) {
+    try {
+      const octokit = github.getOctokit(process.env.GITHUB_TOKEN);
+      const { data: pr } = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: context.payload.issue.number,
+      });
+      branch = pr.head.ref;
+      sha = pr.head.sha;
+    } catch (e) {
+      core.warning(`Failed to fetch PR details: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (!branch) return null;
+
   const parts = branch.split('-');
   const lastPart = parts[parts.length - 1];
 
@@ -56,7 +77,7 @@ function parseReplyTarget(context: typeof github.context): ReplyTarget | null {
   if (lastPart && /^\d{7,}$/.test(lastPart)) {
     return {
       sessionId: lastPart,
-      sha: context.payload.pull_request?.head?.sha,
+      sha: sha,
     };
   }
 
@@ -131,8 +152,23 @@ async function createNewSession(cmd: JulesCommand, baseBranch: string): Promise<
 
 // --- Entry Point ---
 
-function resolveBaseBranch(context: typeof github.context): string {
+async function resolveBaseBranch(context: typeof github.context): Promise<string> {
   if (context.payload.pull_request?.base?.ref) return context.payload.pull_request.base.ref;
+  
+  if (context.payload.issue?.pull_request && process.env.GITHUB_TOKEN) {
+    try {
+      const octokit = github.getOctokit(process.env.GITHUB_TOKEN);
+      const { data: pr } = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: context.payload.issue.number,
+      });
+      return pr.base.ref;
+    } catch {
+      return 'main';
+    }
+  }
+
   if (context.payload.issue) return 'main';
   return context.ref.replace('refs/heads/', '');
 }
@@ -156,12 +192,12 @@ async function run() {
     repo: context.repo.repo,
   };
 
-  const replyTarget = parseReplyTarget(context);
+  const replyTarget = await parseReplyTarget(context);
 
   if (replyTarget) {
     await replyToSession(cmd, replyTarget);
   } else {
-    await createNewSession(cmd, resolveBaseBranch(context));
+    await createNewSession(cmd, await resolveBaseBranch(context));
   }
 }
 
