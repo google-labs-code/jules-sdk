@@ -437,6 +437,30 @@ export interface SessionResource {
   archived: boolean;
 }
 
+/**
+ * Paginated REST API response for listing sessions.
+ */
+export interface ListSessionsResponse {
+  sessions: SessionResource[];
+  nextPageToken?: string;
+}
+
+/**
+ * Paginated REST API response for listing sources.
+ */
+export interface ListSourcesResponse {
+  sources: Source[];
+  nextPageToken?: string;
+}
+
+/**
+ * Paginated REST API response for listing activities.
+ */
+export interface ListActivitiesResponse {
+  activities: Activity[];
+  nextPageToken?: string;
+}
+
 // -----------------------------------------------------------------------------
 // Activity and Artifact Types
 // -----------------------------------------------------------------------------
