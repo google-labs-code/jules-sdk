@@ -5,7 +5,7 @@ import { defineTool, toMcpResponse } from './utils.js';
 export default defineTool({
   name: 'create_session',
   description:
-    'Creates a new Jules session or automated run to perform code tasks. If repo and branch are omitted, creates a "repoless" session where the user provides their own context in the prompt and Jules will perform code tasks based on that context instead of a GitHub repo.',
+    'Creates a new Jules session or automated run to perform code tasks. If repo and branch are omitted, they are auto-detected from the current git remote and branch. If auto-detection fails, creates a "repoless" session where the user provides their own context in the prompt and Jules will perform code tasks based on that context instead of a GitHub repo.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -16,11 +16,12 @@ export default defineTool({
       repo: {
         type: 'string',
         description:
-          'GitHub repository (owner/repo). Optional for repoless sessions.',
+          'GitHub repository (owner/repo). If omitted, auto-detected from the current git remote.',
       },
       branch: {
         type: 'string',
-        description: 'Target branch. Optional for repoless sessions.',
+        description:
+          'Target branch. If omitted, auto-detected from the current git branch.',
       },
       interactive: {
         type: 'boolean',
