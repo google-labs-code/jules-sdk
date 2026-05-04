@@ -19,7 +19,7 @@ import type { FleetEmitter } from '../shared/events.js';
 import { ok, fail } from '../shared/result/index.js';
 import { getMilestoneContext } from '../analyze/milestone.js';
 import { getDispatchStatus } from './status.js';
-import { recordDispatch } from './events.js';
+import { recordDispatch, createPendingDispatch, finalizeDispatch } from './events.js';
 import { parseGoalFile } from '../analyze/goals.js';
 import { globSync } from 'glob';
 import { existsSync, readFileSync } from 'node:fs';
@@ -105,6 +105,25 @@ export class DispatchHandler implements DispatchSpec {
 
         const workerPrompt = buildWorkerPrompt(issue, verificationCommands, input.milestone);
 
+        // Create a pending dispatch comment as a lock to avoid duplicate dispatch
+        let pendingCommentId: number | undefined;
+        try {
+          const pending = await createPendingDispatch(
+            this.octokit,
+            input.owner,
+            input.repo,
+            issue.number,
+          );
+          pendingCommentId = pending.commentId;
+        } catch (err) {
+          // If creating the pending comment fails, emit and continue — we'll still attempt dispatch
+          this.emit({
+            type: 'error',
+            code: 'PENDING_COMMENT_FAILED',
+            message: `Could not write pending dispatch comment for #${issue.number}: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+
         try {
           const session = await this.dispatcher.dispatch({
             prompt: workerPrompt,
@@ -116,14 +135,37 @@ export class DispatchHandler implements DispatchSpec {
             autoPr: true,
           });
 
-          // Record the dispatch event
-          await recordDispatch(
-            this.octokit,
-            input.owner,
-            input.repo,
-            issue.number,
-            session.id,
-          );
+          // Finalize the pending comment (if any) to include the real session link.
+          if (pendingCommentId) {
+            try {
+              await finalizeDispatch(
+                this.octokit,
+                input.owner,
+                input.repo,
+                issue.number,
+                pendingCommentId,
+                session.id,
+              );
+            } catch (err) {
+              // Best-effort — if finalizing fails, fall back to appending a new record
+              await recordDispatch(
+                this.octokit,
+                input.owner,
+                input.repo,
+                issue.number,
+                session.id,
+              );
+            }
+          } else {
+            // No pending comment created, fall back to normal record
+            await recordDispatch(
+              this.octokit,
+              input.owner,
+              input.repo,
+              issue.number,
+              session.id,
+            );
+          }
 
           dispatched.push({
             issueNumber: issue.number,
@@ -141,6 +183,20 @@ export class DispatchHandler implements DispatchSpec {
             code: 'DISPATCH_FAILED',
             message: `Failed to dispatch #${issue.number}: ${error instanceof Error ? error.message : error}`,
           });
+
+          // If we created a pending comment but dispatch failed, update the comment to reflect failure
+          if (pendingCommentId) {
+            try {
+              await this.octokit.rest.issues.updateComment({
+                owner: input.owner,
+                repo: input.repo,
+                comment_id: pendingCommentId,
+                body: `🤖 **Fleet Dispatch Event (FAILED)**\n\nDispatch attempt failed for this placeholder. See logs for details.`,
+              });
+            } catch {
+              // ignore best-effort cleanup errors
+            }
+          }
         }
       }
 

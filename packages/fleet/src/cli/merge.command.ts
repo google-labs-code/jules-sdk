@@ -108,6 +108,18 @@ export default defineCommand({
       },
       async sendMessage(sessionId, message) {
         const session = jules.session(sessionId);
+        try {
+          const info = await session.info();
+          const state = info.state;
+          if (state === 'completed' || state === 'failed') {
+            // Do not wake completed/failed sessions — treat as no-op
+            return;
+          }
+        } catch (e) {
+          // If we cannot fetch info, be conservative and skip sending to avoid reviving sessions
+          return;
+        }
+
         await session.send(message);
       },
     };
