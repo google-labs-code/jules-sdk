@@ -121,6 +121,45 @@ fi
 `;
   fs.writeFileSync(mockGhPath, mockGhScript, { mode: 0o755 });
 
+  // Provide a minimal `jq` shim so tests don't rely on the system `jq` binary.
+  // This supports the simple expressions used by the label script tests.
+  const jqShimPath = path.join(dir, 'jq');
+  const jqShim = `#!/usr/bin/env node
+const fs = require('fs');
+const argv = process.argv.slice(2);
+if (argv.length === 0) process.exit(0);
+// support optional -r flag: jq -r <expr> <file>
+if (argv[0] === '-r') argv.shift();
+const expr = argv[0] || '';
+const file = argv[1] || '';
+try {
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (expr.includes('closingIssuesReferences')) {
+    const arr = data.closingIssuesReferences || [];
+    if (arr[0] && arr[0].number != null) {
+      console.log(arr[0].number);
+    }
+    process.exit(0);
+  }
+  if (expr.includes('labels') && expr.includes('any')) {
+    const labels = (data.labels || []).map((l) => l.name);
+    console.log(labels.includes('fleet') ? 'true' : 'false');
+    process.exit(0);
+  }
+  if (expr.includes('milestone')) {
+    const title = data.milestone && data.milestone.title ? data.milestone.title : '';
+    if (title) console.log(title);
+    process.exit(0);
+  }
+  // Fallback: print the whole JSON
+  console.log(JSON.stringify(data));
+} catch (e) {
+  console.error('jq-shim error', e.message);
+  process.exit(1);
+}
+`;
+  fs.writeFileSync(jqShimPath, jqShim, { mode: 0o755 });
+
   // Write the actual label script extracted from the template
   const script = extractRunScript();
   fs.writeFileSync(scriptPath, `#!/bin/bash\nset -e\n${script}`, { mode: 0o755 });

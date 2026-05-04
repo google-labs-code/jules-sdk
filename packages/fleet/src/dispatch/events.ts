@@ -57,3 +57,83 @@ export async function recordDispatch(
     timestamp,
   };
 }
+
+/**
+ * Create a preliminary (pending) dispatch comment to act as a lock.
+ * This is written before session creation to ensure idempotent dispatch
+ * when multiple schedulers/retries run concurrently.
+ */
+export async function createPendingDispatch(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): Promise<{ commentId: number; token: string }> {
+  const timestamp = new Date().toISOString();
+  const token = `pending-${Math.random().toString(36).slice(2, 9)}`;
+  const readableTime = new Date().toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  });
+
+  const body = [
+    `🤖 **Fleet Dispatch Event (PENDING)**`,
+    `Dispatch token: ${token}`,
+    `Timestamp: ${readableTime}`,
+    '',
+    'This placeholder prevents duplicate dispatch while a session is being created.',
+  ].join('\n');
+
+  const { data: comment } = await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    body,
+  });
+
+  return { commentId: comment.id, token };
+}
+
+/**
+ * Finalize an existing dispatch comment by editing it to include the session link.
+ */
+export async function finalizeDispatch(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  commentId: number,
+  sessionId: string,
+): Promise<DispatchRecord> {
+  const timestamp = new Date().toISOString();
+  const readableTime = new Date().toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  });
+  const sessionLink = `https://jules.google.com/session/${sessionId}`;
+
+  const body = [
+    `🤖 **Fleet Dispatch Event**`,
+    `Session: [\`${sessionId}\`](${sessionLink})`,
+    `Timestamp: ${readableTime}`,
+  ].join('\n');
+
+  await octokit.rest.issues.updateComment({
+    owner,
+    repo,
+    comment_id: commentId,
+    body,
+  });
+
+  return { commentId, timestamp };
+}
