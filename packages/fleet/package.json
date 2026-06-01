@@ -64,7 +64,7 @@
     "@types/libsodium-wrappers": "^0.8.2",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.8"
   },
   "main": "index.js",
   "bugs": {
