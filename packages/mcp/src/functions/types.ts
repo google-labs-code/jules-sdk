@@ -327,3 +327,33 @@ export interface WorkInProgressResult {
   summary: WorkInProgressSummary;
   formatted: string;
 }
+
+// ============================================================================
+// Delete Session
+// ============================================================================
+
+export type DeleteSessionFilter =
+  | 'completed'
+  | 'failed'
+  | 'running'
+  | 'queued'
+  | 'planning'
+  | 'inProgress'
+  | 'awaitingPlanApproval';
+
+export interface DeleteSessionOptions {
+  sessionId?: string;
+  filter?: DeleteSessionFilter;
+  /**
+   * Required when deleting multiple sessions via filter.
+   */
+  force?: boolean;
+}
+
+export interface DeleteSessionResult {
+  success: boolean;
+  deletedCount: number;
+  sessionIds: string[];
+  message: string;
+  requiresForce?: boolean;
+}

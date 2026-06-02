@@ -6,6 +6,7 @@
 // Export all functions
 export { getSessionState } from './session-state.js';
 export { listSessions } from './list-sessions.js';
+export { deleteSession } from './delete-session.js';
 export { createSession } from './create-session.js';
 export { interact } from './interact.js';
 export { select } from './select.js';
@@ -27,6 +28,10 @@ export type {
   // List Sessions
   ListSessionsOptions,
   ListSessionsResult,
+  // Delete Session
+  DeleteSessionFilter,
+  DeleteSessionOptions,
+  DeleteSessionResult,
   // Create Session
   CreateSessionOptions,
   CreateSessionResult,
