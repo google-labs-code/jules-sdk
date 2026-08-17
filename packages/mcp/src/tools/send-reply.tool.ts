@@ -9,7 +9,11 @@ export default defineTool({
   inputSchema: {
     type: 'object',
     properties: {
-      sessionId: { type: 'string' },
+      sessionId: {
+        type: 'string',
+        description:
+          'The Jules session ID to reply or interact with (numeric string).',
+      },
       action: {
         type: 'string',
         enum: ['approve', 'send', 'ask'],

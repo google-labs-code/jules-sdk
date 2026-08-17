@@ -131,3 +131,13 @@ export type { StorageFactory } from './types.js';
 
 // Artifact classes with helper methods
 export { ChangeSetArtifact, parseUnidiff } from './artifacts.js';
+
+// Validation helpers
+export {
+  validateSessionId,
+  validateRepository,
+  validateBranchName,
+  validateFilePath,
+  validateActivityId,
+  validatePageToken,
+} from './utils/validators.js';

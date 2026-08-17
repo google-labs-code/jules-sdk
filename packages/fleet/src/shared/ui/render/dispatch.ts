@@ -14,29 +14,46 @@
 
 import type { DispatchEvent } from '../../events/dispatch.js';
 import type { RenderContext } from '../spec.js';
-import { sessionUrl } from '../session-url.js';
+import {
+  sessionUrl,
+  ansiLink,
+  ansiYellow,
+  ansiHighlight,
+  ansiGreen,
+} from '../session-url.js';
 
 /** Render a dispatch-domain event. */
-export function renderDispatchEvent(event: DispatchEvent, ctx: RenderContext): void {
+export function renderDispatchEvent(
+  event: DispatchEvent,
+  ctx: RenderContext,
+): void {
   switch (event.type) {
     case 'dispatch:start':
-      ctx.info(`Dispatching from milestone ${event.milestone}`);
+      ctx.info(
+        `Dispatching from milestone ${ansiHighlight(`\`${event.milestone}\``)}`,
+      );
       break;
     case 'dispatch:scanning':
       ctx.startSpinner('Scanning for fleet issues…');
       break;
     case 'dispatch:found':
-      ctx.stopSpinner(`Found ${event.count} undispatched issue(s)`);
+      ctx.stopSpinner(
+        `Found ${event.count} undispatched issue(s) ${ansiGreen('✓')}`,
+      );
       break;
     case 'dispatch:issue:dispatching':
       ctx.startSpinner(`#${event.number}: ${event.title}`);
       break;
     case 'dispatch:issue:dispatched':
-      ctx.stopSpinner(`#${event.number} → session ${event.sessionId}`);
-      ctx.info(`  ${sessionUrl(event.sessionId)}`);
+      ctx.stopSpinner(
+        `#${event.number} → session ${ansiHighlight(`\`${event.sessionId}\``)} ${ansiGreen('✓')}`,
+      );
+      ctx.info(`  ${ansiLink('View Session', sessionUrl(event.sessionId))}`);
       break;
     case 'dispatch:issue:skipped':
-      ctx.warn(`  ⊘ #${event.number}: ${event.reason}`);
+      ctx.warn(
+        `  ${ansiYellow('⊘')} #${event.number}: ${ansiHighlight(event.reason)}`,
+      );
       break;
     case 'dispatch:done':
       ctx.success(

@@ -114,4 +114,24 @@ describe('createSession', () => {
 
     expect(capturedConfig.source).toBeUndefined();
   });
+
+  describe('input validation', () => {
+    it('throws validation error if repo is invalid', async () => {
+      await expect(
+        createSession(mockClient, {
+          prompt: 'Fix the bug',
+          repo: '../malicious-repo',
+        }),
+      ).rejects.toThrow('Repository name cannot contain path traversal segments');
+    });
+
+    it('throws validation error if branch name is invalid', async () => {
+      await expect(
+        createSession(mockClient, {
+          prompt: 'Fix the bug',
+          branch: 'main..branch',
+        }),
+      ).rejects.toThrow('Branch name contains consecutive dots');
+    });
+  });
 });

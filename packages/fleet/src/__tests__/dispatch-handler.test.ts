@@ -159,6 +159,63 @@ describe('DispatchHandler', () => {
     expect(dispatcher.dispatch).not.toHaveBeenCalled();
   });
 
+  it('rejects invalid repository name', async () => {
+    const octokit = createMockOctokit();
+    const dispatcher = createMockDispatcher();
+    const handler = new DispatchHandler({ octokit, dispatcher });
+
+    const result = await handler.execute({
+      milestone: '1',
+      goalsDir: '.fleet/goals',
+      owner: 'owner/invalid',
+      repo: 'repo',
+      baseBranch: 'main',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toContain('INVALID_REPOSITORY');
+    }
+  });
+
+  it('rejects invalid base branch name', async () => {
+    const octokit = createMockOctokit();
+    const dispatcher = createMockDispatcher();
+    const handler = new DispatchHandler({ octokit, dispatcher });
+
+    const result = await handler.execute({
+      milestone: '1',
+      goalsDir: '.fleet/goals',
+      owner: 'owner',
+      repo: 'repo',
+      baseBranch: 'refs/heads/main',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toContain('RESERVED_BRANCH');
+    }
+  });
+
+  it('rejects path traversal in goalsDir', async () => {
+    const octokit = createMockOctokit();
+    const dispatcher = createMockDispatcher();
+    const handler = new DispatchHandler({ octokit, dispatcher });
+
+    const result = await handler.execute({
+      milestone: '1',
+      goalsDir: '../etc/goals',
+      owner: 'owner',
+      repo: 'repo',
+      baseBranch: 'main',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toContain('PATH_TRAVERSAL');
+    }
+  });
+
   it('handles dispatcher failure per-issue without failing the batch', async () => {
     const octokit = createMockOctokit({
       openIssues: [

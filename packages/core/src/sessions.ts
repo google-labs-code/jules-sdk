@@ -18,6 +18,7 @@ import { ApiClient } from './api.js';
 import { SessionResource, RestSessionResource } from './types.js';
 import { SessionStorage } from './storage/types.js';
 import { mapRestSessionToSdkSession } from './mappers.js';
+import { validatePageToken } from './utils/validators.js';
 
 export type ListSessionsOptions = {
   pageSize?: number;
@@ -70,7 +71,11 @@ export class SessionCursor
     private storage: SessionStorage,
     private platform: any,
     private options: ListSessionsOptions = {},
-  ) {}
+  ) {
+    if (this.options.pageToken) {
+      validatePageToken(this.options.pageToken);
+    }
+  }
 
   /**
    * DX Feature: Promise Compatibility.

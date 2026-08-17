@@ -68,6 +68,23 @@ export class MemoryStorage implements ActivityStorage {
   }
 
   /**
+   * Appends multiple activities in a single optimized operation.
+   */
+  async appendMany(activities: Activity[]): Promise<void> {
+    const len = activities.length;
+    for (let i = 0; i < len; i++) {
+      const activity = activities[i];
+      if (this.indices.has(activity.id)) {
+        const index = this.indices.get(activity.id)!;
+        this.activities[index] = activity;
+      } else {
+        const index = this.activities.push(activity) - 1;
+        this.indices.set(activity.id, index);
+      }
+    }
+  }
+
+  /**
    * Retrieves an activity by ID.
    */
   async get(activityId: string): Promise<Activity | undefined> {

@@ -181,7 +181,22 @@ export class ApiClient {
 
   private resolveUrl(path: string): URL {
     // Direct Mode
-    return new URL(`${this.baseUrl}/${path}`);
+    const normalizedBase = this.baseUrl.endsWith("/")
+      ? this.baseUrl
+      : `${this.baseUrl}/`;
+    const sanitizedPath = path.startsWith("/") ? path.slice(1) : path;
+    const url = new URL(sanitizedPath, normalizedBase);
+
+    if (!url.toString().startsWith(normalizedBase)) {
+      throw new JulesApiError(
+        url.toString(),
+        400,
+        "Bad Request",
+        `Security Error: Invalid path traversal detected in "${path}"`,
+      );
+    }
+
+    return url;
   }
 
   private async fetchWithTimeout(url: string, opts: any): Promise<Response> {

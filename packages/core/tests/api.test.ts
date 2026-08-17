@@ -63,3 +63,15 @@ describe('ApiClient (Unit)', () => {
     );
   });
 });
+
+  it('Path Traversal: prevents escaping baseUrl', async () => {
+    const client = new ApiClient({
+      baseUrl: 'https://api.jules.com/v1',
+      requestTimeoutMs: 1000,
+      apiKey: 'test-key',
+    });
+
+    await expect(client.request('../secret')).rejects.toThrow(
+      'Security Error: Invalid path traversal detected in "../secret"',
+    );
+  });

@@ -234,15 +234,17 @@ export class SessionClientImpl implements SessionClient {
    * console.log(reply.message);
    */
   async ask(prompt: string): Promise<ActivityAgentMessaged> {
-    const startTime = new Date();
+    const startTime = Date.now();
     await this.send(prompt);
 
     // Don't return our own message.
     for await (const activity of this.stream({
       exclude: { originator: 'user' },
     })) {
-      const activityTime = new Date(activity.createTime).getTime();
-      const askTime = startTime.getTime();
+      const activityTime = activity.createTime
+        ? Date.parse(activity.createTime)
+        : 0;
+      const askTime = startTime;
 
       if (activityTime <= askTime) {
         continue;

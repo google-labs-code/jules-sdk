@@ -1,7 +1,9 @@
-import type {
-  JulesClient,
-  ChangeSetArtifact,
-  Activity,
+import {
+  type JulesClient,
+  type ChangeSetArtifact,
+  type Activity,
+  validateSessionId,
+  validateActivityId,
 } from '@google/jules-sdk';
 import type {
   ReviewChangesResult,
@@ -331,6 +333,7 @@ export async function codeReview(
   if (!sessionId) {
     throw new Error('sessionId is required');
   }
+  validateSessionId(sessionId);
 
   const {
     format = 'summary',
@@ -353,6 +356,7 @@ export async function codeReview(
   // Find specific activity if activityId provided
   let targetActivity: Activity | undefined;
   if (activityId) {
+    validateActivityId(activityId);
     targetActivity = activities.find((a) => a.id === activityId);
     if (!targetActivity) {
       throw new Error(

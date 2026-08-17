@@ -23,6 +23,7 @@ import {
   GitHubRepo,
   ListSourcesOptions,
 } from './types.js';
+import { validateRepository } from './utils/validators.js';
 
 // Internal type representing the raw source from the REST API
 interface RestGitHubRepo {
@@ -131,9 +132,7 @@ class SourceManagerImpl {
    */
   async get(filter: { github: string }): Promise<Source | undefined> {
     const { github } = filter;
-    if (!github || !github.includes('/')) {
-      throw new Error("Invalid GitHub filter. Expected format: 'owner/repo'.");
-    }
+    validateRepository(github);
 
     const resourceName = `sources/github/${github}`;
 

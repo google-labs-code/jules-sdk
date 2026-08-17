@@ -150,6 +150,25 @@ describe('scan --all discovery', () => {
     expect(result.prs).toHaveLength(5);
   });
 
+  it('B5: rejects scan with malformed base branch name to prevent command/reference injection', async () => {
+    const { scanHandler } = await import('../../reconcile/scan-handler.js');
+    await expect(
+      scanHandler({} as any, {
+        all: true,
+        repo: 'owner/repo',
+        base: 'refs/heads/main', // starts with refs/
+      }),
+    ).rejects.toThrow('RESERVED_BRANCH: Branch name must not start with refs/: refs/heads/main');
+
+    await expect(
+      scanHandler({} as any, {
+        all: true,
+        repo: 'owner/repo',
+        base: 'bad..branch', // contains consecutive dots
+      }),
+    ).rejects.toThrow('INVALID_BRANCH: Branch name contains consecutive dots: bad..branch');
+  });
+
   // ─── Group C: Discovery Happy Paths ───────────────────────────
 
   it('C1: --all discovers open PRs and produces clean result', async () => {

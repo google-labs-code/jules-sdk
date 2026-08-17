@@ -115,9 +115,94 @@ describe('critical-paths', () => {
     expect(() => validateFilePath('../etc/passwd')).toThrow('PATH_TRAVERSAL');
   });
 
+  it('rejects file paths with absolute paths', async () => {
+    const { validateFilePath } = await import('../../shared/validators.js');
+    expect(() => validateFilePath('/etc/passwd')).toThrow('ABSOLUTE_PATH');
+    expect(() => validateFilePath('C:/Windows/System32')).toThrow(
+      'ABSOLUTE_PATH',
+    );
+  });
+
+  it('stageResolutionHandler rejects path traversal in fromFile', async () => {
+    const { scanHandler } = await import('../../reconcile/scan-handler.js');
+    const { stageResolutionHandler } = await import(
+      '../../reconcile/stage-resolution-handler.js'
+    );
+
+    await scanHandler({} as any, {
+      prs: [10, 11],
+      repo: 'owner/repo',
+    });
+
+    await expect(
+      stageResolutionHandler({
+        filePath: 'src/config.ts',
+        parents: ['main', '10', '11'],
+        fromFile: '../../etc/passwd',
+      }),
+    ).rejects.toThrow('PATH_TRAVERSAL');
+
+    await expect(
+      stageResolutionHandler({
+        filePath: 'src/config.ts',
+        parents: ['main', '10', '11'],
+        fromFile: '/etc/passwd',
+      }),
+    ).rejects.toThrow('ABSOLUTE_PATH');
+  });
+
+  it('stageResolutionHandler rejects invalid parent references', async () => {
+    const { scanHandler } = await import('../../reconcile/scan-handler.js');
+    const { stageResolutionHandler } = await import(
+      '../../reconcile/stage-resolution-handler.js'
+    );
+
+    await scanHandler({} as any, {
+      prs: [10, 11],
+      repo: 'owner/repo',
+    });
+
+    await expect(
+      stageResolutionHandler({
+        filePath: 'src/config.ts',
+        parents: ['refs/heads/main', '10'],
+        content: 'resolved content',
+      }),
+    ).rejects.toThrow('RESERVED_BRANCH');
+
+    await expect(
+      stageResolutionHandler({
+        filePath: 'src/config.ts',
+        parents: ['main space', '10'],
+        content: 'resolved content',
+      }),
+    ).rejects.toThrow('Branch name contains spaces');
+
+    await expect(
+      stageResolutionHandler({
+        filePath: 'src/config.ts',
+        parents: ['main..branch', '10'],
+        content: 'resolved content',
+      }),
+    ).rejects.toThrow('Branch name contains consecutive dots');
+
+    await expect(
+      stageResolutionHandler({
+        filePath: 'src/config.ts',
+        parents: ['main.lock', '10'],
+        content: 'resolved content',
+      }),
+    ).rejects.toThrow('INVALID_BRANCH');
+  });
+
   it('rejects file paths with control characters', async () => {
     const { validateFilePath } = await import('../../shared/validators.js');
     expect(() => validateFilePath('src/foo\x00.ts')).toThrow('CONTROL_CHAR');
+  });
+
+  it('rejects empty or missing branch names', async () => {
+    const { validateBranchName } = await import('../../shared/validators.js');
+    expect(() => validateBranchName('')).toThrow('INVALID_BRANCH');
   });
 
   it('rejects branch names starting with refs/', async () => {
@@ -132,6 +217,97 @@ describe('critical-paths', () => {
     expect(() => validateBranchName('my-branch.lock')).toThrow(
       'INVALID_BRANCH',
     );
+  });
+
+  it('rejects empty or missing file paths', async () => {
+    const { validateFilePath } = await import('../../shared/validators.js');
+    expect(() => validateFilePath('')).toThrow('INVALID_FILE_PATH');
+  });
+
+  // ─── Repository Validation Tests ─────────────────────────────
+
+  it('accepts valid repository names', async () => {
+    const { validateRepository } = await import('../../shared/validators.js');
+    expect(() => validateRepository('owner/repo')).not.toThrow();
+    expect(() => validateRepository('google/jules-sdk')).not.toThrow();
+    expect(() => validateRepository('owner-name/repo_name.js')).not.toThrow();
+  });
+
+  it('rejects empty or missing repository names', async () => {
+    const { validateRepository } = await import('../../shared/validators.js');
+    expect(() => validateRepository('')).toThrow('INVALID_REPOSITORY');
+  });
+
+  it('rejects invalid repository formats (no slash or too many slashes)', async () => {
+    const { validateRepository } = await import('../../shared/validators.js');
+    expect(() => validateRepository('owner')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('owner/repo/extra')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('owner//repo')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('/owner/repo')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('owner/repo/')).toThrow('INVALID_REPOSITORY');
+  });
+
+  it('rejects repository names with invalid special characters', async () => {
+    const { validateRepository } = await import('../../shared/validators.js');
+    expect(() => validateRepository('owner$/repo')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('owner/re@po')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('owner:/repo')).toThrow('INVALID_REPOSITORY');
+  });
+
+  it('rejects repository names with control characters', async () => {
+    const { validateRepository } = await import('../../shared/validators.js');
+    expect(() => validateRepository('owner\x00/repo')).toThrow('CONTROL_CHAR');
+    expect(() => validateRepository('owner/re\x1fpo')).toThrow('CONTROL_CHAR');
+  });
+
+  it('rejects repository names with path traversal', async () => {
+    const { validateRepository } = await import('../../shared/validators.js');
+    expect(() => validateRepository('../repo')).toThrow('PATH_TRAVERSAL');
+    expect(() => validateRepository('owner/..')).toThrow('PATH_TRAVERSAL');
+    expect(() => validateRepository('../owner/repo')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('owner/../repo')).toThrow('INVALID_REPOSITORY');
+    expect(() => validateRepository('./repo')).toThrow('PATH_TRAVERSAL');
+    expect(() => validateRepository('owner/.')).toThrow('PATH_TRAVERSAL');
+  });
+
+  // ─── Handler Repository Validation Tests ─────────────────────
+
+  it('scanHandler rejects invalid repository names', async () => {
+    const { scanHandler } = await import('../../reconcile/scan-handler.js');
+    await expect(
+      scanHandler({} as any, { prs: [1], repo: 'owner/re@po' }),
+    ).rejects.toThrow();
+  });
+
+  it('scanHandler rejects invalid base branch names', async () => {
+    const { scanHandler } = await import('../../reconcile/scan-handler.js');
+    await expect(
+      scanHandler({} as any, { prs: [1], repo: 'owner/repo', base: 'invalid branch' }),
+    ).rejects.toThrow();
+    await expect(
+      scanHandler({} as any, { prs: [1], repo: 'owner/repo', base: 'refs/heads/main' }),
+    ).rejects.toThrow();
+  });
+
+  it('getContentsHandler rejects invalid repository names', async () => {
+    const { getContentsHandler } = await import('../../reconcile/get-contents-handler.js');
+    await expect(
+      getContentsHandler({} as any, { filePath: 'src/config.ts', source: 'main', repo: 'owner/re@po' }),
+    ).rejects.toThrow();
+  });
+
+  it('mergeHandler rejects invalid repository names', async () => {
+    const { mergeHandler } = await import('../../reconcile/merge-handler.js');
+    await expect(
+      mergeHandler({} as any, { pr: 1, repo: 'owner/re@po' }),
+    ).rejects.toThrow();
+  });
+
+  it('pushHandler rejects invalid repository names', async () => {
+    const { pushHandler } = await import('../../reconcile/push-handler.js');
+    await expect(
+      pushHandler({} as any, { branch: 'reconcile/test', message: 'test', repo: 'owner/re@po' }),
+    ).rejects.toThrow();
   });
 
   // ─── 4. dry-run behavior ──────────────────────────────────────
@@ -372,7 +548,9 @@ describe('critical-paths', () => {
   // ─── 12. Error types & exit codes ─────────────────────────────
 
   it('ConflictError has exit code 1', async () => {
-    const { ConflictError, getExitCode } = await import('../../shared/errors.js');
+    const { ConflictError, getExitCode } = await import(
+      '../../shared/errors.js'
+    );
     const err = new ConflictError('test');
     expect(err.exitCode).toBe(1);
     expect(getExitCode(err)).toBe(1);

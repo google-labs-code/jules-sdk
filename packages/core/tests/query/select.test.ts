@@ -408,4 +408,26 @@ describe('Unified Query Engine (select)', () => {
       expect(infoSpy).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('Query Validation', () => {
+    it('should throw an INVALID_QUERY error for invalid queries', async () => {
+      // Missing 'from' field
+      await expect(
+        select(mockClient as any, {} as any),
+      ).rejects.toThrow(/INVALID_QUERY: \[MISSING_REQUIRED_FIELD\]/);
+
+      // Invalid domain/from
+      await expect(
+        select(mockClient as any, { from: 'invalid' } as any),
+      ).rejects.toThrow(/INVALID_QUERY: \[INVALID_DOMAIN\]/);
+
+      // Filtering on a computed field
+      await expect(
+        select(mockClient as any, {
+          from: 'sessions',
+          where: { durationMs: { eq: 123 } },
+        } as any),
+      ).rejects.toThrow(/INVALID_QUERY: \[COMPUTED_FIELD_FILTER\]/);
+    });
+  });
 });

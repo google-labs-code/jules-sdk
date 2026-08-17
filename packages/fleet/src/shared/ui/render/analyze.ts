@@ -14,24 +14,42 @@
 
 import type { AnalyzeEvent } from '../../events/analyze.js';
 import type { RenderContext } from '../spec.js';
-import { sessionUrl } from '../session-url.js';
+import {
+  sessionUrl,
+  ansiLink,
+  ansiDim,
+  ansiRed,
+  ansiHighlight,
+  ansiGreen,
+} from '../session-url.js';
 
 /** Render an analyze-domain event. */
-export function renderAnalyzeEvent(event: AnalyzeEvent, ctx: RenderContext): void {
+export function renderAnalyzeEvent(
+  event: AnalyzeEvent,
+  ctx: RenderContext,
+): void {
   switch (event.type) {
     case 'analyze:start':
-      ctx.info(`Analyzing ${event.goalCount} goal(s) for ${event.owner}/${event.repo}`);
+      ctx.info(
+        `Analyzing ${event.goalCount} goal(s) for ${event.owner}/${event.repo}`,
+      );
       break;
     case 'analyze:goal:start':
       if (event.total > 1) {
-        ctx.step(`[${event.index}/${event.total}] ${event.file}`);
+        ctx.step(
+          `${ansiDim(`[${event.index}/${event.total}]`)} ${ansiHighlight(`\`${event.file}\``)}`,
+        );
       } else {
-        ctx.step(event.file);
+        ctx.step(ansiHighlight(`\`${event.file}\``));
       }
-      if (event.milestone) ctx.info(`  Milestone: ${event.milestone}`);
+      if (event.milestone) {
+        ctx.info(`  Milestone: ${ansiHighlight(`\`${event.milestone}\``)}`);
+      }
       break;
     case 'analyze:milestone:resolved':
-      ctx.info(`  Milestone "${event.title}" (#${event.id})`);
+      ctx.info(
+        `  Milestone ${ansiHighlight(`\`${event.title}\``)} (#${event.id})`,
+      );
       break;
     case 'analyze:context:fetched':
       ctx.info(
@@ -42,12 +60,12 @@ export function renderAnalyzeEvent(event: AnalyzeEvent, ctx: RenderContext): voi
       ctx.startSpinner(`Dispatching session for ${event.goal}…`);
       break;
     case 'analyze:session:started':
-      ctx.stopSpinner(`Session started: ${event.id}`);
-      ctx.info(`  ${sessionUrl(event.id)}`);
+      ctx.stopSpinner(`Session started: ${event.id} ${ansiGreen('✓')}`);
+      ctx.info(`  ${ansiLink('View Session', sessionUrl(event.id))}`);
       break;
     case 'analyze:session:failed':
       ctx.stopSpinner();
-      ctx.error(`  Failed: ${event.error}`);
+      ctx.error(`  ${ansiRed('✗')} Failed: ${ansiHighlight(event.error)}`);
       break;
     case 'analyze:done':
       ctx.success(

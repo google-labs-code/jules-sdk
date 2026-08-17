@@ -82,13 +82,13 @@ export class InitHandler implements InitSpec {
           type: 'error',
           code: 'ALREADY_INITIALIZED',
           message: 'All fleet files already exist — nothing to commit.',
-          suggestion: 'This repo appears to be already initialized. Use jules-fleet configure to update settings.',
+          suggestion: 'This repo appears to be already initialized. Use `jules-fleet configure` to update settings.',
         });
         return fail(
           'FILE_COMMIT_FAILED',
           'All fleet files already exist — nothing to commit.',
           false,
-          'This repo appears to be already initialized. Use jules-fleet configure to update settings.',
+          'This repo appears to be already initialized. Use `jules-fleet configure` to update settings.',
         );
       }
 

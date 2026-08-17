@@ -1,4 +1,4 @@
-import type { JulesClient } from '@google/jules-sdk';
+import { type JulesClient, validateSessionId } from '@google/jules-sdk';
 import type { InteractResult, InteractAction } from './types.js';
 
 /**
@@ -19,6 +19,7 @@ export async function interact(
   if (!sessionId) {
     throw new Error('sessionId is required');
   }
+  validateSessionId(sessionId);
 
   const session = client.session(sessionId);
 

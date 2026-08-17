@@ -41,6 +41,13 @@ export async function getGitRepoInfo(
     return { owner, repo, fullName: ghRepo };
   }
 
+  // Validate remoteName to prevent shell command injection
+  if (!/^[a-zA-Z0-9._\/-]+$/.test(remoteName)) {
+    throw new Error(
+      `Security Error: Invalid characters in git remote name: "${remoteName}"`,
+    );
+  }
+
   const { stdout } = await execAsync(`git remote get-url ${remoteName}`);
   return parseGitRemoteUrl(stdout.trim());
 }

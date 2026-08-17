@@ -296,6 +296,50 @@ describe('DefaultActivityClient', () => {
       const results = await client.select({ after: 'non-existent' });
       expect(results).toEqual([]);
     });
+
+    it('should hydrate plain artifacts and bypass hydration with reference equality for already hydrated ones', async () => {
+      const { MediaArtifact, ChangeSetArtifact } = await import('../../src/artifacts.js');
+
+      const plainMedia = { type: 'media', media: { data: 'test-data', mimeType: 'image/png' } };
+      const plainChangeSet = { type: 'changeSet', changeSet: { source: 'git', gitPatch: { unidiffPatch: 'diff' } } };
+
+      const actPlain = {
+        id: 'plain',
+        type: 'agentMessaged',
+        createTime: recentDate(10),
+        artifacts: [plainMedia, plainChangeSet],
+      } as any;
+
+      const mediaInstance = new MediaArtifact({ data: 'test-data', mimeType: 'image/png' }, {} as any, 'rich');
+      const changeSetInstance = new ChangeSetArtifact('git', { unidiffPatch: 'diff' });
+
+      const actRich = {
+        id: 'rich',
+        type: 'agentMessaged',
+        createTime: recentDate(5),
+        artifacts: [mediaInstance, changeSetInstance],
+      } as any;
+
+      storageMock.scan = vi.fn().mockImplementation(async function* () {
+        yield actPlain;
+        yield actRich;
+      });
+
+      const results = await client.select();
+      expect(results).toHaveLength(2);
+
+      // Plain should be hydrated
+      const resPlain = results[0];
+      expect(resPlain).not.toBe(actPlain); // cloned
+      expect(resPlain.artifacts![0]).toBeInstanceOf(MediaArtifact);
+      expect(resPlain.artifacts![1]).toBeInstanceOf(ChangeSetArtifact);
+
+      // Rich should not be cloned or re-mapped (bypassed entirely!)
+      const resRich = results[1];
+      expect(resRich).toBe(actRich); // EXACT SAME REFERENCE - bypassed!
+      expect(resRich.artifacts![0]).toBe(mediaInstance);
+      expect(resRich.artifacts![1]).toBe(changeSetInstance);
+    });
   });
 
   describe('list()', () => {

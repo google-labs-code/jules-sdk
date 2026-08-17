@@ -20,6 +20,25 @@ import { WORKFLOW_TEMPLATES, buildWorkflowTemplates } from '../templates.js';
 import { createFleetOctokit } from '../../shared/auth/octokit.js';
 import type { InitArgs, InitWizardResult } from './types.js';
 import { parseFeatureFlags } from './parse-features.js';
+import { ansiLink, ansiHighlight } from '../../shared/ui/session-url.js';
+import { validateRepository, validateBranchName } from '@google/jules-sdk';
+
+/**
+ * Clean and parse a user-supplied repository input.
+ * Supports pasting full GitHub HTTPS/SSH URLs and extracts the standard owner/repo format.
+ */
+export function parseRepositoryInput(input: string): string {
+  let cleaned = input.trim();
+  // Strip protocol and optional www. prefix
+  cleaned = cleaned.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, '');
+  // Strip SSH prefix
+  cleaned = cleaned.replace(/^git@github\.com:/i, '');
+  // Strip trailing .git extension
+  cleaned = cleaned.replace(/\.git$/i, '');
+  // Strip any leading or trailing slashes
+  cleaned = cleaned.replace(/^\/+|\/+$/g, '');
+  return cleaned;
+}
 
 /**
  * Prompts user to choose auth method. Returns null if cancelled.
@@ -28,8 +47,16 @@ async function promptAuthMethod(): Promise<'token' | 'app' | null> {
   const authChoice = await p.select({
     message: 'How will Fleet authenticate with GitHub?',
     options: [
-      { value: 'token' as const, label: 'Personal Access Token (GITHUB_TOKEN)' },
-      { value: 'app' as const, label: 'GitHub App (recommended for orgs)' },
+      {
+        value: 'token' as const,
+        label: 'Personal Access Token (GITHUB_TOKEN)',
+        hint: 'Quickest setup — best for personal use and testing',
+      },
+      {
+        value: 'app' as const,
+        label: 'GitHub App (recommended for orgs)',
+        hint: 'Most secure — ideal for teams, orgs, and enterprise permissions',
+      },
     ],
   });
   if (p.isCancel(authChoice)) return null;
@@ -58,31 +85,66 @@ export async function runInitWizard(
 
   if (repoSlug) {
     const confirmed = await p.confirm({
-      message: `Detected repository: ${repoSlug}. Is this correct?`,
+      message: ansiHighlight(
+        `Detected repository: \`${repoSlug}\`. Is this correct?`,
+      ),
       initialValue: true,
     });
-    if (p.isCancel(confirmed)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    if (p.isCancel(confirmed))
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
     if (!confirmed) {
       const manual = await p.text({
         message: 'Enter repository in owner/repo format:',
-        validate: (v) => !v || !/^[^/]+\/[^/]+$/.test(v) ? 'Must be owner/repo format' : undefined,
+        placeholder: 'e.g., owner/repo',
+        validate: (v) => {
+          if (!v) return 'Repository is required';
+          try {
+            validateRepository(parseRepositoryInput(v));
+          } catch (err: any) {
+            return err.message;
+          }
+        },
       });
-      if (p.isCancel(manual)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-      repoSlug = manual;
+      if (p.isCancel(manual))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      repoSlug = parseRepositoryInput(manual);
     }
   } else {
     const manual = await p.text({
       message: 'Enter repository in owner/repo format:',
-      validate: (v) => !v || !/^[^/]+\/[^/]+$/.test(v) ? 'Must be owner/repo format' : undefined,
+      placeholder: 'e.g., owner/repo',
+      validate: (v) => {
+        if (!v) return 'Repository is required';
+        try {
+          validateRepository(parseRepositoryInput(v));
+        } catch (err: any) {
+          return err.message;
+        }
+      },
     });
-    if (p.isCancel(manual)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
-    repoSlug = manual;
+    if (p.isCancel(manual))
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    repoSlug = parseRepositoryInput(manual);
+  }
+
+  // Validate the final repoSlug to prevent path traversal, control characters, or script injections
+  try {
+    validateRepository(repoSlug);
+  } catch (err: any) {
+    return fail('UNKNOWN_ERROR', err.message, false);
   }
 
   const [owner, repo] = repoSlug.split('/');
 
   // ── Step 2: Base branch ──
   const baseBranch = args.base ?? 'main';
+
+  // Validate branch name to prevent git reference escapes or shell/command injections
+  try {
+    validateBranchName(baseBranch);
+  } catch (err: any) {
+    return fail('UNKNOWN_ERROR', err.message, false);
+  }
 
   // ── Step 3: Authentication ──
   const { AuthDetectHandler } = await import('../auth-detect/handler.js');
@@ -91,7 +153,8 @@ export async function runInitWizard(
   const detectResult = await detector.execute({
     owner,
     repo,
-    preferredMethod: args.auth === 'token' || args.auth === 'app' ? args.auth : undefined,
+    preferredMethod:
+      args.auth === 'token' || args.auth === 'app' ? args.auth : undefined,
   });
 
   let authMethod: 'token' | 'app';
@@ -103,22 +166,27 @@ export async function runInitWizard(
     if (alternatives && alternatives.length > 1) {
       const choice = await p.select({
         message: `Multiple auth methods detected. Which to use?`,
-        options: alternatives.map(a => ({
+        options: alternatives.map((a) => ({
           value: a.method,
-          label: a.method === 'app'
-            ? `GitHub App (from ${a.source})`
-            : `Personal Access Token (from ${a.source})`,
+          label:
+            a.method === 'app'
+              ? `GitHub App (from ${a.source})`
+              : `Personal Access Token (from ${a.source})`,
         })),
       });
-      if (p.isCancel(choice)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (p.isCancel(choice))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
       authMethod = choice;
     } else {
       // Single method detected — confirm
       const useDetected = await p.confirm({
-        message: `Authenticated as ${identity} via ${source} (${method}). Use this?`,
+        message: ansiHighlight(
+          `Authenticated as \`${identity}\` via \`${source}\` (\`${method}\`). Use this?`,
+        ),
         initialValue: true,
       });
-      if (p.isCancel(useDetected)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (p.isCancel(useDetected))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
       if (useDetected) {
         authMethod = method;
       } else {
@@ -132,72 +200,98 @@ export async function runInitWizard(
     p.log.warn(detectResult.error.message);
     p.log.info(`Your credentials are valid — the repo name may be wrong.`);
 
-    const fixedRepo = await p.text({
+    let fixedRepo = await p.text({
       message: 'Enter the correct repository (owner/repo):',
       initialValue: `${owner}/${repo}`,
-      validate: (v) => !v?.includes('/') ? 'Format: owner/repo' : undefined,
+      placeholder: 'e.g., owner/repo',
+      validate: (v) => {
+        if (!v) return 'Repository is required';
+        try {
+          validateRepository(parseRepositoryInput(v));
+        } catch (err: any) {
+          return err.message;
+        }
+      },
     });
-    if (p.isCancel(fixedRepo)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    if (p.isCancel(fixedRepo))
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
 
+    fixedRepo = parseRepositoryInput(fixedRepo);
     const [fixedOwner, fixedRepoName] = fixedRepo.split('/');
 
     // Re-run detection with corrected repo
     const retryResult = await detector.execute({
       owner: fixedOwner,
       repo: fixedRepoName,
-      preferredMethod: args.auth === 'token' || args.auth === 'app' ? args.auth : undefined,
+      preferredMethod:
+        args.auth === 'token' || args.auth === 'app' ? args.auth : undefined,
     });
 
     if (retryResult.success) {
       authMethod = retryResult.data.method;
-      p.log.success(`✓ Authenticated as ${retryResult.data.identity} with access to ${fixedOwner}/${fixedRepoName}`);
+      p.log.success(
+        `✓ Authenticated as ${retryResult.data.identity} with access to ${fixedOwner}/${fixedRepoName}`,
+      );
     } else {
-      return fail('UNKNOWN_ERROR', retryResult.error.message, retryResult.error.recoverable);
+      return fail(
+        'UNKNOWN_ERROR',
+        retryResult.error.message,
+        retryResult.error.recoverable,
+      );
     }
   } else {
     // Auth detection failed — show why and fall through to manual flow
     if (detectResult.error.code === 'HEALTH_CHECK_FAILED') {
-      p.log.warn(`Auth check failed: ${detectResult.error.message}`);
+      p.log.warn(
+        ansiHighlight(`Auth check failed: ${detectResult.error.message}`),
+      );
       if (detectResult.error.suggestion) {
-        p.log.info(detectResult.error.suggestion);
+        p.log.info(ansiHighlight(detectResult.error.suggestion));
       }
     }
 
-    const authChoice = await p.select({
-      message: 'How will Fleet authenticate with GitHub?',
-      options: [
-        { value: 'token' as const, label: 'Personal Access Token (GITHUB_TOKEN)' },
-        { value: 'app' as const, label: 'GitHub App (recommended for orgs)' },
-      ],
-    });
-    if (p.isCancel(authChoice)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    const authChoice = await promptAuthMethod();
+    if (!authChoice)
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
     authMethod = authChoice;
 
     // Prompt for credentials
     if (authMethod === 'token') {
       const token = await p.password({
         message: 'Paste your GitHub token:',
+        validate: (v) => (!v?.trim() ? 'GitHub token is required' : undefined),
       });
-      if (p.isCancel(token)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (p.isCancel(token))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
       process.env.GITHUB_TOKEN = token;
     } else {
       // ── GitHub App: slug → key file → auto-detect ──
-      const { resolvePrivateKeyFromInput } = await import('../../shared/auth/resolve-key-input.js');
-      const { resolveInstallation } = await import('../../shared/auth/resolve-installation.js');
+      const { resolvePrivateKeyFromInput } =
+        await import('../../shared/auth/resolve-key-input.js');
+      const { resolveInstallation } =
+        await import('../../shared/auth/resolve-installation.js');
 
       const slug = await p.text({
-        message: 'What is your GitHub App slug? (from the URL: github.com/settings/apps/<slug>)',
-        validate: (v) => !v?.trim() ? 'App slug is required' : undefined,
+        message:
+          'What is your GitHub App slug? (from the URL: github.com/settings/apps/<slug>)',
+        placeholder: 'e.g., my-github-app-slug',
+        validate: (v) => (!v?.trim() ? 'App slug is required' : undefined),
       });
-      if (p.isCancel(slug)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (p.isCancel(slug))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
 
-      p.log.info(`Download your private key from: https://github.com/settings/apps/${slug}`);
+      p.log.info(
+        `Download your private key from: ${ansiLink('GitHub App Settings', `https://github.com/settings/apps/${slug}`)}`,
+      );
 
       const keyInput = await p.text({
-        message: 'Path to your private key (.pem file), or paste the key directly:',
-        validate: (v) => !v?.trim() ? 'Private key is required' : undefined,
+        message:
+          'Path to your private key (.pem file), or paste the key directly:',
+        placeholder: 'e.g., path/to/key.pem or paste the private key block',
+        validate: (v) => (!v?.trim() ? 'Private key is required' : undefined),
       });
-      if (p.isCancel(keyInput)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (p.isCancel(keyInput))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
 
       let privateKeyPem: string;
       try {
@@ -211,32 +305,58 @@ export async function runInitWizard(
       }
 
       const s = p.spinner();
-      s.start(`Authenticating as "${slug}" and finding installation for ${owner}/${repo}...`);
+      s.start(
+        ansiHighlight(
+          `Authenticating as \`${slug}\` and finding installation for \`${owner}/${repo}\`...`,
+        ),
+      );
 
       try {
         const { Octokit } = await import('octokit');
 
         const tempOctokit = new Octokit();
-        const { data: appData } = await tempOctokit.rest.apps.getBySlug({ app_slug: slug });
+        const { data: appData } = await tempOctokit.rest.apps.getBySlug({
+          app_slug: slug,
+        });
         if (!appData) {
-          throw new Error(`Could not find GitHub App with slug "${slug}". Check the slug at https://github.com/settings/apps`);
+          throw new Error(
+            `Could not find GitHub App with slug "${slug}". Check the slug at https://github.com/settings/apps`,
+          );
         }
         const appId = String(appData.id);
 
-        const resolved = await resolveInstallation(appId, privateKeyPem, owner, repo);
+        const resolved = await resolveInstallation(
+          appId,
+          privateKeyPem,
+          owner,
+          repo,
+        );
 
-        s.stop(`Authenticated as "${resolved.appName}" (ID: ${resolved.appId})`);
-        p.log.success(`Found installation for ${resolved.accountLogin} (ID: ${resolved.installationId})`);
+        s.stop(
+          ansiHighlight(
+            `Authenticated as \`${resolved.appName}\` (ID: \`${resolved.appId}\`)`,
+          ),
+        );
+        p.log.success(
+          ansiHighlight(
+            `Found installation for \`${resolved.accountLogin}\` (ID: \`${resolved.installationId}\`)`,
+          ),
+        );
 
         process.env.GITHUB_APP_ID = appId;
-        process.env.GITHUB_APP_INSTALLATION_ID = String(resolved.installationId);
+        process.env.GITHUB_APP_INSTALLATION_ID = String(
+          resolved.installationId,
+        );
         process.env.GITHUB_APP_PRIVATE_KEY = privateKeyPem;
-        process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = Buffer.from(privateKeyPem).toString('base64');
+        process.env.GITHUB_APP_PRIVATE_KEY_BASE64 =
+          Buffer.from(privateKeyPem).toString('base64');
       } catch (err) {
         s.stop('Authentication failed');
         return fail(
           'UNKNOWN_ERROR',
-          err instanceof Error ? err.message : 'Could not authenticate with GitHub App.',
+          err instanceof Error
+            ? err.message
+            : 'Could not authenticate with GitHub App.',
           true,
         );
       }
@@ -251,18 +371,33 @@ export async function runInitWizard(
 
   if (!julesKey) {
     const wantKey = await p.confirm({
-      message: 'Fleet needs a JULES_API_KEY to dispatch sessions. Do you have one?',
+      message: ansiHighlight(
+        'Fleet needs a `JULES_API_KEY` to dispatch sessions. Do you have one?',
+      ),
       initialValue: true,
     });
-    if (!p.isCancel(wantKey) && wantKey) {
-      const key = await p.password({ message: 'Enter your Jules API key:' });
-      if (!p.isCancel(key)) {
-        process.env.JULES_API_KEY = key;
-        secretsToUpload['JULES_API_KEY'] = key;
+    if (p.isCancel(wantKey)) {
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    }
+    if (wantKey) {
+      const key = await p.password({
+        message: 'Enter your Jules API key:',
+        validate: (v) => (!v?.trim() ? 'Jules API key is required' : undefined),
+      });
+      if (p.isCancel(key)) {
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
       }
+      process.env.JULES_API_KEY = key;
+      secretsToUpload['JULES_API_KEY'] = key;
+    } else {
+      p.log.info(
+        ansiHighlight(
+          `💡 You can retrieve or request a \`JULES_API_KEY\` at ${ansiLink('Jules Console', 'https://jules.google.com')}\n   (Setup will complete, but dispatching worker sessions will require it later)`,
+        ),
+      );
     }
   } else {
-    p.log.success('JULES_API_KEY detected');
+    p.log.success(ansiHighlight('`JULES_API_KEY` detected'));
     secretsToUpload['JULES_API_KEY'] = julesKey;
   }
 
@@ -273,7 +408,10 @@ export async function runInitWizard(
       message: `Upload ${Object.keys(secretsToUpload).length} secret(s) to GitHub Actions secrets?`,
       initialValue: true,
     });
-    if (p.isCancel(confirmed) || !confirmed) {
+    if (p.isCancel(confirmed)) {
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    }
+    if (!confirmed) {
       Object.keys(secretsToUpload).forEach((k) => delete secretsToUpload[k]);
     }
   }
@@ -284,13 +422,19 @@ export async function runInitWizard(
       message: 'Upload GitHub App credentials to repo secrets?',
       initialValue: true,
     });
-    if (!p.isCancel(uploadApp) && uploadApp) {
-      if (process.env.GITHUB_APP_ID) secretsToUpload['FLEET_APP_ID'] = process.env.GITHUB_APP_ID;
+    if (p.isCancel(uploadApp)) {
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    }
+    if (uploadApp) {
+      if (process.env.GITHUB_APP_ID)
+        secretsToUpload['FLEET_APP_ID'] = process.env.GITHUB_APP_ID;
       if (process.env.GITHUB_APP_PRIVATE_KEY_BASE64) {
-        secretsToUpload['FLEET_APP_PRIVATE_KEY'] = process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
+        secretsToUpload['FLEET_APP_PRIVATE_KEY'] =
+          process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
       }
       if (process.env.GITHUB_APP_INSTALLATION_ID) {
-        secretsToUpload['FLEET_APP_INSTALLATION_ID'] = process.env.GITHUB_APP_INSTALLATION_ID;
+        secretsToUpload['FLEET_APP_INSTALLATION_ID'] =
+          process.env.GITHUB_APP_INSTALLATION_ID;
       }
     }
   }
@@ -304,28 +448,48 @@ export async function runInitWizard(
     const cadenceChoice = await p.select({
       message: 'How often should Fleet run?',
       options: [
-        { value: 30, label: 'Every 30 minutes', hint: 'High velocity — fast signal, more API/Actions usage' },
-        { value: 60, label: 'Every hour', hint: 'Balanced — good signal, moderate usage' },
-        { value: 360, label: 'Every 6 hours', hint: 'Standard (default) — reliable daily cadence' },
-        { value: 720, label: 'Every 12 hours', hint: 'Conservative — twice daily' },
+        {
+          value: 30,
+          label: 'Every 30 minutes',
+          hint: 'High velocity — fast signal, more API/Actions usage',
+        },
+        {
+          value: 60,
+          label: 'Every hour',
+          hint: 'Balanced — good signal, moderate usage',
+        },
+        {
+          value: 360,
+          label: 'Every 6 hours',
+          hint: 'Standard (default) — reliable daily cadence',
+        },
+        {
+          value: 720,
+          label: 'Every 12 hours',
+          hint: 'Conservative — twice daily',
+        },
         { value: 1440, label: 'Every 24 hours', hint: 'Minimal — once daily' },
         { value: -1, label: 'Custom', hint: 'Enter interval in minutes' },
       ],
       initialValue: 360,
     });
-    if (p.isCancel(cadenceChoice)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    if (p.isCancel(cadenceChoice))
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
 
     if (cadenceChoice === -1) {
       const custom = await p.text({
         message: 'Enter interval in minutes (minimum 5):',
         initialValue: '360',
+        placeholder: 'e.g., 60',
         validate: (v) => {
           const n = parseInt(v ?? '', 10);
-          if (isNaN(n) || n < 5) return 'Must be a number ≥ 5 (GitHub Actions minimum)';
+          if (isNaN(n) || n < 5)
+            return 'Must be a number ≥ 5 (GitHub Actions minimum)';
           return undefined;
         },
       });
-      if (p.isCancel(custom)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (p.isCancel(custom))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
       intervalMinutes = parseInt(custom, 10);
     } else {
       intervalMinutes = cadenceChoice;
@@ -344,7 +508,11 @@ export async function runInitWizard(
     const existingFiles: string[] = [];
     for (const tmpl of templatesToCheck) {
       try {
-        await octokit.rest.repos.getContent({ owner, repo, path: tmpl.repoPath });
+        await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path: tmpl.repoPath,
+        });
         existingFiles.push(tmpl.repoPath);
       } catch {
         // File doesn't exist — will be created fresh
@@ -359,29 +527,35 @@ export async function runInitWizard(
         message: 'Overwrite existing workflow files with latest templates?',
         initialValue: true,
       });
-      if (p.isCancel(shouldOverwrite)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+      if (p.isCancel(shouldOverwrite))
+        return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
       overwrite = shouldOverwrite;
     }
   }
 
   // ── Step 7: Confirmation ──
   if (!dryRun) {
-    const files = buildWorkflowTemplates(intervalMinutes).map((t) => t.repoPath);
+    const files = buildWorkflowTemplates(intervalMinutes).map(
+      (t) => t.repoPath,
+    );
     files.push('.fleet/goals/example.md');
 
-    p.log.info([
-      'Fleet will:',
-      `  • Create a branch from ${baseBranch}`,
-      `  • ${overwrite ? 'Overwrite' : 'Commit'} ${files.length} files`,
-      '  • Open a pull request',
-      '  • Configure labels (fleet, fleet-merge-ready)',
-    ].join('\n'));
+    p.log.info(
+      [
+        'Fleet will:',
+        `  • Create a branch from ${baseBranch}`,
+        `  • ${overwrite ? 'Overwrite' : 'Commit'} ${files.length} files`,
+        '  • Open a pull request',
+        '  • Configure labels (fleet, fleet-merge-ready)',
+      ].join('\n'),
+    );
 
     const proceed = await p.confirm({
       message: 'Create the PR now?',
       initialValue: true,
     });
-    if (p.isCancel(proceed)) return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
+    if (p.isCancel(proceed))
+      return fail('UNKNOWN_ERROR', 'Setup cancelled.', false);
     if (!proceed) {
       emit({ type: 'init:dry-run', files });
       return fail(
@@ -392,5 +566,15 @@ export async function runInitWizard(
     }
   }
 
-  return { owner, repo, baseBranch, authMethod, secretsToUpload, dryRun, overwrite, features: parseFeatureFlags(args), intervalMinutes };
+  return {
+    owner,
+    repo,
+    baseBranch,
+    authMethod,
+    secretsToUpload,
+    dryRun,
+    overwrite,
+    features: parseFeatureFlags(args),
+    intervalMinutes,
+  };
 }

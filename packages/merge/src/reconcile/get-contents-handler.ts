@@ -23,11 +23,12 @@ import {
   getPullRequest,
 } from '../shared/github.js';
 import { readManifest } from './manifest.js';
-import { validateFilePath } from '../shared/validators.js';
+import { validateFilePath, validateRepository } from '../shared/validators.js';
 
 export async function getContentsHandler(octokit: Octokit, rawInput: any) {
   const input = GetContentsInputSchema.parse(rawInput);
   validateFilePath(input.filePath);
+  validateRepository(input.repo);
   const [owner, repo] = input.repo.split('/');
   if (!owner || !repo) {
     throw new Error('Repo must be in owner/repo format');

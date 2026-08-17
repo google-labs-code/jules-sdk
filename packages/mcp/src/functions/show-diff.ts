@@ -1,4 +1,10 @@
-import type { JulesClient, ChangeSetArtifact } from '@google/jules-sdk';
+import {
+  type JulesClient,
+  type ChangeSetArtifact,
+  validateSessionId,
+  validateFilePath,
+  validateActivityId,
+} from '@google/jules-sdk';
 import type {
   ShowDiffResult,
   ShowDiffOptions,
@@ -40,8 +46,15 @@ export async function showDiff(
   if (!sessionId) {
     throw new Error('sessionId is required');
   }
+  validateSessionId(sessionId);
 
   const { file, activityId } = options;
+  if (file) {
+    validateFilePath(file);
+  }
+  if (activityId) {
+    validateActivityId(activityId);
+  }
 
   // Use snapshot() to leverage core SDK aggregation
   const session = client.session(sessionId);

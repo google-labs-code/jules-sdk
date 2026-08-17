@@ -14,30 +14,45 @@
 
 import type { ConfigureEvent } from '../../events/configure.js';
 import type { RenderContext } from '../spec.js';
+import {
+  repoConfigUrl,
+  ansiLink,
+  ansiGreen,
+  ansiYellow,
+  ansiHighlight,
+} from '../session-url.js';
 
 /** Render a configure-domain event. */
-export function renderConfigureEvent(event: ConfigureEvent, ctx: RenderContext): void {
+export function renderConfigureEvent(
+  event: ConfigureEvent,
+  ctx: RenderContext,
+): void {
   switch (event.type) {
     case 'configure:start':
-      ctx.info(`Configuring ${event.resource} for ${event.owner}/${event.repo}`);
+      ctx.info(
+        `Configuring ${ansiHighlight(`\`${event.resource}\``)} for ${ansiHighlight(`\`${event.owner}/${event.repo}\``)}`,
+      );
+      ctx.info(
+        `  ${ansiLink('View Configuration', repoConfigUrl(event.owner, event.repo))}`,
+      );
       break;
     case 'configure:label:created':
-      ctx.info(`  ✓ Label "${event.name}" created`);
+      ctx.info(`  ${ansiGreen('✓')} Label ${ansiHighlight(`\`${event.name}\``)} created`);
       break;
     case 'configure:label:exists':
-      ctx.warn(`  ⊘ Label "${event.name}" already exists`);
+      ctx.warn(`  ${ansiYellow('⊘')} Label ${ansiHighlight(`\`${event.name}\``)} already exists`);
       break;
     case 'configure:milestone:created':
-      ctx.info(`  ✓ Milestone "${event.name}" created`);
+      ctx.info(`  ${ansiGreen('✓')} Milestone ${ansiHighlight(`\`${event.name}\``)} created`);
       break;
     case 'configure:milestone:exists':
-      ctx.warn(`  ⊘ Milestone "${event.name}" already exists`);
+      ctx.warn(`  ${ansiYellow('⊘')} Milestone ${ansiHighlight(`\`${event.name}\``)} already exists`);
       break;
     case 'configure:secret:uploading':
       ctx.startSpinner(`Uploading secret ${event.name}…`);
       break;
     case 'configure:secret:uploaded':
-      ctx.stopSpinner(`Secret ${event.name} uploaded`);
+      ctx.stopSpinner(`Secret ${event.name} uploaded ${ansiGreen('✓')}`);
       break;
     case 'configure:done':
       ctx.success('Configuration complete');

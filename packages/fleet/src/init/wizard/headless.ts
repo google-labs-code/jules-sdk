@@ -18,6 +18,7 @@ import type { FleetEmitter } from '../../shared/events.js';
 import { buildWorkflowTemplates } from '../templates.js';
 import type { InitArgs, InitWizardResult } from './types.js';
 import { parseFeatureFlags } from './parse-features.js';
+import { validateRepository, validateBranchName } from '@google/jules-sdk';
 
 /**
  * Validate all required inputs from flags + env vars in non-interactive mode.
@@ -41,6 +42,14 @@ export async function validateHeadlessInputs(
       );
     }
   }
+
+  // Validate repository name to prevent path traversal, control characters, or script injections
+  try {
+    validateRepository(repoSlug);
+  } catch (err: any) {
+    return fail('UNKNOWN_ERROR', err.message, false);
+  }
+
   const [owner, repo] = repoSlug.split('/');
   if (!owner || !repo) {
     return fail('UNKNOWN_ERROR', `Invalid repo format: "${repoSlug}". Expected owner/repo.`, false);
@@ -94,6 +103,14 @@ export async function validateHeadlessInputs(
   const intervalMinutes = rawInterval;
 
   const baseBranch = args.base ?? 'main';
+
+  // Validate branch name to prevent git reference escapes or shell/command injections
+  try {
+    validateBranchName(baseBranch);
+  } catch (err: any) {
+    return fail('UNKNOWN_ERROR', err.message, false);
+  }
+
   const dryRun = args['dry-run'] ?? false;
 
   // In non-interactive mode, never upload secrets by default

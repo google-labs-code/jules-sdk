@@ -14,6 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { validateHeadlessInputs } from '../init/wizard/headless.js';
+import { parseRepositoryInput } from '../init/wizard/interactive.js';
 import type { FleetEvent } from '../shared/events.js';
 
 // Mock getGitRepoInfo to avoid real git calls
@@ -255,5 +256,65 @@ describe('validateHeadlessInputs (Non-Interactive Mode)', () => {
     if (!('success' in result)) {
       expect(result.baseBranch).toBe('develop');
     }
+  });
+
+  it('fails with invalid repository name (control characters)', async () => {
+    process.env.GITHUB_TOKEN = 'ghp_test';
+    const result = await validateHeadlessInputs(
+      { repo: 'owner/repo\x00invalid' },
+      () => {},
+    );
+    expect('success' in result).toBe(true);
+    if ('success' in result) {
+      expect(result.success).toBe(false);
+      expect(result.error.message).toContain('CONTROL_CHAR');
+    }
+  });
+
+  it('fails with invalid base branch name', async () => {
+    process.env.GITHUB_TOKEN = 'ghp_test';
+    const result = await validateHeadlessInputs(
+      { repo: 'owner/repo', base: 'invalid branch' },
+      () => {},
+    );
+    expect('success' in result).toBe(true);
+    if ('success' in result) {
+      expect(result.success).toBe(false);
+      expect(result.error.message).toContain('Branch name contains spaces');
+    }
+  });
+});
+
+describe('parseRepositoryInput', () => {
+  it('passes standard owner/repo format through unchanged', () => {
+    expect(parseRepositoryInput('google/jules')).toBe('google/jules');
+    expect(parseRepositoryInput('my-org/my-repo_123')).toBe('my-org/my-repo_123');
+  });
+
+  it('trims leading and trailing whitespace', () => {
+    expect(parseRepositoryInput('   google/jules  ')).toBe('google/jules');
+  });
+
+  it('strips https protocol and github domain', () => {
+    expect(parseRepositoryInput('https://github.com/google/jules')).toBe('google/jules');
+    expect(parseRepositoryInput('http://github.com/google/jules')).toBe('google/jules');
+  });
+
+  it('strips www subdomain', () => {
+    expect(parseRepositoryInput('https://www.github.com/google/jules')).toBe('google/jules');
+  });
+
+  it('strips trailing .git extension', () => {
+    expect(parseRepositoryInput('google/jules.git')).toBe('google/jules');
+    expect(parseRepositoryInput('https://github.com/google/jules.git')).toBe('google/jules');
+  });
+
+  it('strips ssh prefixes', () => {
+    expect(parseRepositoryInput('git@github.com:google/jules.git')).toBe('google/jules');
+    expect(parseRepositoryInput('git@github.com:google/jules')).toBe('google/jules');
+  });
+
+  it('cleans up extra slashes', () => {
+    expect(parseRepositoryInput('/google/jules/')).toBe('google/jules');
   });
 });

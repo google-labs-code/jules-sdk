@@ -100,4 +100,44 @@ diff --git a/src/b.ts b/src/b.ts
       'sessionId is required',
     );
   });
+
+  describe('input validation on file path', () => {
+    it('throws validation error if file contains traversal', async () => {
+      await expect(
+        showDiff(mockClient, 'some-session', { file: '../../etc/passwd' }),
+      ).rejects.toThrow('PATH_TRAVERSAL');
+    });
+
+    it('throws validation error if file is an absolute path', async () => {
+      await expect(
+        showDiff(mockClient, 'some-session', { file: '/etc/passwd' }),
+      ).rejects.toThrow('ABSOLUTE_PATH');
+
+      await expect(
+        showDiff(mockClient, 'some-session', { file: 'C:/Windows/System32' }),
+      ).rejects.toThrow('ABSOLUTE_PATH');
+    });
+
+    it('throws validation error if file contains control characters', async () => {
+      await expect(
+        showDiff(mockClient, 'some-session', { file: 'src/foo\x00.ts' }),
+      ).rejects.toThrow('CONTROL_CHAR');
+    });
+  });
+
+  describe('input validation on activity ID', () => {
+    it('throws validation error if activity ID is invalid', async () => {
+      await expect(
+        showDiff(mockClient, 'some-session', { activityId: 'act\x00_id' }),
+      ).rejects.toThrow('CONTROL_CHAR');
+
+      await expect(
+        showDiff(mockClient, 'some-session', { activityId: 'act/123' }),
+      ).rejects.toThrow('INVALID_ACTIVITY_ID');
+
+      await expect(
+        showDiff(mockClient, 'some-session', { activityId: '..' }),
+      ).rejects.toThrow('PATH_TRAVERSAL');
+    });
+  });
 });

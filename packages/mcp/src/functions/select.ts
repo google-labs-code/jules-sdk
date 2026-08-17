@@ -1,8 +1,9 @@
-import type {
-  JulesClient,
-  JulesQuery,
-  JulesDomain,
-  Activity,
+import {
+  type JulesClient,
+  type JulesQuery,
+  type JulesDomain,
+  type Activity,
+  validateQuery,
 } from '@google/jules-sdk';
 import type { SelectResult, SelectOptions } from './types.js';
 import { truncateToTokenBudget } from '../tokenizer.js';
@@ -23,6 +24,13 @@ export async function select<T = unknown>(
 ): Promise<SelectResult<T>> {
   if (!query) {
     throw new Error('Query argument is required');
+  }
+
+  // Validate JQL query structure at the MCP boundary (defense-in-depth)
+  const validationResult = validateQuery(query);
+  if (!validationResult.valid) {
+    const messages = validationResult.errors.map((e) => e.message).join('; ');
+    throw new Error(`INVALID_QUERY: ${messages}`);
   }
 
   const { tokenBudget } = options;

@@ -8,7 +8,11 @@ export default defineTool({
   inputSchema: {
     type: 'object',
     properties: {
-      pageSize: { type: 'number' },
+      pageSize: {
+        type: 'number',
+        description:
+          'The maximum number of recent sessions to retrieve (default: 10).',
+      },
     },
   },
   handler: async (client: JulesClient, args: any) => {

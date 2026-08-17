@@ -1,4 +1,4 @@
-import type { JulesClient, Activity } from '@google/jules-sdk';
+import { type JulesClient, type Activity, validateSessionId } from '@google/jules-sdk';
 import type {
   SessionStateResult,
   SessionStatus,
@@ -146,6 +146,7 @@ export async function getSessionState(
   if (!sessionId) {
     throw new Error('sessionId is required');
   }
+  validateSessionId(sessionId);
 
   const session = client.session(sessionId);
 

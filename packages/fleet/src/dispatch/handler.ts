@@ -23,6 +23,11 @@ import { recordDispatch } from './events.js';
 import { parseGoalFile } from '../analyze/goals.js';
 import { globSync } from 'glob';
 import { existsSync, readFileSync } from 'node:fs';
+import {
+  validateRepository,
+  validateBranchName,
+  validateFilePath,
+} from '@google/jules-sdk';
 
 export interface DispatchHandlerDeps {
   octokit: Octokit;
@@ -48,6 +53,15 @@ export class DispatchHandler implements DispatchSpec {
 
   async execute(input: DispatchInput): Promise<DispatchResult> {
     try {
+      // Validate inputs defensively at outer execution boundary
+      validateRepository(`${input.owner}/${input.repo}`);
+      if (input.baseBranch) {
+        validateBranchName(input.baseBranch);
+      }
+      if (input.goalsDir) {
+        validateFilePath(input.goalsDir);
+      }
+
       this.emit({ type: 'dispatch:start', milestone: input.milestone ?? 'all' });
       this.emit({ type: 'dispatch:scanning' });
 

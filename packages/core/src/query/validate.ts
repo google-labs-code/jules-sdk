@@ -91,6 +91,13 @@ const VALID_ORDERS = new Set(['asc', 'desc']);
 // Field Path Resolution
 // ============================================
 
+// Performance Optimization: Cache resolved field paths to completely bypass
+// dot-notation path splitting and nested schema list traversal on subsequent validations.
+const fieldPathResolutionCache = new Map<
+  string,
+  { field: FieldMeta | null; exists: boolean; computedField: boolean }
+>();
+
 /**
  * Resolve a dot-notation path to field metadata
  */
@@ -98,6 +105,12 @@ function resolveFieldPath(
   path: string,
   domain: 'sessions' | 'activities',
 ): { field: FieldMeta | null; exists: boolean; computedField: boolean } {
+  const cacheKey = `${domain}:${path}`;
+  const cached = fieldPathResolutionCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const schema = domain === 'sessions' ? SESSION_SCHEMA : ACTIVITY_SCHEMA;
   const parts = path.split('.');
 
@@ -107,17 +120,25 @@ function resolveFieldPath(
   for (const part of parts) {
     const found = currentFields.find((f) => f.name === part);
     if (!found) {
-      return { field: null, exists: false, computedField: false };
+      const result = { field: null, exists: false, computedField: false };
+      if (fieldPathResolutionCache.size < 1000) {
+        fieldPathResolutionCache.set(cacheKey, result);
+      }
+      return result;
     }
     currentField = found;
     currentFields = found.fields || [];
   }
 
-  return {
+  const result = {
     field: currentField,
     exists: true,
     computedField: currentField?.computed || false,
   };
+  if (fieldPathResolutionCache.size < 1000) {
+    fieldPathResolutionCache.set(cacheKey, result);
+  }
+  return result;
 }
 
 /**

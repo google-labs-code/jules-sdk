@@ -14,46 +14,67 @@
 
 import type { InitEvent } from '../../events/init.js';
 import type { RenderContext } from '../spec.js';
+import {
+  ansiLink,
+  ansiGreen,
+  ansiYellow,
+  ansiRed,
+  ansiHighlight,
+} from '../session-url.js';
 
 /** Render an init-domain event. */
 export function renderInitEvent(event: InitEvent, ctx: RenderContext): void {
   switch (event.type) {
     case 'init:start':
-      ctx.info(`Initializing fleet for ${event.owner}/${event.repo}`);
+      ctx.info(
+        `Initializing fleet for ${ansiHighlight(`\`${event.owner}/${event.repo}\``)}`,
+      );
       break;
     case 'init:branch:creating':
-      ctx.startSpinner(`Creating branch ${event.name} from ${event.base}`);
+      ctx.startSpinner(
+        `Creating branch ${ansiHighlight(`\`${event.name}\``)} from ${ansiHighlight(`\`${event.base}\``)}`,
+      );
       break;
     case 'init:branch:created':
-      ctx.stopSpinner(`Branch ${event.name} created`);
+      ctx.stopSpinner(
+        `Branch ${ansiHighlight(`\`${event.name}\``)} created ${ansiGreen('✓')}`,
+      );
       break;
     case 'init:file:committed':
-      ctx.info(`  ✓ ${event.path}`);
+      ctx.info(`  ${ansiGreen('✓')} ${ansiHighlight(`\`${event.path}\``)}`);
       break;
     case 'init:file:skipped':
-      ctx.warn(`  ⊘ ${event.path} — ${event.reason}`);
+      ctx.warn(
+        `  ${ansiYellow('⊘')} ${ansiHighlight(`\`${event.path}\``)} — ${ansiHighlight(event.reason)}`,
+      );
       break;
     case 'init:pr:creating':
       ctx.startSpinner('Creating pull request…');
       break;
     case 'init:pr:created':
-      ctx.stopSpinner(`PR #${event.number} created`);
-      ctx.info(`  ${event.url}`);
+      ctx.stopSpinner(`PR #${event.number} created ${ansiGreen('✓')}`);
+      ctx.info(`  ${ansiLink('View Pull Request', event.url)}`);
       break;
     case 'init:done':
-      ctx.success(`Fleet initialized — PR: ${event.prUrl}`);
+      ctx.success(
+        `Fleet initialized — PR: ${ansiLink('View Pull Request', event.prUrl)}`,
+      );
       break;
     case 'init:auth:detected':
-      ctx.success(`Auth: ${event.method === 'token' ? 'GITHUB_TOKEN' : 'GitHub App'}`);
+      ctx.success(
+        `Auth: ${event.method === 'token' ? 'GITHUB_TOKEN' : 'GitHub App'}`,
+      );
       break;
     case 'init:secret:uploading':
       ctx.startSpinner(`Uploading secret ${event.name}…`);
       break;
     case 'init:secret:uploaded':
-      ctx.stopSpinner(`Secret ${event.name} saved`);
+      ctx.stopSpinner(`Secret ${event.name} saved ${ansiGreen('✓')}`);
       break;
     case 'init:secret:skipped':
-      ctx.warn(`  ⊘ ${event.name} — ${event.reason}`);
+      ctx.warn(
+        `  ${ansiYellow('⊘')} ${event.name} — ${ansiHighlight(event.reason)}`,
+      );
       break;
     case 'init:dry-run':
       ctx.info('Would create:');
@@ -61,6 +82,28 @@ export function renderInitEvent(event: InitEvent, ctx: RenderContext): void {
       break;
     case 'init:already-initialized':
       ctx.warn('Repository is already initialized');
+      break;
+    case 'init:repo:creating':
+      ctx.startSpinner(
+        `Creating repository ${ansiHighlight(`\`${event.owner}/${event.name}\``)}…`,
+      );
+      break;
+    case 'init:repo:created':
+      ctx.stopSpinner(
+        `Repository ${ansiHighlight(`\`${event.fullName}\``)} created ${ansiGreen('✓')}`,
+      );
+      ctx.info(`  ${ansiLink('View Repository', event.url)}`);
+      break;
+    case 'init:repo:exists':
+      ctx.warn(
+        `  ${ansiYellow('⊘')} Repository ${ansiHighlight(`\`${event.fullName}\``)} already exists`,
+      );
+      break;
+    case 'init:repo:failed':
+      ctx.stopSpinner();
+      ctx.error(
+        `  ${ansiRed('✗')} Repository creation failed: ${ansiHighlight(event.reason)}`,
+      );
       break;
   }
 }

@@ -15,5 +15,5 @@
 export * from './reconcile/index.js';
 export { createMergeOctokit, getAuthOptions } from './shared/auth.js';
 export { ConflictError, HardError, getExitCode, parseJsonInput } from './shared/errors.js';
-export { validateFilePath, validateBranchName } from './shared/validators.js';
+export { validateFilePath, validateBranchName, validateRepository } from './shared/validators.js';
 export * from './shared/github.js';

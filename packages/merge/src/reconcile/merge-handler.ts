@@ -16,9 +16,11 @@ import { Octokit } from '@octokit/rest';
 import { MergeInputSchema, MergeOutputSchema } from './schemas.js';
 import { getPullRequest, mergePullRequest } from '../shared/github.js';
 import { HardError } from '../shared/errors.js';
+import { validateRepository } from '../shared/validators.js';
 
 export async function mergeHandler(octokit: Octokit, rawInput: any) {
   const input = MergeInputSchema.parse(rawInput);
+  validateRepository(input.repo);
   const [owner, repo] = input.repo.split('/');
   if (!owner || !repo) {
     throw new Error('Repo must be in owner/repo format');

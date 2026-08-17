@@ -34,14 +34,19 @@ export function determineCacheTier(
   cached: CachedSession,
   now: number = Date.now(),
 ): CacheTier {
-  const createdAt = new Date(cached.resource.createTime).getTime();
+  const createdAt = Date.parse(cached.resource.createTime);
   const age = now - createdAt;
-  const isTerminal = ['failed', 'completed'].includes(cached.resource.state);
 
   // TIER 3: FROZEN (Older than 1 month)
   if (age > ONE_MONTH_MS) {
     return 'frozen';
   }
+
+  // Performance Optimization: Direct state comparison avoids allocating a new array
+  // (`['failed', 'completed']`) on every evaluation, and evaluating it after the frozen check
+  // skips terminal state parsing for old sessions.
+  const state = cached.resource.state;
+  const isTerminal = state === 'failed' || state === 'completed';
 
   // TIER 2: WARM (Terminal state + synced recently)
   const timeSinceSync = now - cached._lastSyncedAt;

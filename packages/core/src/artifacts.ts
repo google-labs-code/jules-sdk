@@ -31,75 +31,103 @@ import { Platform } from './platform/types.js';
 export function parseUnidiff(patch?: string | null): ParsedFile[] {
   if (!patch) return [];
   const files: ParsedFile[] = [];
-  // Split by diff headers (diff --git a/... b/...)
-  const diffSections = patch.split(/^diff --git /m).filter(Boolean);
+  // Single-pass optimization: avoid splitting by regex and heavy nested array allocations.
+  // Instead, split by line once, and track file block state sequentially.
+  const lines = patch.split('\n');
+  const totalLines = lines.length;
 
-  for (const section of diffSections) {
-    const lines = section.split('\n');
+  let currentPath = '';
+  let fromPath = '';
+  let toPath = '';
+  let hasFromNull = false;
+  let hasToNull = false;
+  let additions = 0;
+  let deletions = 0;
+  let inHunk = false;
+  let hasFile = false;
 
-    // Extract file path from the +++ line (destination file)
-    // Format: +++ b/path/to/file or +++ /dev/null
-    let path = '';
-    let fromPath = '';
-    let toPath = '';
+  const commitFile = () => {
+    if (!hasFile) return;
 
-    for (const line of lines) {
-      if (line.startsWith('--- ')) {
-        // --- a/path or --- /dev/null
-        fromPath = line
-          .slice(4)
-          .replace(/^a\//, '')
-          .replace(/^\/dev\/null$/, '');
-      } else if (line.startsWith('+++ ')) {
-        // +++ b/path or +++ /dev/null
-        toPath = line
-          .slice(4)
-          .replace(/^b\//, '')
-          .replace(/^\/dev\/null$/, '');
-      }
-    }
-
-    // Determine change type and path
     let changeType: 'created' | 'modified' | 'deleted';
-    if (fromPath === '' || lines.some((l) => l.startsWith('--- /dev/null'))) {
+    if (fromPath === '' || hasFromNull) {
       changeType = 'created';
-      path = toPath;
-    } else if (
-      toPath === '' ||
-      lines.some((l) => l.startsWith('+++ /dev/null'))
-    ) {
+      currentPath = toPath;
+    } else if (toPath === '' || hasToNull) {
       changeType = 'deleted';
-      path = fromPath;
+      currentPath = fromPath;
     } else {
       changeType = 'modified';
-      path = toPath;
+      currentPath = toPath;
     }
 
-    // Skip if we couldn't determine a path
-    if (!path) continue;
+    if (currentPath) {
+      files.push({
+        path: currentPath,
+        changeType,
+        additions,
+        deletions,
+      });
+    }
+  };
 
-    // Count additions and deletions (lines starting with + or - in hunks)
-    let additions = 0;
-    let deletions = 0;
-    let inHunk = false;
+  for (let i = 0; i < totalLines; i++) {
+    const line = lines[i];
 
-    for (const line of lines) {
-      if (line.startsWith('@@')) {
-        inHunk = true;
-        continue;
-      }
-      if (inHunk) {
-        if (line.startsWith('+') && !line.startsWith('+++')) {
-          additions++;
-        } else if (line.startsWith('-') && !line.startsWith('---')) {
-          deletions++;
-        }
-      }
+    if (line.startsWith('diff --git ')) {
+      commitFile();
+      // Reset state for new file block
+      currentPath = '';
+      fromPath = '';
+      toPath = '';
+      hasFromNull = false;
+      hasToNull = false;
+      additions = 0;
+      deletions = 0;
+      inHunk = false;
+      hasFile = true;
+      continue;
     }
 
-    files.push({ path, changeType, additions, deletions });
+    if (!hasFile) continue;
+
+    if (line.startsWith('--- ')) {
+      const slice = line.slice(4).replace(/\r$/, '');
+      if (slice === '/dev/null') {
+        hasFromNull = true;
+        fromPath = '';
+      } else {
+        fromPath = slice.startsWith('a/') ? slice.slice(2) : slice;
+      }
+      continue;
+    }
+
+    if (line.startsWith('+++ ')) {
+      const slice = line.slice(4).replace(/\r$/, '');
+      if (slice === '/dev/null') {
+        hasToNull = true;
+        toPath = '';
+      } else {
+        toPath = slice.startsWith('b/') ? slice.slice(2) : slice;
+      }
+      continue;
+    }
+
+    if (line.startsWith('@@')) {
+      inHunk = true;
+      continue;
+    }
+
+    if (inHunk) {
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        additions++;
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        deletions++;
+      }
+    }
   }
 
+  commitFile();
   return files;
 }
 
@@ -112,78 +140,108 @@ export function parseUnidiffWithContent(
 ): GeneratedFile[] {
   if (!patch) return [];
   const files: GeneratedFile[] = [];
-  // Split by diff headers (diff --git a/... b/...)
-  const diffSections = patch.split(/^diff --git /m).filter(Boolean);
+  // Single-pass optimization: avoid splitting by regex and heavy nested array allocations.
+  // Instead, split by line once, and track file block state sequentially.
+  const lines = patch.split('\n');
+  const totalLines = lines.length;
 
-  for (const section of diffSections) {
-    const lines = section.split('\n');
+  let currentPath = '';
+  let fromPath = '';
+  let toPath = '';
+  let hasFromNull = false;
+  let hasToNull = false;
+  let additions = 0;
+  let deletions = 0;
+  let inHunk = false;
+  let hasFile = false;
+  let contentLines: string[] = [];
 
-    // Extract file path from the +++ line (destination file)
-    let path = '';
-    let fromPath = '';
-    let toPath = '';
+  const commitFile = () => {
+    if (!hasFile) return;
 
-    for (const line of lines) {
-      if (line.startsWith('--- ')) {
-        fromPath = line
-          .slice(4)
-          .replace(/^a\//, '')
-          .replace(/^\/dev\/null$/, '');
-      } else if (line.startsWith('+++ ')) {
-        toPath = line
-          .slice(4)
-          .replace(/^b\//, '')
-          .replace(/^\/dev\/null$/, '');
-      }
-    }
-
-    // Determine change type and path
     let changeType: 'created' | 'modified' | 'deleted';
-    if (fromPath === '' || lines.some((l) => l.startsWith('--- /dev/null'))) {
+    if (fromPath === '' || hasFromNull) {
       changeType = 'created';
-      path = toPath;
-    } else if (
-      toPath === '' ||
-      lines.some((l) => l.startsWith('+++ /dev/null'))
-    ) {
+      currentPath = toPath;
+    } else if (toPath === '' || hasToNull) {
       changeType = 'deleted';
-      path = fromPath;
+      currentPath = fromPath;
     } else {
       changeType = 'modified';
-      path = toPath;
+      currentPath = toPath;
     }
 
-    // Skip if we couldn't determine a path
-    if (!path) continue;
+    if (currentPath) {
+      const content = changeType === 'deleted' ? '' : contentLines.join('\n');
+      files.push({
+        path: currentPath,
+        changeType,
+        content,
+        additions,
+        deletions,
+      });
+    }
+  };
 
-    // Count additions and deletions, and collect content
-    let additions = 0;
-    let deletions = 0;
-    let inHunk = false;
-    const contentLines: string[] = [];
+  for (let i = 0; i < totalLines; i++) {
+    const line = lines[i];
 
-    for (const line of lines) {
-      if (line.startsWith('@@')) {
-        inHunk = true;
-        continue;
-      }
-      if (inHunk) {
-        if (line.startsWith('+') && !line.startsWith('+++')) {
-          additions++;
-          // Remove the leading '+' to get the actual content
-          contentLines.push(line.slice(1));
-        } else if (line.startsWith('-') && !line.startsWith('---')) {
-          deletions++;
-        }
-      }
+    if (line.startsWith('diff --git ')) {
+      commitFile();
+      // Reset state for new file block
+      currentPath = '';
+      fromPath = '';
+      toPath = '';
+      hasFromNull = false;
+      hasToNull = false;
+      additions = 0;
+      deletions = 0;
+      inHunk = false;
+      hasFile = true;
+      contentLines = [];
+      continue;
     }
 
-    // For deleted files, content is empty
-    const content = changeType === 'deleted' ? '' : contentLines.join('\n');
+    if (!hasFile) continue;
 
-    files.push({ path, changeType, content, additions, deletions });
+    if (line.startsWith('--- ')) {
+      const slice = line.slice(4).replace(/\r$/, '');
+      if (slice === '/dev/null') {
+        hasFromNull = true;
+        fromPath = '';
+      } else {
+        fromPath = slice.startsWith('a/') ? slice.slice(2) : slice;
+      }
+      continue;
+    }
+
+    if (line.startsWith('+++ ')) {
+      const slice = line.slice(4).replace(/\r$/, '');
+      if (slice === '/dev/null') {
+        hasToNull = true;
+        toPath = '';
+      } else {
+        toPath = slice.startsWith('b/') ? slice.slice(2) : slice;
+      }
+      continue;
+    }
+
+    if (line.startsWith('@@')) {
+      inHunk = true;
+      continue;
+    }
+
+    if (inHunk) {
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        additions++;
+        contentLines.push(line.slice(1));
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        deletions++;
+      }
+    }
   }
 
+  commitFile();
   return files;
 }
 
@@ -262,6 +320,7 @@ export class ChangeSetArtifact {
   public readonly type = 'changeSet' as const;
   public readonly source: string;
   public readonly gitPatch: GitPatch;
+  private _cachedParsed: ParsedChangeSet | null = null;
 
   constructor(source: string, gitPatch: GitPatch) {
     this.source = source;
@@ -276,24 +335,55 @@ export class ChangeSetArtifact {
    * - Determines change type (created/modified/deleted) from /dev/null markers.
    * - Counts additions (+) and deletions (-) in hunks.
    *
+   * **Performance Optimization:**
+   * - Lazy memoization caches parsed result on `_cachedParsed` to convert repeated
+   *   `parsed()` calls from O(N) diff parsing to O(1) instant returns.
+   * - Summary categorization uses a single native indexed loop instead of 3 sequential `.filter()`
+   *   scans, avoiding array allocations and reducing loop passes from 3 to 1.
+   *
    * @returns Parsed diff with file paths, change types, and line counts.
    */
   parsed(): ParsedChangeSet {
+    if (this._cachedParsed) {
+      return this._cachedParsed;
+    }
+
     if (!this.gitPatch?.unidiffPatch) {
-      return {
+      this._cachedParsed = {
         files: [],
         summary: { totalFiles: 0, created: 0, modified: 0, deleted: 0 },
       };
+      return this._cachedParsed;
     }
-    const files = parseUnidiff(this.gitPatch.unidiffPatch);
 
-    const summary = {
-      totalFiles: files.length,
-      created: files.filter((f) => f.changeType === 'created').length,
-      modified: files.filter((f) => f.changeType === 'modified').length,
-      deleted: files.filter((f) => f.changeType === 'deleted').length,
+    const files = parseUnidiff(this.gitPatch.unidiffPatch);
+    const totalFiles = files.length;
+
+    let created = 0;
+    let modified = 0;
+    let deleted = 0;
+
+    for (let i = 0; i < totalFiles; i++) {
+      const type = files[i].changeType;
+      if (type === 'created') {
+        created++;
+      } else if (type === 'modified') {
+        modified++;
+      } else if (type === 'deleted') {
+        deleted++;
+      }
+    }
+
+    this._cachedParsed = {
+      files,
+      summary: {
+        totalFiles,
+        created,
+        modified,
+        deleted,
+      },
     };
 
-    return { files, summary };
+    return this._cachedParsed;
   }
 }

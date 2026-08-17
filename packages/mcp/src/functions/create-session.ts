@@ -1,4 +1,9 @@
-import type { JulesClient, SessionConfig } from '@google/jules-sdk';
+import {
+  type JulesClient,
+  type SessionConfig,
+  validateRepository,
+  validateBranchName,
+} from '@google/jules-sdk';
 import type { CreateSessionResult, CreateSessionOptions } from './types.js';
 
 /**
@@ -12,6 +17,14 @@ export async function createSession(
   client: JulesClient,
   options: CreateSessionOptions,
 ): Promise<CreateSessionResult> {
+  // Validate inputs at the MCP function boundary (defense-in-depth)
+  if (options.repo) {
+    validateRepository(options.repo);
+  }
+  if (options.branch) {
+    validateBranchName(options.branch);
+  }
+
   // Build config - source is optional for repoless sessions
   const config: SessionConfig = {
     prompt: options.prompt,

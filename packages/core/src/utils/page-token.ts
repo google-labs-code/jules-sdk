@@ -63,9 +63,10 @@ export function isSessionFrozen(
   lastActivityCreateTime: string,
   thresholdDays = 30,
 ): boolean {
-  const lastActivity = new Date(lastActivityCreateTime);
-  const now = new Date();
-  const ageMs = now.getTime() - lastActivity.getTime();
-  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+  // Use Date.parse() instead of new Date() to avoid heap allocation.
+  const lastActivityMs = Date.parse(lastActivityCreateTime);
+  if (isNaN(lastActivityMs)) return false;
+  const ageMs = Date.now() - lastActivityMs;
+  const ageDays = ageMs / 86400000; // 86400000 ms in a day (1000 * 60 * 60 * 24)
   return ageDays > thresholdDays;
 }

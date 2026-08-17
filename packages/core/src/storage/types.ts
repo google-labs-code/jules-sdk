@@ -108,6 +108,11 @@ export interface ActivityStorage {
   append(activity: Activity): Promise<void>;
 
   /**
+   * Persists multiple activities in a single optimized operation.
+   */
+  appendMany?(activities: Activity[]): Promise<void>;
+
+  /**
    * Retrieves a specific activity by its ID.
    * @returns The activity if found, or undefined.
    */

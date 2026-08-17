@@ -13,7 +13,21 @@
 // limitations under the License.
 
 import { describe, it, expect } from 'vitest';
-import { parseGitRemoteUrl } from '../shared/auth/git.js';
+import { parseGitRemoteUrl, getGitRepoInfo } from '../shared/auth/git.js';
+
+describe('getGitRepoInfo', () => {
+  it('throws a security error if remoteName has invalid characters', async () => {
+    const oldEnv = process.env.GITHUB_REPOSITORY;
+    delete process.env.GITHUB_REPOSITORY;
+    try {
+      await expect(getGitRepoInfo('origin; rm -rf /')).rejects.toThrow(
+        'Security Error: Invalid characters in git remote name',
+      );
+    } finally {
+      process.env.GITHUB_REPOSITORY = oldEnv;
+    }
+  });
+});
 
 describe('parseGitRemoteUrl', () => {
   it('parses HTTPS URL', () => {

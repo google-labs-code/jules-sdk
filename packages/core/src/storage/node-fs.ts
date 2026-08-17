@@ -19,6 +19,7 @@ import { createReadStream, createWriteStream, WriteStream } from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
 import { Activity, SessionResource } from '../types.js';
+import { validateSessionId } from '../utils/validators.js';
 import {
   ActivityStorage,
   SessionStorage,
@@ -42,11 +43,16 @@ export class NodeFileStorage implements ActivityStorage {
   private indexBuilt = false;
   private indexBuildPromise: Promise<void> | null = null;
 
+  // In-memory cache for session metadata to prevent redundant disk I/O
+  private metadataCache: SessionMetadata | null = null;
+
   // Tracks the current file size to calculate offsets for new appends
   private currentFileSize = 0;
 
   constructor(sessionId: string, rootDir: string) {
-    const sessionCacheDir = path.resolve(rootDir, '.jules/cache', sessionId);
+    validateSessionId(sessionId);
+    const cleanId = sessionId.replace(/^sessions\//, '');
+    const sessionCacheDir = path.resolve(rootDir, '.jules/cache', cleanId);
     this.filePath = path.join(sessionCacheDir, 'activities.jsonl');
     this.metadataPath = path.join(sessionCacheDir, 'metadata.json');
   }
@@ -105,23 +111,28 @@ export class NodeFileStorage implements ActivityStorage {
     this.initialized = false;
     this.indexBuilt = false;
     this.index.clear();
+    this.metadataCache = null;
     // We do not await indexBuildPromise as we are closing.
     this.indexBuildPromise = null;
   }
 
   private async _readMetadata(): Promise<SessionMetadata> {
+    if (this.metadataCache) return this.metadataCache;
     try {
       const content = await fs.readFile(this.metadataPath, 'utf8');
-      return JSON.parse(content) as SessionMetadata;
+      this.metadataCache = JSON.parse(content) as SessionMetadata;
+      return this.metadataCache;
     } catch (e: any) {
       if (e.code === 'ENOENT') {
-        return { activityCount: 0 }; // Default if file doesn't exist
+        this.metadataCache = { activityCount: 0 };
+        return this.metadataCache; // Default if file doesn't exist
       }
       throw e;
     }
   }
 
   private async _writeMetadata(metadata: SessionMetadata): Promise<void> {
+    this.metadataCache = metadata;
     await fs.writeFile(
       this.metadataPath,
       JSON.stringify(metadata, null, 2),
@@ -161,6 +172,54 @@ export class NodeFileStorage implements ActivityStorage {
       if (this.indexBuilt || this.indexBuildPromise) {
         if (!this.index.has(activity.id)) {
           this.index.set(activity.id, startOffset);
+        }
+      }
+
+      if (!canContinue) {
+        await new Promise<void>((resolve) =>
+          this.writeStream!.once('drain', resolve),
+        );
+      }
+    } else {
+      throw new Error('NodeFileStorage: WriteStream is not initialized');
+    }
+  }
+
+  /**
+   * Appends multiple activities in a single optimized operation.
+   */
+  async appendMany(activities: Activity[]): Promise<void> {
+    if (activities.length === 0) return;
+    if (!this.initialized) await this.init();
+
+    // 1. Atomically update metadata once
+    const metadata = await this._readMetadata();
+    metadata.activityCount += activities.length;
+    await this._writeMetadata(metadata);
+
+    // 2. Append all activities in a single batch
+    let batchContent = '';
+    const startOffsets = new Array<number>(activities.length);
+    let currentOffset = this.currentFileSize;
+
+    for (let i = 0; i < activities.length; i++) {
+      const activity = activities[i];
+      const line = JSON.stringify(activity) + '\n';
+      batchContent += line;
+      startOffsets[i] = currentOffset;
+      currentOffset += Buffer.byteLength(line);
+    }
+
+    if (this.writeStream) {
+      const canContinue = this.writeStream.write(batchContent);
+      this.currentFileSize = currentOffset;
+
+      if (this.indexBuilt || this.indexBuildPromise) {
+        for (let i = 0; i < activities.length; i++) {
+          const activity = activities[i];
+          if (!this.index.has(activity.id)) {
+            this.index.set(activity.id, startOffsets[i]);
+          }
         }
       }
 
@@ -414,6 +473,10 @@ export class NodeSessionStorage implements SessionStorage {
   private indexFilePath: string;
   private initialized = false;
 
+  // In-memory caching for index file entries to avoid repeated disk reads and line-by-line parsing
+  private cachedEntries: SessionIndexEntry[] | null = null;
+  private lastMtimeMs = 0;
+
   constructor(rootDir: string) {
     this.cacheDir = path.resolve(rootDir, '.jules/cache');
     this.indexFilePath = path.join(this.cacheDir, 'sessions.jsonl');
@@ -426,7 +489,9 @@ export class NodeSessionStorage implements SessionStorage {
   }
 
   private getSessionPath(sessionId: string): string {
-    return path.join(this.cacheDir, sessionId, 'session.json');
+    validateSessionId(sessionId);
+    const cleanId = sessionId.replace(/^sessions\//, '');
+    return path.join(this.cacheDir, cleanId, 'session.json');
   }
 
   async upsert(session: SessionResource): Promise<void> {
@@ -467,8 +532,49 @@ export class NodeSessionStorage implements SessionStorage {
   }
 
   async upsertMany(sessions: SessionResource[]): Promise<void> {
-    // Parallelize file writes, sequentialize index write
-    await Promise.all(sessions.map((s) => this.upsert(s)));
+    if (sessions.length === 0) return;
+    await this.init();
+
+    const now = Date.now();
+    const indexEntries: string[] = [];
+
+    // Performance Optimization: Parallelize individual session subdirectory creations and
+    // atomic session.json file writes concurrently to maximize I/O throughput.
+    // Instead of calling upsert() which appends to the index file individually, we collect
+    // and batch all index entries to write them in a single aggregated append file call.
+    // This completely avoids lock contention and reduces file system system calls from O(N) to O(1).
+    await Promise.all(
+      sessions.map(async (session) => {
+        const sessionDir = path.join(this.cacheDir, session.id);
+        await fs.mkdir(sessionDir, { recursive: true });
+
+        const cached: CachedSession = {
+          resource: session,
+          _lastSyncedAt: now,
+        };
+
+        await fs.writeFile(
+          path.join(sessionDir, 'session.json'),
+          JSON.stringify(cached, null, 2),
+          'utf8',
+        );
+
+        const indexEntry: SessionIndexEntry = {
+          id: session.id,
+          title: session.title,
+          state: session.state,
+          createTime: session.createTime,
+          source: session.sourceContext?.source || 'unknown',
+          _updatedAt: now,
+        };
+        indexEntries.push(JSON.stringify(indexEntry) + '\n');
+      }),
+    );
+
+    // Single-pass batch append to the high-speed index file
+    if (indexEntries.length > 0) {
+      await fs.appendFile(this.indexFilePath, indexEntries.join(''), 'utf8');
+    }
   }
 
   async get(sessionId: string): Promise<CachedSession | undefined> {
@@ -483,9 +589,11 @@ export class NodeSessionStorage implements SessionStorage {
   }
 
   async delete(sessionId: string): Promise<void> {
+    validateSessionId(sessionId);
     await this.init();
     // 1. Remove the directory (Metadata + Activities + Artifacts)
-    const sessionDir = path.join(this.cacheDir, sessionId);
+    const cleanId = sessionId.replace(/^sessions\//, '');
+    const sessionDir = path.join(this.cacheDir, cleanId);
     await fs.rm(sessionDir, { recursive: true, force: true });
 
     // 2. We do NOT rewrite the index here for performance.
@@ -496,10 +604,18 @@ export class NodeSessionStorage implements SessionStorage {
   async *scanIndex(): AsyncIterable<SessionIndexEntry> {
     await this.init();
 
-    // Read the raw stream
-    // Note: In Phase 3 (Query Planner), we will optimize this to read backward
-    // or keep an in-memory map to dedupe instantly.
     try {
+      const stats = await fs.stat(this.indexFilePath);
+      const mtimeMs = stats.mtimeMs;
+
+      // If mtime matches our cache, yield from memory instantly (O(1) vs parsing file)
+      if (this.cachedEntries && this.lastMtimeMs === mtimeMs) {
+        for (const entry of this.cachedEntries) {
+          yield entry;
+        }
+        return;
+      }
+
       const fileStream = createReadStream(this.indexFilePath, {
         encoding: 'utf8',
       });
@@ -521,11 +637,19 @@ export class NodeSessionStorage implements SessionStorage {
         }
       }
 
-      for (const entry of entries.values()) {
+      const deduplicated = Array.from(entries.values());
+      this.cachedEntries = deduplicated;
+      this.lastMtimeMs = mtimeMs;
+
+      for (const entry of deduplicated) {
         yield entry;
       }
     } catch (e: any) {
-      if (e.code === 'ENOENT') return; // No index yet
+      if (e.code === 'ENOENT') {
+        this.cachedEntries = null;
+        this.lastMtimeMs = 0;
+        return; // No index yet
+      }
       throw e;
     }
   }

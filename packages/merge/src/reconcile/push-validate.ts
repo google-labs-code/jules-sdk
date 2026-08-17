@@ -15,7 +15,7 @@
 import { Octokit } from '@octokit/rest';
 import { PushInputSchema } from './schemas.js';
 import { readManifest } from './manifest.js';
-import { validateBranchName } from '../shared/validators.js';
+import { validateBranchName, validateRepository } from '../shared/validators.js';
 import { ConflictError, HardError } from '../shared/errors.js';
 import * as github from '../shared/github.js';
 import type { PushContext } from './push-types.js';
@@ -26,6 +26,7 @@ export async function validatePushInput(
 ): Promise<PushContext> {
   const input = PushInputSchema.parse(rawInput);
   validateBranchName(input.branch);
+  validateRepository(input.repo);
 
   const [owner, repo] = input.repo.split('/');
   if (!owner || !repo) {

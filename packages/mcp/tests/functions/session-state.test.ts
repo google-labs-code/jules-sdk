@@ -203,4 +203,18 @@ describe('getSessionState', () => {
     expect(result.lastActivity?.type).toBe('sessionCompleted');
     expect(result.lastAgentMessage).toBeUndefined();
   });
+
+  describe('input validation', () => {
+    it('throws validation error if session ID is invalid (contains traversal)', async () => {
+      await expect(
+        getSessionState(mockClient, '../malicious-session'),
+      ).rejects.toThrow('Session ID cannot contain slashes or backslashes');
+    });
+
+    it('throws validation error if session ID contains control characters', async () => {
+      await expect(
+        getSessionState(mockClient, 'session\x00_id'),
+      ).rejects.toThrow('Session ID contains control characters');
+    });
+  });
 });

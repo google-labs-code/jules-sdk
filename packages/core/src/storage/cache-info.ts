@@ -18,6 +18,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Activity } from '../types.js';
 import { getRootDir } from './root.js';
+import { validateSessionId } from '../utils/validators.js';
 import { GlobalCacheMetadata, SessionMetadata } from './types.js';
 
 /**
@@ -49,8 +50,10 @@ export async function getSessionCacheInfo(
   sessionId: string,
   rootDirOverride?: string,
 ): Promise<SessionCacheInfo | null> {
+  validateSessionId(sessionId);
   const rootDir = rootDirOverride ?? getRootDir();
-  const sessionDir = path.join(rootDir, '.jules/cache', sessionId);
+  const cleanId = sessionId.replace(/^sessions\//, '');
+  const sessionDir = path.join(rootDir, '.jules/cache', cleanId);
   const sessionPath = path.join(sessionDir, 'session.json');
   const metadataPath = path.join(sessionDir, 'metadata.json');
 
@@ -204,11 +207,13 @@ export async function getLatestActivities(
   n: number,
   rootDirOverride?: string,
 ): Promise<Activity[]> {
+  validateSessionId(sessionId);
   const rootDir = rootDirOverride ?? getRootDir();
+  const cleanId = sessionId.replace(/^sessions\//, '');
   const activitiesPath = path.join(
     rootDir,
     '.jules/cache',
-    sessionId,
+    cleanId,
     'activities.jsonl',
   );
 
@@ -232,19 +237,21 @@ export async function getLatestActivities(
       const chunkLines = combined.split('\n');
       tail = chunkLines.shift() || '';
 
+      // Iterate backwards through the lines in this chunk.
+      // Since we read the file backwards from the end, accumulating with push()
+      // naturally yields a newest-first order. This avoids O(N^2) unshifting overhead.
       for (let i = chunkLines.length - 1; i >= 0; i--) {
         if (chunkLines[i] && lines.length < n) {
-          lines.unshift(chunkLines[i]);
+          lines.push(chunkLines[i]);
         }
       }
     }
 
     if (lines.length < n && tail) {
-      lines.unshift(tail);
+      lines.push(tail);
     }
 
-    const finalLines = lines.slice(-n).reverse();
-    return finalLines.map((line) => JSON.parse(line));
+    return lines.map((line) => JSON.parse(line));
   } catch (e: any) {
     if (e.code === 'ENOENT') return [];
     throw e;

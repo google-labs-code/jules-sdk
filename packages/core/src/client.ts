@@ -16,6 +16,11 @@
 
 // src/client.ts
 import { ApiClient } from './api.js';
+import {
+  validateSessionId,
+  validateRepository,
+  validateBranchName,
+} from './utils/validators.js';
 import { createSourceManager } from './sources.js';
 import { join } from 'node:path';
 import { getRootDir } from './storage/root.js';
@@ -201,8 +206,8 @@ export class JulesClientImpl implements JulesClient {
         }
 
         let skipUntilPast = !!resumeFromId;
-        const highWaterMark = incremental
-          ? await this._getHighWaterMark()
+        const highWaterMarkMs = incremental
+          ? await this._getHighWaterMarkMs()
           : null;
 
         const cursor = this.sessions({
@@ -227,7 +232,10 @@ export class JulesClientImpl implements JulesClient {
             continue;
           }
 
-          if (highWaterMark && new Date(session.createTime) <= highWaterMark) {
+          if (
+            highWaterMarkMs !== null &&
+            Date.parse(session.createTime) <= highWaterMarkMs
+          ) {
             // We've reached sessions we already have cached.
             // For activities depth: include this session for hydration (to get new activities)
             // but stop iterating after - we don't need to process older sessions.
@@ -356,14 +364,18 @@ export class JulesClientImpl implements JulesClient {
     }
   }
 
-  private async _getHighWaterMark(): Promise<Date | null> {
-    let newest: Date | null = null;
+  private async _getHighWaterMarkMs(): Promise<number | null> {
+    let newestMs = 0;
     // scanIndex is the high-speed index scanner implemented in Phase 1
     for await (const entry of this.storage.scanIndex()) {
-      const date = new Date(entry.createTime);
-      if (!newest || date > newest) newest = date;
+      if (entry.createTime) {
+        const ms = Date.parse(entry.createTime);
+        if (ms > newestMs) {
+          newestMs = ms;
+        }
+      }
     }
-    return newest;
+    return newestMs > 0 ? newestMs : null;
   }
 
   /**
@@ -494,6 +506,9 @@ export class JulesClientImpl implements JulesClient {
         title: config.title,
       };
     }
+
+    validateRepository(config.source.github);
+    validateBranchName(config.source.baseBranch);
 
     const source = await this.sources.get({ github: config.source.github });
     if (!source) {
@@ -627,6 +642,7 @@ export class JulesClientImpl implements JulesClient {
     configOrId: SessionConfig | string,
   ): Promise<SessionClient> | SessionClient {
     if (typeof configOrId === 'string') {
+      validateSessionId(configOrId);
       const storage = this.storageFactory.activity(configOrId);
       return new SessionClientImpl(
         configOrId,

@@ -1,4 +1,4 @@
-import type { JulesClient } from '@google/jules-sdk';
+import { type JulesClient, validatePageToken } from '@google/jules-sdk';
 import type { ListSessionsResult, ListSessionsOptions } from './types.js';
 
 /**
@@ -12,6 +12,10 @@ export async function listSessions(
   client: JulesClient,
   options: ListSessionsOptions = {},
 ): Promise<ListSessionsResult> {
+  if (options.pageToken) {
+    validatePageToken(options.pageToken);
+  }
+
   const cursor = client.sessions({
     pageSize: options.pageSize || 10,
     pageToken: options.pageToken,
